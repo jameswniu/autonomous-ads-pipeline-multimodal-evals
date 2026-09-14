@@ -21,6 +21,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The ledger tests rebuild immutable rows from the commit that wrote
+          # races.jsonl. A shallow checkout cannot name that commit, so they would
+          # fall back to today's files and fail on the first unrelated doc edit.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:

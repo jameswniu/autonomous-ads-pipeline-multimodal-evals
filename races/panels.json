@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "notes": [
+    "README.md:230-231 defines direction-aware row wins, most rows wins, then the gate row. README.md:250,268 counts the shared scene minimum as a full win for each tied engine. No tertiary tie rule is recorded; the scorer leaves an exact gate tie unresolved. Bars are recorded context, not an additional elimination rule.",
+    "Only three panel types are declared. Brief overrides retain the different background directions in shoots/ads6-omni/panel-score.json:94,135. A null bar means the panel sources do not specify one; standalone probe thresholds are not silently added."
+  ],
+  "panels": {
+    "gesture_up": {
+      "gate": "hand_probe",
+      "rows": [
+        {
+          "probe": "hand_probe",
+          "label": "Gesture energy",
+          "direction": "up",
+          "bar": null,
+          "notes": [
+            "README.md:247 names the gesture row, its upward direction and gate; no numeric panel bar is recorded. shoots/ads6-omni/panel-score.json:6 confirms higher. probes/hand_probe.py:42 prints the gesture ratio."
+          ]
+        },
+        {
+          "probe": "bg_detail",
+          "label": "Background clutter",
+          "direction": "down",
+          "bar": 5.5,
+          "notes": [
+            "README.md:248 supplies the name, downward direction and 5.5 bar. shoots/ads6-omni/panel-score.json:12 confirms lower. probes/bg_detail.py:53 prints detail."
+          ]
+        },
+        {
+          "probe": "eye_eval",
+          "label": "Eye rejection",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "README.md:249 names eye rejection, lower, reports only; no panel bar. shoots/ads6-omni/panel-score.json:18 confirms lower. probes/eye_eval.py:191 prints the bg reading used here, not asymmetry or offset."
+          ]
+        },
+        {
+          "probe": "scene_simplicity",
+          "label": "Scene simplicity",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "README.md:250 names scene simplicity, lower, reports only; no panel bar. shoots/ads6-omni/panel-score.json:24 confirms lower. probes/scene_simplicity.py:71 prints the measurement."
+          ]
+        },
+        {
+          "probe": "level_probe",
+          "label": "Face level wander",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "README.md:251 names face level wander, lower, reports only; no panel bar. shoots/ads6-omni/panel-score.json:30 confirms lower. probes/level_probe.py:85 prints face wander, not scene or face-vs-body wander."
+          ]
+        }
+      ],
+      "notes": [
+        "README.md:243,247,268,270,272 assigns gesture upward and the gesture gate to Orchard, Harbor and Slow Road. shoots/ads6-omni/panel-score.json:6,88,129 confirms upward gesture."
+      ]
+    },
+    "clutter_down": {
+      "gate": "bg_detail",
+      "rows": [
+        {
+          "probe": "hand_probe",
+          "label": "Gesture energy",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "shoots/ads6-omni/panel-score.json:65 supplies this row and its downward direction for Lantern; no numeric panel bar is recorded there. The probe identity is the same battery as README.md:247-251; see gesture_up row notes for the code output mapping."
+          ]
+        },
+        {
+          "probe": "bg_detail",
+          "label": "Background clutter",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "shoots/ads6-omni/panel-score.json:53 supplies this row and its downward direction for Lantern; no numeric panel bar is recorded there. The probe identity is the same battery as README.md:247-251; see gesture_up row notes for the code output mapping."
+          ]
+        },
+        {
+          "probe": "eye_eval",
+          "label": "Eye rejection",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "shoots/ads6-omni/panel-score.json:47 supplies this row and its downward direction for Lantern; no numeric panel bar is recorded there. The probe identity is the same battery as README.md:247-251; see gesture_up row notes for the code output mapping."
+          ]
+        },
+        {
+          "probe": "scene_simplicity",
+          "label": "Scene simplicity",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "shoots/ads6-omni/panel-score.json:59 supplies this row and its downward direction for Lantern; no numeric panel bar is recorded there. The probe identity is the same battery as README.md:247-251; see gesture_up row notes for the code output mapping."
+          ]
+        },
+        {
+          "probe": "level_probe",
+          "label": "Face level wander",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "shoots/ads6-omni/panel-score.json:71 supplies this row and its downward direction for Lantern; no numeric panel bar is recorded there. The probe identity is the same battery as README.md:247-251; see gesture_up row notes for the code output mapping."
+          ]
+        }
+      ],
+      "notes": [
+        "README.md:269 assigns Lantern the clutter-down gate. shoots/ads6-omni/panel-score.json:47-74 supplies all five row directions, including gesture lower at line 65."
+      ]
+    },
+    "gesture_flipped": {
+      "gate": "hand_probe",
+      "rows": [
+        {
+          "probe": "hand_probe",
+          "label": "Gesture energy",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "README.md:222 says the same battery is reused and sleep flips gesture toward calm; README.md:271 records Quiet with gesture flipped. The five rows and the other downward directions are inherited from README.md:247-251, not from a missing Quiet score sheet. No Quiet-specific numeric bar is recorded. See gesture_up row notes for the code output mapping."
+          ]
+        },
+        {
+          "probe": "bg_detail",
+          "label": "Background clutter",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "README.md:222 says the same battery is reused and sleep flips gesture toward calm; README.md:271 records Quiet with gesture flipped. The five rows and the other downward directions are inherited from README.md:247-251, not from a missing Quiet score sheet. No Quiet-specific numeric bar is recorded. See gesture_up row notes for the code output mapping."
+          ]
+        },
+        {
+          "probe": "eye_eval",
+          "label": "Eye rejection",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "README.md:222 says the same battery is reused and sleep flips gesture toward calm; README.md:271 records Quiet with gesture flipped. The five rows and the other downward directions are inherited from README.md:247-251, not from a missing Quiet score sheet. No Quiet-specific numeric bar is recorded. See gesture_up row notes for the code output mapping."
+          ]
+        },
+        {
+          "probe": "scene_simplicity",
+          "label": "Scene simplicity",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "README.md:222 says the same battery is reused and sleep flips gesture toward calm; README.md:271 records Quiet with gesture flipped. The five rows and the other downward directions are inherited from README.md:247-251, not from a missing Quiet score sheet. No Quiet-specific numeric bar is recorded. See gesture_up row notes for the code output mapping."
+          ]
+        },
+        {
+          "probe": "level_probe",
+          "label": "Face level wander",
+          "direction": "down",
+          "bar": null,
+          "notes": [
+            "README.md:222 says the same battery is reused and sleep flips gesture toward calm; README.md:271 records Quiet with gesture flipped. The five rows and the other downward directions are inherited from README.md:247-251, not from a missing Quiet score sheet. No Quiet-specific numeric bar is recorded. See gesture_up row notes for the code output mapping."
+          ]
+        }
+      ],
+      "notes": [
+        "README.md:222,255,271 assigns Quiet the same battery with gesture flipped toward calm. Quiet has no recorded numeric scores; the inherited nongate rows are explicit assumptions from the common battery."
+      ]
+    }
+  },
+  "briefs": {
+    "orchard": {
+      "panel_type": "gesture_up",
+      "row_overrides": {},
+      "notes": [
+        "README.md:243,268 assigns Orchard to gesture upward."
+      ]
+    },
+    "lantern": {
+      "panel_type": "clutter_down",
+      "row_overrides": {},
+      "notes": [
+        "README.md:269 assigns Lantern to clutter down."
+      ]
+    },
+    "harbor": {
+      "panel_type": "gesture_up",
+      "row_overrides": {
+        "bg_detail": {
+          "label": "Background richness",
+          "direction": "up",
+          "bar": null,
+          "notes": [
+            "shoots/ads6-omni/panel-score.json:94 explicitly says Background richness, higher. README.md:270 rewards richest staging. The Orchard bar at README.md:248 is not specified for Harbor."
+          ]
+        }
+      },
+      "notes": [
+        "README.md:270 assigns Harbor to gesture upward."
+      ]
+    },
+    "quiet": {
+      "panel_type": "gesture_flipped",
+      "row_overrides": {},
+      "notes": [
+        "README.md:271 assigns Quiet to gesture flipped so calm wins."
+      ]
+    },
+    "slowroad": {
+      "panel_type": "gesture_up",
+      "row_overrides": {
+        "bg_detail": {
+          "label": "Background busy-ness",
+          "direction": "up",
+          "bar": null,
+          "notes": [
+            "shoots/ads6-omni/panel-score.json:135 explicitly says Background busy-ness, higher. The Orchard bar at README.md:248 is not specified for Slow Road."
+          ]
+        }
+      },
+      "notes": [
+        "README.md:272 assigns Slow Road to gesture upward."
+      ]
+    }
+  }
+}
