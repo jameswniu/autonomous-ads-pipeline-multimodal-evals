@@ -4,43 +4,39 @@
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#18181c"/><stop offset="55%" stop-color="#18181c"/><stop offset="100%" stop-color="#18181c"/>
     </linearGradient>
-    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e6e6ec" stroke-opacity=".06" stroke-width="1"/>
-    </pattern>
   </defs>
   <rect width="1200" height="460" fill="url(#bg)"/>
-  <rect width="1200" height="460" fill="url(#grid)"/>
   <rect x="0" y="0" width="1200" height="3" fill="#c9a86a" opacity=".9"/>
 
   <text x="600" y="76" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="50" font-weight="700" fill="#e6e6ec">How do you craft evals?</text>
   <text x="600" y="118" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="27" fill="#9a9ca3">Split the question in three. Each tier answers to its own source of truth.</text>
 
-  <rect x="40" y="150" width="360" height="242" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+  <rect x="40" y="150" width="360" height="242" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
   <rect x="40" y="150" width="7" height="242" rx="0" fill="#c9a86a"/>
-  <text x="222" y="192" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="24" font-weight="700" letter-spacing="2" fill="#c9a86a">PROCESS EVALS</text>
+  <text x="222" y="192" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" letter-spacing="2" fill="#c9a86a">PROCESS EVALS</text>
   <text x="222" y="234" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" fill="#e6e6ec">Did every step run,</text>
   <text x="222" y="264" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" fill="#e6e6ec">and did its gate fire?</text>
-  <text x="222" y="306" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" letter-spacing="1.5" fill="#9a9ca3">SOURCE OF TRUTH</text>
-  <text x="222" y="338" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">the pipeline graph</text>
-  <text x="222" y="372" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#c9a86a">fixed by the scripts</text>
+  <text x="222" y="306" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" letter-spacing="1.5" fill="#9a9ca3">SOURCE OF TRUTH</text>
+  <text x="222" y="338" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="27" font-weight="700" fill="#e6e6ec">the pipeline graph</text>
+  <text x="222" y="372" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#c9a86a">fixed by the scripts</text>
 
-  <rect x="420" y="150" width="360" height="242" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+  <rect x="420" y="150" width="360" height="242" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
   <rect x="420" y="150" width="7" height="242" rx="0" fill="#c9a86a"/>
-  <text x="602" y="192" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="24" font-weight="700" letter-spacing="2" fill="#c9a86a">OUTCOME EVALS</text>
+  <text x="602" y="192" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" letter-spacing="2" fill="#c9a86a">OUTCOME EVALS</text>
   <text x="602" y="234" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" fill="#e6e6ec">Is what shipped</text>
   <text x="602" y="264" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" fill="#e6e6ec">true to the facts?</text>
-  <text x="602" y="306" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" letter-spacing="1.5" fill="#9a9ca3">SOURCE OF TRUTH</text>
-  <text x="602" y="338" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">the research pass</text>
-  <text x="602" y="372" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#c9a86a">re-derived per brief</text>
+  <text x="602" y="306" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" letter-spacing="1.5" fill="#9a9ca3">SOURCE OF TRUTH</text>
+  <text x="602" y="338" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="27" font-weight="700" fill="#e6e6ec">the research pass</text>
+  <text x="602" y="372" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#c9a86a">re-derived per brief</text>
 
-  <rect x="800" y="150" width="360" height="242" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+  <rect x="800" y="150" width="360" height="242" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
   <rect x="800" y="150" width="7" height="242" rx="0" fill="#c9a86a"/>
-  <text x="982" y="192" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="24" font-weight="700" letter-spacing="2" fill="#c9a86a">QUALITY EVALS</text>
+  <text x="982" y="192" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" letter-spacing="2" fill="#c9a86a">QUALITY EVALS</text>
   <text x="982" y="234" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" fill="#e6e6ec">Does it meet the bar</text>
   <text x="982" y="264" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" fill="#e6e6ec">for this audience?</text>
-  <text x="982" y="306" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" letter-spacing="1.5" fill="#9a9ca3">SOURCE OF TRUTH</text>
-  <text x="982" y="338" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">the golden set</text>
-  <text x="982" y="372" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#c9a86a">re-derived per audience</text>
+  <text x="982" y="306" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" letter-spacing="1.5" fill="#9a9ca3">SOURCE OF TRUTH</text>
+  <text x="982" y="338" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="27" font-weight="700" fill="#e6e6ec">the golden set</text>
+  <text x="982" y="372" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#c9a86a">re-derived per audience</text>
 
-  <text x="600" y="432" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#9a9ca3">label   then   derive   then   gate   then   render   then   relabel</text>
+  <text x="600" y="432" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" fill="#9a9ca3">label   then   derive   then   gate   then   render   then   relabel</text>
 </svg>

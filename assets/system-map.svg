@@ -2,67 +2,67 @@
 <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#18181c"/><stop offset="100%" stop-color="#18181c"/></linearGradient></defs>
 <rect width="1200" height="920" fill="url(#bg)"/>
 <rect x="0" y="0" width="7" height="920" fill="#c9a86a"/>
-<text x="60" y="58" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" font-weight="700" letter-spacing="3" fill="#c9a86a">SYSTEM MAP</text>
-<text x="60" y="104" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="40" font-weight="700" fill="#e6e6ec">One loop, three tiers of gates</text>
+<text x="60" y="58" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" font-weight="700" letter-spacing="3" fill="#c9a86a">SYSTEM MAP</text>
+<text x="60" y="104" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="42" font-weight="700" fill="#e6e6ec">One loop, three tiers of gates</text>
 <text x="60" y="140" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" fill="#9a9ca3">Each step hands on a verdict. Money moves only when the tier that owns it says yes.</text>
-<rect x="720" y="36" width="420" height="52" rx="2" fill="none" stroke="#5f626a"/>
-<text x="930" y="69" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#e6e6ec">7 steps  4 guards  10 probes</text>
-<text x="60" y="196" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" font-weight="700" letter-spacing="2" fill="#c9a86a">01  THE LOOP</text>
-<text x="230" y="196" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#9a9ca3">left to right, the order it ran</text>
-<rect x="60" y="216" width="533" height="100" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+<rect x="720" y="36" width="420" height="52" rx="8" fill="none" stroke="#5f626a"/>
+<text x="930" y="69" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" fill="#e6e6ec">7 steps  4 guards  10 probes</text>
+<text x="60" y="196" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" font-weight="700" letter-spacing="2" fill="#c9a86a">01  THE LOOP</text>
+<text x="282" y="196" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" fill="#9a9ca3">left to right, the order it ran</text>
+<rect x="60" y="216" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="62.5" y1="216" x2="62.5" y2="316" stroke="#c9a86a" stroke-width="5"/>
-<text x="78" y="250" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" font-weight="700" fill="#e6e6ec">Board</text>
-<text x="78" y="278" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#9a9ca3">five mechanical checks, four eye rows</text>
-<text x="78" y="304" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#c9a86a">gates/board_probe.py</text>
-<rect x="607" y="216" width="533" height="100" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+<text x="78" y="250" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Board</text>
+<text x="78" y="278" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">five mechanical checks, four eye rows</text>
+<text x="78" y="304" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">gates/board_probe.py</text>
+<rect x="607" y="216" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="609.5" y1="216" x2="609.5" y2="316" stroke="#c9a86a" stroke-width="5"/>
-<text x="625" y="250" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" font-weight="700" fill="#e6e6ec">Render</text>
-<text x="625" y="278" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#9a9ca3">every request and landing ledgered</text>
-<text x="625" y="304" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#c9a86a">shoots/&lt;batch&gt;/*.jsonl</text>
-<rect x="60" y="330" width="533" height="100" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+<text x="625" y="250" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Render</text>
+<text x="625" y="278" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">every request and landing ledgered</text>
+<text x="625" y="304" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">shoots/&lt;batch&gt;/*.jsonl</text>
+<rect x="60" y="330" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="62.5" y1="330" x2="62.5" y2="430" stroke="#c9a86a" stroke-width="5"/>
-<text x="78" y="364" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" font-weight="700" fill="#e6e6ec">Closer</text>
-<text x="78" y="392" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#9a9ca3">identity pin, prop gate, jaw measured</text>
-<text x="78" y="418" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#c9a86a">guards/, gates/source_gate.py</text>
-<rect x="607" y="330" width="533" height="100" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+<text x="78" y="364" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Closer</text>
+<text x="78" y="392" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">identity pin, prop gate, jaw measured</text>
+<text x="78" y="418" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">guards/, gates/source_gate.py</text>
+<rect x="607" y="330" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="609.5" y1="330" x2="609.5" y2="430" stroke="#c9a86a" stroke-width="5"/>
-<text x="625" y="364" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" font-weight="700" fill="#e6e6ec">Build</text>
-<text x="625" y="392" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#9a9ca3">closer placed within 40 ms</text>
-<text x="625" y="418" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#c9a86a">shoots/build-ad.sh</text>
-<rect x="60" y="444" width="533" height="100" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+<text x="625" y="364" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Build</text>
+<text x="625" y="392" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">closer placed within 40 ms</text>
+<text x="625" y="418" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">shoots/build-ad.sh</text>
+<rect x="60" y="444" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="62.5" y1="444" x2="62.5" y2="544" stroke="#c9a86a" stroke-width="5" stroke-dasharray="10 4 3 4"/>
-<text x="78" y="478" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" font-weight="700" fill="#e6e6ec">Ad gates</text>
-<text x="78" y="506" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#9a9ca3">captions say what is spoken</text>
-<text x="78" y="532" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#c9a86a">gates/ad_gates.sh</text>
-<rect x="607" y="444" width="533" height="100" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+<text x="78" y="478" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Ad gates</text>
+<text x="78" y="506" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">captions say what is spoken</text>
+<text x="78" y="532" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">gates/ad_gates.sh</text>
+<rect x="607" y="444" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="609.5" y1="444" x2="609.5" y2="544" stroke="#c9a86a" stroke-width="5"/>
-<text x="625" y="478" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" font-weight="700" fill="#e6e6ec">Ship gate</text>
-<text x="625" y="506" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#9a9ca3">loudness, tail, fails closed</text>
-<text x="625" y="532" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#c9a86a">guards/ship_gate.sh</text>
-<rect x="60" y="558" width="533" height="100" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+<text x="625" y="478" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Ship gate</text>
+<text x="625" y="506" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">loudness, tail, fails closed</text>
+<text x="625" y="532" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">guards/ship_gate.sh</text>
+<rect x="60" y="558" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="62.5" y1="558" x2="62.5" y2="658" stroke="#c9a86a" stroke-width="5"/>
-<text x="78" y="592" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" font-weight="700" fill="#e6e6ec">Deliver</text>
-<text x="78" y="620" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#9a9ca3">withdrawn and replaced on record</text>
-<text x="78" y="646" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#c9a86a">shoots/&lt;batch&gt;/landings.jsonl</text>
-<text x="60" y="706" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" font-weight="700" letter-spacing="2" fill="#c9a86a">02  WHO OWNS THE GATE</text>
-<text x="370" y="706" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#9a9ca3">each tier answers to its own source of truth</text>
-<rect x="60" y="726" width="352" height="150" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+<text x="78" y="592" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Deliver</text>
+<text x="78" y="620" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">withdrawn and replaced on record</text>
+<text x="78" y="646" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">shoots/&lt;batch&gt;/landings.jsonl</text>
+<text x="60" y="706" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" font-weight="700" letter-spacing="2" fill="#c9a86a">02  WHO OWNS THE GATE</text>
+<text x="436" y="706" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="23" fill="#9a9ca3">each tier answers to its own source of truth</text>
+<rect x="60" y="726" width="352" height="150" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="62.5" y1="726" x2="62.5" y2="876" stroke="#c9a86a" stroke-width="5"/>
-<text x="78" y="762" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="24" font-weight="700" letter-spacing="2" fill="#c9a86a">PROCESS</text>
-<text x="78" y="796" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#e6e6ec">board probe, pre-spend</text>
-<text x="78" y="828" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#e6e6ec">identity pin, prop gate</text>
-<text x="78" y="860" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#e6e6ec">closer drift, ship gate</text>
-<rect x="426" y="726" width="352" height="150" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+<text x="78" y="762" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" letter-spacing="2" fill="#c9a86a">PROCESS</text>
+<text x="78" y="796" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#e6e6ec">board probe, pre-spend</text>
+<text x="78" y="828" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#e6e6ec">identity pin, prop gate</text>
+<text x="78" y="860" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#e6e6ec">closer drift, ship gate</text>
+<rect x="426" y="726" width="352" height="150" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="428.5" y1="726" x2="428.5" y2="876" stroke="#c9a86a" stroke-width="5" stroke-dasharray="10 6"/>
-<text x="444" y="762" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="24" font-weight="700" letter-spacing="2" fill="#c9a86a">OUTCOME</text>
-<text x="444" y="796" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#e6e6ec">captions vs spoken words</text>
-<text x="444" y="828" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#e6e6ec">script vs the voice</text>
-<text x="444" y="860" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#e6e6ec">claims vs the live page</text>
-<rect x="792" y="726" width="352" height="150" rx="2" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
+<text x="444" y="762" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" letter-spacing="2" fill="#c9a86a">OUTCOME</text>
+<text x="444" y="796" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#e6e6ec">captions vs spoken words</text>
+<text x="444" y="828" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#e6e6ec">script vs the voice</text>
+<text x="444" y="860" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#e6e6ec">claims vs the live page</text>
+<rect x="792" y="726" width="352" height="150" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="794.5" y1="726" x2="794.5" y2="876" stroke="#c9a86a" stroke-width="5" stroke-dasharray="3 5"/>
-<text x="810" y="762" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="24" font-weight="700" letter-spacing="2" fill="#c9a86a">QUALITY</text>
-<text x="810" y="796" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#e6e6ec">five probes per audience</text>
-<text x="810" y="828" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#e6e6ec">thresholds from labels</text>
-<text x="810" y="860" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" fill="#e6e6ec">judge flags, eye rules</text>
+<text x="810" y="762" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="25" font-weight="700" letter-spacing="2" fill="#c9a86a">QUALITY</text>
+<text x="810" y="796" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#e6e6ec">five probes per audience</text>
+<text x="810" y="828" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#e6e6ec">thresholds from labels</text>
+<text x="810" y="860" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#e6e6ec">judge flags, eye rules</text>
 <text x="600.0" y="906" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="22" fill="#9a9ca3">python3 tools/render_map.py --check   regenerates and compares this figure in CI</text>
 </svg>

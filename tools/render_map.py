@@ -64,44 +64,44 @@ def render():
     o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-label="System map: one loop of seven steps, board, render, closer, build, ad gates, ship gate, deliver, and the three tiers of evals that own the gates at each step.">',
          '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#18181c"/><stop offset="100%" stop-color="#18181c"/></linearGradient></defs>',
          f'<rect width="{W}" height="{H}" fill="url(#bg)"/>', f'<rect x="0" y="0" width="7" height="{H}" fill="{BRASS}"/>']
-    o.append(text(60, 58, "SYSTEM MAP", 22, BRASS, bold=True, mono=True, spacing=3))
-    o.append(text(60, 104, "One loop, three tiers of gates", 40, PALE, bold=True))
+    o.append(text(60, 58, "SYSTEM MAP", 23, BRASS, bold=True, spacing=3))
+    o.append(text(60, 104, "One loop, three tiers of gates", 42, PALE, bold=True))
     o.append(text(60, 140, "Each step hands on a verdict. Money moves only when the tier that owns it says yes.", 23, DIM))
     fits("Each step hands on a verdict. Money moves only when the tier that owns it says yes.", 23, W - 120, pad=0)
     # stat box
-    o.append(f'<rect x="{W-480}" y="36" width="420" height="52" rx="2" fill="none" stroke="{EDGE}"/>')
-    o.append(text(W - 270, 69, "7 steps  4 guards  10 probes", 22, PALE, mono=True, anchor="middle"))
-    fits("7 steps  4 guards  10 probes", 22, 420, mono=True)
+    o.append(f'<rect x="{W-480}" y="36" width="420" height="52" rx="8" fill="none" stroke="{EDGE}"/>')
+    o.append(text(W - 270, 69, "7 steps  4 guards  10 probes", 23, PALE, anchor="middle"))
+    fits("7 steps  4 guards  10 probes", 23, 420)
     # section 01
-    o.append(text(60, 196, "01  THE LOOP", 22, BRASS, bold=True, mono=True, spacing=2))
-    o.append(text(230, 196, "left to right, the order it ran", 22, DIM))
+    o.append(text(60, 196, "01  THE LOOP", 23, BRASS, bold=True, spacing=2))
+    o.append(text(282, 196, "left to right, the order it ran", 23, DIM))
     cw, ch, gap, x0 = 533, 100, 14, 60
     for i, (title, detail, foot, tier) in enumerate(STEPS):
         color, dash = style_of(tier)
         row, col = divmod(i, 2)
         x = x0 + col * (cw + gap)
         y = 216 + row * (ch + gap)
-        for s, sz, b, m in ((title, 24, True, False), (detail, 22, False, False), (foot, 22, False, True)):
+        for s, sz, b, m in ((title, 26, True, False), (detail, 24, False, False), (foot, 23, False, True)):
             fits(s, sz, cw, bold=b, mono=m)
-        o.append(f'<rect x="{x}" y="{y}" width="{cw}" height="{ch}" rx="2" fill="#202024" fill-opacity="1" stroke="{EDGE}"/>')
+        o.append(f'<rect x="{x}" y="{y}" width="{cw}" height="{ch}" rx="8" fill="#202024" fill-opacity="1" stroke="{EDGE}"/>')
         o.append(bar(x, y, ch, color, dash))
-        o.append(text(x + 18, y + 34, title, 24, PALE, bold=True))
-        o.append(text(x + 18, y + 62, detail, 22, DIM))
-        o.append(text(x + 18, y + 88, foot, 22, color, mono=True))
+        o.append(text(x + 18, y + 34, title, 26, PALE, bold=True))
+        o.append(text(x + 18, y + 62, detail, 24, DIM))
+        o.append(text(x + 18, y + 88, foot, 23, color, mono=True))
     # section 02
-    o.append(text(60, 706, "02  WHO OWNS THE GATE", 22, BRASS, bold=True, mono=True, spacing=2))
-    o.append(text(370, 706, "each tier answers to its own source of truth", 22, DIM))
+    o.append(text(60, 706, "02  WHO OWNS THE GATE", 23, BRASS, bold=True, spacing=2))
+    o.append(text(436, 706, "each tier answers to its own source of truth", 23, DIM))
     tw, th, tx0, ty = 352, 150, 60, 726
     for i, (name, tier, lines) in enumerate(TIERS):
         color, dash = TIER_STYLE[tier]
         x = tx0 + i * (tw + 14)
-        o.append(f'<rect x="{x}" y="{ty}" width="{tw}" height="{th}" rx="2" fill="#202024" fill-opacity="1" stroke="{EDGE}"/>')
+        o.append(f'<rect x="{x}" y="{ty}" width="{tw}" height="{th}" rx="8" fill="#202024" fill-opacity="1" stroke="{EDGE}"/>')
         o.append(bar(x, ty, th, color, dash))
-        fits(name, 24, tw, bold=True, mono=True)
-        o.append(text(x + 18, ty + 36, name, 24, color, bold=True, mono=True, spacing=2))
+        fits(name, 25, tw, bold=True)
+        o.append(text(x + 18, ty + 36, name, 25, color, bold=True, spacing=2))
         for j, ln in enumerate(lines):
-            fits(ln, 22, tw)
-            o.append(text(x + 18, ty + 70 + j * 32, ln, 22, PALE))
+            fits(ln, 24, tw)
+            o.append(text(x + 18, ty + 70 + j * 32, ln, 24, PALE))
     o.append(text(W / 2, H - 14, "python3 tools/render_map.py --check   regenerates and compares this figure in CI", 22, DIM, mono=True, anchor="middle"))
     o.append("</svg>")
     return "\n".join(o) + "\n"
