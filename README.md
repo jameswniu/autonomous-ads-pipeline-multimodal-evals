@@ -294,6 +294,8 @@ The same four engines shot Quiet Hours, a brief that sells permission to rest, a
 | Quiet Hours | Permission to rest, gesture flipped so calm wins | [HeyGen, the premium baseline](#winner-quiet) | Sweeps the four calm rows. This is where the router pays up |
 | Slow Road Travel | Wanderlust, gesture upward | [Seedance 2.0](#winner-slowroad) | Three rows: cleanest eye read, calmest frame, steadiest face against Wan's bigger motion |
 
+Orchard is the one race in this table with every probe value on the ledger, and its winner reproduces from the numbers. The other four winners are hand calls made at the time, held in `races/races.jsonl` as `recorded_winner` with no probe scores recorded behind them, so their Why column is the reasoning that was written down and not a score anyone can re-run.
+
 No engine sweeps the catalogue, which is the whole case for routing instead of standardising on a favourite.
 
 - Wan 3.0 takes the spots that turn on legible story text and composed calm.
