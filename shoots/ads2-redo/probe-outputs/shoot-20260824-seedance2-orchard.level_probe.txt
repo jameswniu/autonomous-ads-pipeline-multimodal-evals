@@ -1,0 +1,1 @@
+LEVEL WANDERING: bright at 125.9 | face 114.5 (<=8.0) | scene 104.9 (<=5.0) | face-vs-body 149.3 (<=12.5)

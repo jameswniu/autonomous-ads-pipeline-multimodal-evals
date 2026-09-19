@@ -1,0 +1,1 @@
+LEVEL WANDERING: mid at 72.5 | face 96.9 (<=8.0) | scene 146.5 (<=5.0) | face-vs-body 72.0 (<=12.5)

@@ -1,0 +1,1 @@
+LEVEL WANDERING: dim at 65.8 | face 128.9 (<=8.0) | scene 93.9 (<=5.0) | face-vs-body 115.1 (<=12.5)

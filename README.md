@@ -103,7 +103,7 @@ Process evals check how the work got made, before anyone looks at the result. Th
 Four invented-brand spots were shot again after I kept rejecting boards. I review every cut by eye, and I am the only human in the loop.
 
 - The grammar that survived is the one I named. Open absurd at three or four times the volume, hand over the coherent model by the second line, and keep every quirk visual with nobody narrating it.
-- Each spot shipped two ways. One leg ran on the engine that won its panel in the four-engine race in section 3, the other on Omni Flash, from the same boards, narrations, closers, beds and captions. The only variable between the columns is the engine.
+- Each spot shipped two ways. One leg ran on the engine that won its panel in the four-engine race in section 3, the other on Omni Flash, from the same boards, narrations, closers, beds and captions. The only variable between the columns is the engine. The 2026-09-19 rescore later overturned the Lantern, Harbor and Slow Road winners, so those three legs turn out to have raced the eye's pick rather than the panel's, Wan 3.0 for the first two and Seedance 2.0 for the third. The redo's own scores in the ledger are unchanged.
 - The [ledgers](shoots/) hold four rounds behind them, 16, 16, 12 and 15 engine requests, 59 in all, two of them music beds, for eight shipped versions.
 - Two of those rounds built four masters each and neither shipped.
 
@@ -124,21 +124,21 @@ Four invented-brand spots were shot again after I kept rejecting boards. I revie
 
 <table>
   <tr>
-    <td width="50%" align="center" valign="top"><div><a name="winner-lantern"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-lantern.gif" alt="Lantern Street redone, Wan 3.0" width="100%"><br><b>Lantern Street, Wan 3.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-lantern.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><div><a name="winner-lantern"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-lantern.gif" alt="Lantern Street redone, Wan 3.0" width="100%"><br><b>Lantern Street, Wan 3.0.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-lantern.mp4">&#9654; with sound</a></td>
     <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-lantern.gif" alt="Lantern Street redone, Omni Flash" width="100%"><br><b>Lantern Street, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-lantern.mp4">&#9654; with sound</a></td>
   </tr>
 </table>
 
 <table>
   <tr>
-    <td width="50%" align="center" valign="top"><div><a name="winner-harbor"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-harbor.gif" alt="Harbor Lane Realty redone, Wan 3.0" width="100%"><br><b>Harbor Lane Realty, Wan 3.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-harbor.mp4">&#9654; with sound</a></td>
-    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-harbor.gif" alt="Harbor Lane Realty redone, Omni Flash" width="100%"><br><b>Harbor Lane Realty, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-harbor.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-harbor.gif" alt="Harbor Lane Realty redone, Wan 3.0" width="100%"><br><b>Harbor Lane Realty, Wan 3.0.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-harbor.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><div><a name="winner-harbor"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-harbor.gif" alt="Harbor Lane Realty redone, Omni Flash" width="100%"><br><b>Harbor Lane Realty, Omni Flash, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-harbor.mp4">&#9654; with sound</a></td>
   </tr>
 </table>
 
 <table>
   <tr>
-    <td width="50%" align="center" valign="top"><div><a name="winner-slowroad"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-seedance2-slowroad.gif" alt="Slow Road Travel redone, Seedance 2.0" width="100%"><br><b>Slow Road Travel, Seedance 2.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-seedance2-slowroad.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><div><a name="winner-slowroad"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-seedance2-slowroad.gif" alt="Slow Road Travel redone, Seedance 2.0" width="100%"><br><b>Slow Road Travel, Seedance 2.0.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-seedance2-slowroad.mp4">&#9654; with sound</a></td>
     <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-slowroad.gif" alt="Slow Road Travel redone, Omni Flash" width="100%"><br><b>Slow Road Travel, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-slowroad.mp4">&#9654; with sound</a></td>
   </tr>
 </table>
@@ -286,22 +286,22 @@ The same four engines shot Quiet Hours, a brief that sells permission to rest, a
   </tr>
 </table>
 
-| Spot | The feeling it sells, and the row that gates | WINNER | Why |
-|:---|:---|:---|:---|
-| Orchard Hill Coffee | Morning craving, gesture energy upward | [Seedance 2.0](#winner-orchard) | Three rows: cleanest eye read, steadiest face, tie for calmest scene |
-| Lantern Street | Three a.m. relief, clutter down | [Wan 3.0](#winner-lantern) | Three rows: calmest scene, steadiest face, the only system banner legible on the phone |
-| Harbor Lane Realty | Neighborhood warmth, gesture upward | [Wan 3.0](#winner-harbor) | Three-way tie on rows, so the gated row decides: biggest wave, richest staging |
-| Quiet Hours | Permission to rest, gesture flipped so calm wins | [HeyGen, the premium baseline](#winner-quiet) | Sweeps the four calm rows. This is where the router pays up |
-| Slow Road Travel | Wanderlust, gesture upward | [Seedance 2.0](#winner-slowroad) | Three rows: cleanest eye read, calmest frame, steadiest face against Wan's bigger motion |
+| Spot | The feeling it sells, and the row that gates | Eye at the time | WINNER | Why the panel says so |
+|:---|:---|:---|:---|:---|
+| Orchard Hill Coffee | Morning craving, gesture energy upward | Seedance 2.0 | [Seedance 2.0](#winner-orchard) | Three rows: cleanest eye read, steadiest face, tie for calmest scene |
+| Lantern Street | Three a.m. relief, clutter down | Wan 3.0 | [HeyGen](#winner-lantern) | Two rows, the calmest background and the calmest scene, against one row each for the other three |
+| Harbor Lane Realty | Neighborhood warmth, gesture upward | Wan 3.0 | [Omni Flash](#winner-harbor) | Two rows, the cleanest eye read and the calmest scene, against one row each for the other three |
+| Quiet Hours | Permission to rest, gesture flipped so calm wins | HeyGen | [HeyGen](#winner-quiet) | Sweeps the four calm rows. This is where the router pays up |
+| Slow Road Travel | Wanderlust, gesture upward | Seedance 2.0 | [Wan 3.0](#winner-slowroad) | Two rows each with Seedance, so the gated row decides it, gesture 0.919 against 0.721 |
 
-Orchard is the one race in this table with every probe value on the ledger, and its winner reproduces from the numbers. The other four winners are hand calls made at the time, held in `races/races.jsonl` as `recorded_winner` with no probe scores recorded behind them, so their Why column is the reasoning that was written down and not a score anyone can re-run.
+All five races were scored from the released masters on 2026-09-19, and every probe value now sits on the ledger under the `ads2-rescore` cohort. The panel agreed with the eye on Orchard and Quiet and overturned it on Lantern, Harbor and Slow Road. Both calls are kept, the hand call still as `recorded_winner` and now with `agrees` false, beside the numbers that beat it. The WINNER column is the panel's answer, because the panel is the router.
 
 No engine sweeps the catalogue, which is the whole case for routing instead of standardising on a favourite.
 
-- Wan 3.0 takes the spots that turn on legible story text and composed calm.
-- Seedance 2.0 takes the ones that turn on clean eyes and a steady face.
-- The sleep brand routes to the premium baseline.
-- Omni Flash wins no panel here and keeps its seat anyway, for native ambient audio and the freest human motion.
+- Seedance 2.0 takes Orchard, on clean eyes and a steady face.
+- HeyGen, the premium baseline, takes both calm briefs, Lantern and Quiet.
+- Omni Flash takes Harbor, where a clean read and a calm frame beat the richest staging.
+- Wan 3.0 takes Slow Road, on the gate, with the biggest gesture in the pool.
 - Scored again after the redo, the router's answer became Orchard to Omni Flash, Lantern to Wan 3.0, Harbor to Omni Flash and Slow Road to Seedance 2.0. Omni pays its way where a clean frame beats the biggest gesture.
 - The race is fair by construction, because the three challengers sit in one price class. A four-deep pool per spot costs a few dollars, so a platform can serve each user the version that user responds to.
 - All twenty versions are in the [media release](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/tag/media-2026-08).

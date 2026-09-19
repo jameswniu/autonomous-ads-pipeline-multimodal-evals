@@ -1,0 +1,1 @@
+BG SIMPLE: detail 3.19 (max 5.5; my passes 3.61-4.27, my rejects 7.05-12.06)

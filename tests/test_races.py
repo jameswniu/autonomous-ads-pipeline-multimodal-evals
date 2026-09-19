@@ -17,8 +17,8 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from backfill_races import (EXTERNAL_PROVENANCE_LABEL, Sources, _load_scorer, append_rows,
-                            baseline_cost, build_rows)
+from backfill_races import (EXTERNAL_PROVENANCE_LABEL, PATTERNS, Sources, _load_scorer,
+                            append_rows, baseline_cost, build_rows)
 from score_race import resolve_panel, score_race  # noqa: E402
 
 
@@ -170,6 +170,13 @@ def test_scorer_reproduces_every_hand_winner_with_scores():
         "race:ads6-omni:lantern": ("wan3", True),
         "race:ads6-omni:harbor": ("omni", True),
         "race:ads6-omni:slowroad": ("seedance2", True),
+        # The 2026-09-19 rescore, measured from the released masters. Three of the
+        # five hand calls do not survive it, and the ledger records both answers.
+        "race:ads2-rescore:orchard": ("seedance2", True),
+        "race:ads2-rescore:lantern": ("heygen", False),
+        "race:ads2-rescore:harbor": ("omni", False),
+        "race:ads2-rescore:quiet": ("heygen", True),
+        "race:ads2-rescore:slowroad": ("wan3", False),
     }
     complete = {}
     for race_id, race in races.items():
@@ -215,36 +222,104 @@ def test_incomplete_hand_races_are_recorded_not_invented():
     assert races["race:ads2-redo:quiet"]["recorded_winner"] == "heygen"
 
 
-def test_backfill_is_idempotent(tmp_path):
-    output = tmp_path / "races.jsonl"
+def _ledger_version(repo, revision, ledger="races/races.jsonl"):
+    """That revision's ledger bytes, or empty when the revision does not have one."""
+    shown = _git(repo, "show", f"{revision}:{ledger}")
+    return shown.stdout if shown.returncode == 0 else b""
+
+
+def _ledger_commits(repo, ledger="races/races.jsonl"):
+    """Every commit that changed the ledger, oldest first.
+
+    Empty only when history is truncated, on exactly the reasoning in
+    ledger_build_root: a shallow clone cannot say which commit wrote which rows and
+    must not pretend to. Anything else that stops git answering is an assertion,
+    because a listing that silently comes back empty is a test that checks nothing.
+    """
+    shallow = _git(repo, "rev-parse", "--is-shallow-repository", text=True)
+    if shallow.returncode or shallow.stdout.strip() != "false":
+        return []
+    listing = _git(repo, "log", "--format=%H", "--reverse", ledger, text=True)
+    assert listing.returncode == 0, listing.stderr
+    return listing.stdout.split()
+
+
+def test_every_ledger_commit_reproduces_its_own_rows(tmp_path):
+    """Each commit's rows rebuild from that commit's own tree, and only its own rows.
+
+    Rebuilding the whole ledger from one pinned commit answered "does this
+    reproduce" only while a single commit had written every row. The moment a
+    second append lands, the earlier rows pin the hashes their sources had at the
+    earlier commit, and no later tree can reproduce them. Regenerating them to
+    match would rewrite the evidence the ledger exists to keep.
+
+    So each commit is asked about its own additions and nothing else. Extract its
+    tree, seed a scratch ledger with its parent's bytes, run the current backfill
+    against that tree, and require the bytes it appends to be exactly the bytes
+    that commit added. The concatenation of those verified additions is the
+    committed ledger, which is the assertion at the end.
+    """
+    commits = _ledger_commits(ROOT)
+    if not commits:
+        return  # truncated history is not history
     env = dict(os.environ)
     env.pop("RACE_BASELINE_PROVENANCE", None)
-    args = [
-        sys.executable,
-        str(ROOT / "tools/backfill_races.py"),
-        # The last assertion compares against the committed ledger, so the run has to
-        # read the tree that ledger was built from. Against today's files it would
-        # fail on the first unrelated README edit.
-        "--root",
-        str(ledger_build_root(ROOT, tmp_path)),
-        "--output",
-        str(output),
-    ]
-    first = subprocess.run(args, cwd=ROOT, env=env, capture_output=True, text=True, check=True)
-    first_result = json.loads(first.stdout)
-    first_bytes = output.read_bytes()
-    second = subprocess.run(args, cwd=ROOT, env=env, capture_output=True, text=True, check=True)
-    second_result = json.loads(second.stdout)
+    reproduced = b""
+    checked = 0
+    for number, revision in enumerate(commits, 1):
+        identifiers = _git(ROOT, "rev-list", "-1", "--parents", revision, text=True).stdout.split()
+        before = _ledger_version(ROOT, identifiers[1]) if len(identifiers) > 1 else b""
+        content = _ledger_version(ROOT, revision)
+        reproduced = content
+        if not content.startswith(before):
+            # A merge may legitimately interleave two branches' rows rather than
+            # extend one. assert_ledger_only_grew is what checks that case.
+            continue
+        tree = tmp_path / f"tree-{number}"
+        tree.mkdir()
+        _extract_tree(ROOT, revision, tree)
+        output = tmp_path / f"ledger-{number}.jsonl"
+        output.write_bytes(before)
+        run = subprocess.run(
+            [sys.executable, str(ROOT / "tools/backfill_races.py"),
+             "--root", str(tree), "--output", str(output)],
+            cwd=ROOT, env=env, capture_output=True, text=True)
+        assert run.returncode == 0, f"{revision}: {run.stdout}{run.stderr}"
+        rebuilt = output.read_bytes()
+        assert rebuilt[:len(before)] == before, f"{revision} rewrote rows it inherited"
+        assert rebuilt[len(before):] == content[len(before):], (
+            f"{revision} did not reproduce its own rows from its own tree")
+        assert any(item["item"] == EXTERNAL_PROVENANCE_LABEL
+                   for item in json.loads(run.stdout)["skipped"])
+        checked += 1
+    assert checked, "no ledger commit was verified"
+    assert reproduced == _ledger_version(ROOT, "HEAD")
 
-    assert first_result["appended"] == {
-        "race_rows": 9, "render_rows": 28, "unchanged_rows": 0,
-    }
-    assert second_result["appended"] == {
-        "race_rows": 0, "render_rows": 0, "unchanged_rows": 37,
-    }
-    assert output.read_bytes() == first_bytes
-    assert first_bytes == (ROOT / "races/races.jsonl").read_bytes()
-    assert any(item["item"] == EXTERNAL_PROVENANCE_LABEL for item in first_result["skipped"])
+
+def test_backfill_against_the_current_tree_appends_nothing(tmp_path):
+    """Every cohort on the ledger is evidence, so a rerun against today's tree has no work.
+
+    This is the half the per-commit check cannot see. That one proves each commit
+    reproduces; this one proves the tool, run now, neither rebuilds what is already
+    recorded nor quietly proposes a changed version of it.
+    """
+    output = tmp_path / "races.jsonl"
+    committed = (ROOT / "races/races.jsonl").read_bytes()
+    output.write_bytes(committed)
+    env = dict(os.environ)
+    env.pop("RACE_BASELINE_PROVENANCE", None)
+    args = [sys.executable, str(ROOT / "tools/backfill_races.py"),
+            "--root", str(ROOT), "--output", str(output)]
+    for _ in range(2):
+        run = subprocess.run(args, cwd=ROOT, env=env, capture_output=True, text=True, check=True)
+        result = json.loads(run.stdout)
+        assert result["appended"] == {"race_rows": 0, "render_rows": 0, "unchanged_rows": 0}
+        assert result["render_rows"] == 0 and result["race_rows"] == 0
+        cohorts = {item["item"]: item["reason"] for item in result["skipped"]
+                   if item["item"].startswith("cohort ")}
+        assert set(cohorts) == {"cohort ads2-redo", "cohort ads6-omni", "cohort ads2-rescore"}
+        assert all("already in the ledger" in reason for reason in cohorts.values())
+        assert output.read_bytes() == committed
 
 
 def test_failed_append_rolls_back_and_retry_is_idempotent(tmp_path):
@@ -288,8 +363,10 @@ main(sys.argv[1:])
     assert len([json.loads(line) for line in after.splitlines()]) == 38
 
     repeated = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=True)
+    # Nothing is unchanged because nothing was offered: the retry found both cohorts
+    # already on this ledger and did not rebuild them.
     assert json.loads(repeated.stdout)["appended"] == {
-        "race_rows": 0, "render_rows": 0, "unchanged_rows": 37,
+        "race_rows": 0, "render_rows": 0, "unchanged_rows": 0,
     }
     assert output.read_bytes() == after
 
@@ -351,8 +428,10 @@ main(sys.argv[1:])
     assert after == clean.read_bytes()
 
     repeated = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=True)
+    # Nothing is unchanged because nothing was offered: the retry found both cohorts
+    # already on this ledger and did not rebuild them.
     assert json.loads(repeated.stdout)["appended"] == {
-        "race_rows": 0, "render_rows": 0, "unchanged_rows": 37,
+        "race_rows": 0, "render_rows": 0, "unchanged_rows": 0,
     }
     assert output.read_bytes() == after
 
@@ -633,10 +712,52 @@ def test_the_committed_ledger_has_only_ever_grown():
     assert_ledger_only_grew(ROOT)
 
 
-def test_checked_in_ledger_is_exact_backfill(tmp_path):
-    with patch.dict(os.environ, {"RACE_BASELINE_PROVENANCE": ""}):
-        expected, _skipped = build_rows(ledger_build_root(ROOT, tmp_path))
-    assert ledger_rows() == expected
+def test_rescore_probe_values_are_the_committed_probe_outputs():
+    """Every rescore reading is parsed from a file in the repository, not asserted.
+
+    The whole point of the cohort is that its numbers can be re-derived. So each
+    measurement has to name exactly one saved output, that file has to be the one
+    belonging to this render's master, its digest has to match, and the value on
+    the row has to be what the probe's own pattern reads out of it.
+    """
+    renders = [row for row in ledger_rows()
+               if row["row_type"] == "render" and row["shoot"] == "ads2-rescore"]
+    assert len(renders) == 20
+    for render in renders:
+        assert set(render["probes"]) == set(PATTERNS)
+        tag = "a0" if render["engine"] == "heygen" else render["engine"]
+        assert render["master"] == f"shoot-20260824-{tag}-{render['brief_id']}.mp4"
+        for probe, measurement in render["probes"].items():
+            outputs = [source for source in measurement["sources"]
+                       if source["path"].startswith("shoots/ads2-redo/probe-outputs/")]
+            assert len(outputs) == 1, (render["id"], probe)
+            path = ROOT / outputs[0]["path"]
+            assert path.name == f"{Path(render['master']).stem}.{probe}.txt"
+            assert outputs[0]["sha256"] == sha256(path)
+            match = re.search(PATTERNS[probe], path.read_text(), re.M)
+            assert match, f"{path} carries no {probe} value"
+            assert measurement["value"] == float(match.group(1)), (render["id"], probe)
+
+
+def test_rescore_rows_claim_no_hand_transcription():
+    """A reading nobody wrote down by hand cannot report agreement with one.
+
+    panel_score_agrees exists to say whether a transcription matched the saved
+    output. The rescore read the output and only the output, so the honest record
+    is an absent field rather than a null that reads like a failed comparison.
+    """
+    rescore = [row for row in ledger_rows() if row.get("shoot") == "ads2-rescore"]
+    assert len(rescore) == 25
+    for row in rescore:
+        for probe, measurement in row.get("probes", {}).items():
+            assert "panel_score_value" not in measurement, (row["id"], probe)
+            assert "panel_score_agrees" not in measurement, (row["id"], probe)
+        assert "panel_score_value" not in json.dumps(row), row["id"]
+    # And the cohort that did transcribe by hand still records the comparison.
+    redo = [row for row in ledger_rows() if row.get("shoot") == "ads6-omni"
+            and row["row_type"] == "render"]
+    assert redo and all("panel_score_agrees" in measurement
+                        for row in redo for measurement in row["probes"].values())
 
 
 def test_scorer_comes_from_the_tree_whose_hash_is_recorded(tmp_path):
@@ -896,10 +1017,18 @@ def test_ledger_source_paths_are_relative_to_repository():
                 check(item)
     rows = ledger_rows()
     check(rows)
-    baseline_renders = [row for row in rows if row.get("engine") == "heygen"]
+    # The baseline rows that carry the batch cost are the ones that have to cite the
+    # external evidence generically. The rescore cohort's baseline rows carry no cost
+    # at all, so they have no such source to cite and must not invent one.
+    baseline_renders = [row for row in rows
+                       if row.get("engine") == "heygen" and row.get("shoot") == "ads2-redo"]
     assert len(baseline_renders) == 5
     for row in baseline_renders:
         assert {"label": EXTERNAL_PROVENANCE_LABEL} in row["sources"]
+    for row in rows:
+        if row.get("engine") == "heygen" and row.get("shoot") == "ads2-rescore":
+            assert row["cost"] == {"amount": None, "unit": None, "records": []}
+            assert {"label": EXTERNAL_PROVENANCE_LABEL} not in row["sources"]
 
 
 def test_unavailable_external_provenance_uses_public_evidence(tmp_path):
@@ -928,8 +1057,18 @@ def test_configured_external_provenance_exports_only_batch_quantities(tmp_path):
         "ad2 remake batch (TestPerson, private-demo): 16 video-agent scenes "
         "(one reroll) at 4 credits each and 7 avatar_v closers, "
         "private annotations, 116 credits; narrations confidential\n")
+    # The batch cost is attributed on the original cohort's baseline rows, and that
+    # cohort reads the four-column winners table, which today's README no longer
+    # carries. So the build runs against the tree that does carry it, which is the
+    # same per-commit discipline the reproduction check uses.
+    commits = _ledger_commits(ROOT)
+    if not commits:
+        return  # truncated history cannot name the tree those rows were built from
+    build_root = tmp_path / "original-tree"
+    build_root.mkdir()
+    _extract_tree(ROOT, commits[0], build_root)
     with patch.dict(os.environ, {"RACE_BASELINE_PROVENANCE": str(source)}):
-        rows, skipped = build_rows(ROOT)
+        rows, skipped = build_rows(build_root)
     costs = [row["cost"]["records"][0] for row in rows if row.get("engine") == "heygen"]
     assert len(costs) == 5
     for cost in costs:
@@ -966,19 +1105,21 @@ if __name__ == "__main__":
         test_the_committed_ledger_has_only_ever_grown,
         test_scorer_reproduces_every_hand_winner_with_scores,
         test_incomplete_hand_races_are_recorded_not_invented,
+        test_rescore_probe_values_are_the_committed_probe_outputs,
+        test_rescore_rows_claim_no_hand_transcription,
         test_public_race_files_contain_no_private_identifiers,
         test_ledger_source_paths_are_relative_to_repository,
     ]
     temporary_tests = [
         test_probe_implementation_and_output_hashes_are_recorded,
-        test_checked_in_ledger_is_exact_backfill,
+        test_every_ledger_commit_reproduces_its_own_rows,
+        test_backfill_against_the_current_tree_appends_nothing,
         test_scorer_comes_from_the_tree_whose_hash_is_recorded,
         test_a_rewritten_row_is_caught_even_though_it_reproduces,
         test_a_merge_cannot_hide_the_evidence_it_discarded,
         test_a_merge_that_keeps_both_branches_is_allowed,
         test_a_row_deleted_on_a_side_branch_is_caught_after_the_merge,
         test_ledger_build_root_pins_the_commit_that_wrote_the_ledger,
-        test_backfill_is_idempotent,
         test_failed_append_rolls_back_and_retry_is_idempotent,
         test_killed_append_recovers_and_retry_matches_a_clean_run,
         test_a_damaged_tail_with_no_work_fails_loudly_and_changes_nothing,
