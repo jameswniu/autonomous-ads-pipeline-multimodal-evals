@@ -1,7 +1,7 @@
 # Kill Gate
 
 ```
-python3 test_gate.py                    # eleven guardrails. Deterministic, refuses 2 renders, rejects NaN, booleans and strings, ties by name, one JSON object per judge reply
+python3 test_gate.py                    # eleven guardrails, from ties-by-name to one JSON object per judge reply
 python3 eval/run.py                     # headline: uniform, gate, pick, oracle on the Aug 24 cohort
 python3 eval/run.py --cohort all        # sensitivity check with the 8 second-shoot renders added
 python3 eval/run.py --judge gpt         # a second vendor as the judge, for contrast
