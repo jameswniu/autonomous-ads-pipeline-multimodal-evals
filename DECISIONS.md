@@ -1,0 +1,42 @@
+# Decisions
+
+Four engines each render one short ad for a brief. My program scores the four alone, drops the worst, and ships the other three. On 398 blind human votes over five briefs, the three that ship are preferred 3.9 points more often than a random three.
+
+## The gate
+
+- **Kill, never pick.** The same scores, read from the top, ship a render humans prefer 47.9% of the time, under a coin. Read from the bottom and dropped, what survives wins 53.9%. One scoring procedure, two selection rules. Both are printed by `eval/run.py` so the contrast stays visible. The gate is built on the end of the judge's scale that carries signal on this data.
+- **Pointwise, never pairwise.** Shown two renders in one call, Claude and GPT each chose the second one on 28 of 34 pairs. Putting the rubric after the frames instead of before took Claude from 81% to 78% on the same 32 pairs. Scored alone there is no second. `eval/facts.py` prints the counts from `results/pairwise_verdicts.jsonl`. `test_same_scores_same_kill` checks the gate itself is order-blind.
+- **Three renders minimum.** With two, dropping one is choosing one, and choosing is the act that fails. `test_refuses_fewer_than_three_renders` hardcodes 0, 1 and 2 rather than reading the constant, so lowering the constant breaks the test.
+- **Three axes, summed.** Craft is the axis whose score correlates with human value best on its own (r = 0.28 across 28 renders; message 0.07, warmth 0.13). On the gate the three summed match or beat every subset. Craft alone lowers it from 53.9% to 52.8%, and two of the three pairs tie it. `test_missing_axis_fails_loud` stops a call with two axes from scoring.
+- **Twenty calls, averaged.** One call gives integers and seven distinct totals across 28 renders, so renders tie. Twenty gives 23 distinct totals, and on the Aug 24 cohort no brief has a tie at the bottom, which is the only end the gate reads; lantern has one in the middle, omni and seedance2 both at 15.0. With one call the gate falls to 51.8% and goes negative on two briefs. Averaging changes the number, not the rule. `test_more_calls_change_the_mean_not_the_rule`.
+- **Scores outside 1 to 10 are refused, and so is a boolean.** A judge that replies 100, or NaN, has not scored high or low, it has broken, and NaN makes the minimum order-dependent. A boolean is worse, because `float(True)` is 1.0 and a malformed reply would become the lowest possible score and get killed. A quoted number is a string, and `float("6")` would quietly make it a score, so it is refused too. `test_rejects_nan_and_out_of_range`, `test_boolean_is_not_a_score`, `test_string_is_not_a_score`.
+- **A render named twice is refused.** `json.load` keeps the second and drops the first in silence. `test_duplicate_render_names_refused`. The judge's own parser refuses a duplicated key the same way.
+- **Ties break on the name.** So a reload returns the same kill. `test_tie_breaks_on_name_not_on_order`.
+- **No memory, no file, no model.** `gate.py` is arithmetic on a dict. On the scoring path the model call is in `judge.py` alone. It runs `--bare` with empty setting sources, no tools and no MCP, because a judge that has read the operator's notes is not a judge; it also requires the last event in the stream to be a result, parses only that result's text, refuses one flagged as an error, takes that text only when the whole of it is one JSON object (a truncated object, prose before it, a second object after the first, or a NaN or Infinity constant anywhere in it is refused rather than searched, `test_judge_reply_must_be_exactly_one_object`), and refuses a score outside 1 to 10. The saved scores predate both the `--bare` flag and the strict parse. `results/PROVENANCE.md` states the invocation and the parse that produced them.
+- **Any error prints a reason and exits 1.** A silent zero would ship the render it was meant to kill.
+
+## How I checked it
+
+Three lines. Uniform ships a random render. The gate kills the judge's lowest. The oracle knows the votes and kills the render humans liked least. Gap closed is the share of that distance the gate covers. A render's human value is its mean probability of beating each render it was actually shown against, ties counting half. Whenever a brief's comparison graph is made of complete components, uniform is exactly 50% by that algebra, and on both cohorts it is. Aug 24 is a full round robin, and each second-shoot pair is its own two-render component.
+
+| Cohort | Gap closed | Lift | Gate minus pick | Brief bootstrap | Rater bootstrap | Fair-coin null |
+|---|---|---|---|---|---|---|
+| Aug 24, four a brief | 86% | +3.9 | +6.1 | [+1.8, +6.1] | [+1.8, +6.1] | `p = 0.0005` |
+| All, four to six a brief | 57% | +1.9 | +0.2 | [+1.0, +2.9] | [+0.2, +3.8] | `p = 0.03` |
+
+The two bootstraps are intervals, not tests. The brief one enumerates all 3,125 resamples of five briefs rather than sampling, because with five clusters sampling is noisier than the thing it estimates. The rater one keeps each of the 90 raters' votes together. The fair-coin null is the one test. It replaces every winner with a coin between the two renders shown, which destroys quality signal, and also destroys no-preference votes and within-rater dependence, so it is a simple null and not a permutation of the observed outcomes. The lift is positive on all five briefs (+1.6, +1.1, +6.1, +3.3, +7.5). `eval/run.py` reports how many voted renders the chosen judge scored, names any it did not, and refuses to print metrics on a partial run unless `--allow-missing` is passed, since a render with votes and no score would otherwise drop out of the candidate set without a word.
+
+**Weakness.** The kill gate was chosen after the pick gate failed on these same votes, so this is a second look at one dataset, and every interval and the null above is conditional on the rule having been chosen; none of them accounts for the choosing. Five briefs is too few for anything else. A sixth brief run cold is the real test. The Aug 24 cohort is the primary result because it has exactly four renders a brief from one shoot and a complete round robin. The full cohort is a sensitivity check. Its added renders each met one opponent, so their values are a different measurement, and the smaller lift is partly that and partly that one kill in six removes less than one in four.
+
+An outside reviewer (a second vendor's model, read-only, handed every file, `results/outside-review.md`) found that an earlier version joined judge scores to human votes by engine name while two shoots had rendered the same engine twice, so a score for one clip was being credited against votes on another. That version showed a working best-pick router with three previously reported significance claims. Keyed by clip, the router is below uniform. The same review made the algebraic point that agreement between raters and predictability are different quantities, which is why agreement is reported here only as what it is. Among decisive votes, two distinct raters pick the same render 53% of the time, and the majority side of each pair is right 66% of the time in-sample.
+
+## Skipped
+
+- A pre-generation router, which would choose the engine before paying to render. Three engines win the five briefs by 8 to 18 points of human value, and the judge's craft axis at r = 0.28 does not rank four renders. A constant rule learned inside each fold, always seedance2, scores 58.6%; `eval/facts.py` prints it.
+- A judge panel. An equal-weight average of Claude's twenty calls with GPT's one leaves the kill gate at 53.9%, unchanged, and moves pick from 47.9% to 48.9%. That tests one averaging rule on five briefs and nothing more general. GPT and Gemini were called once per render and emit 7 and 4 distinct totals across 28 and 26 renders.
+- Front-loaded frame sampling. Eight uniform frames is what T2VQA specifies; no front-loading experiment is in this repo.
+- Rubric variants. Six single-call variants from the ad-effectiveness literature are in `results/rubric_variants.jsonl`; the working-session comparison against a rater split is not scripted here.
+
+## Output
+
+`gate.py` reads scores on stdin and prints `{"kill": name, "ship": [names]}`, or `{"error": reason}` and exit 1. `judge.py` prints a list of twenty calls for one render. `eval/run.py` prints one header line with coverage, the four policy values, gate minus pick, the per-brief lifts, and the two intervals and one null, in that order. `eval/facts.py` prints every other number the README quotes.

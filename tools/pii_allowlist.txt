@@ -82,3 +82,14 @@ README.md|uuid
 gates/voice_take.sh|vendor-api-key-header
 gates/voice_take.sh|cron-expression
 shoots/ads4/boards.json|presence-or-routine-prose
+
+# --- kill-gate branch, reviewed 2026-09-20 ---
+
+# The old README moved to docs/PIPELINE.md with its content unchanged, so the byline and
+# the badge and release URLs already allowed on README.md above are the same reviewed
+# text under a new path that the README entry no longer reaches.
+docs/PIPELINE.md|owner-identity-token
+
+# The release-asset URLs for the 28 masters, one per side of every pair. The handle is
+# the repo's own public location, and eval/run.py names each render from its URL.
+results/pairs.json|owner-identity-token

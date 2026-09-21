@@ -1,0 +1,444 @@
+[
+ {
+  "pair_id": "ads2-redo:orchard:heygen-vs-omni",
+  "brief": "orchard",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-orchard.mp4"
+  },
+  "b": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-orchard.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:orchard:heygen-vs-seedance2",
+  "brief": "orchard",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-orchard.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-orchard.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:orchard:heygen-vs-wan3",
+  "brief": "orchard",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-orchard.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-orchard.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:orchard:omni-vs-seedance2",
+  "brief": "orchard",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-orchard.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-orchard.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:orchard:omni-vs-wan3",
+  "brief": "orchard",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-orchard.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-orchard.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:orchard:seedance2-vs-wan3",
+  "brief": "orchard",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-orchard.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-orchard.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:lantern:heygen-vs-omni",
+  "brief": "lantern",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-lantern.mp4"
+  },
+  "b": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-lantern.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:lantern:heygen-vs-seedance2",
+  "brief": "lantern",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-lantern.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-lantern.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:lantern:heygen-vs-wan3",
+  "brief": "lantern",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-lantern.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-lantern.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:lantern:omni-vs-seedance2",
+  "brief": "lantern",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-lantern.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-lantern.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:lantern:omni-vs-wan3",
+  "brief": "lantern",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-lantern.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-lantern.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:lantern:seedance2-vs-wan3",
+  "brief": "lantern",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-lantern.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-lantern.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:harbor:heygen-vs-omni",
+  "brief": "harbor",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-harbor.mp4"
+  },
+  "b": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-harbor.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:harbor:heygen-vs-seedance2",
+  "brief": "harbor",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-harbor.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-harbor.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:harbor:heygen-vs-wan3",
+  "brief": "harbor",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-harbor.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-harbor.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:harbor:omni-vs-seedance2",
+  "brief": "harbor",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-harbor.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-harbor.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:harbor:omni-vs-wan3",
+  "brief": "harbor",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-harbor.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-harbor.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:harbor:seedance2-vs-wan3",
+  "brief": "harbor",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-harbor.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-harbor.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:quiet:heygen-vs-omni",
+  "brief": "quiet",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-quiet.mp4"
+  },
+  "b": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-quiet.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:quiet:heygen-vs-seedance2",
+  "brief": "quiet",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-quiet.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-quiet.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:quiet:heygen-vs-wan3",
+  "brief": "quiet",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-quiet.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-quiet.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:quiet:omni-vs-seedance2",
+  "brief": "quiet",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-quiet.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-quiet.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:quiet:omni-vs-wan3",
+  "brief": "quiet",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-quiet.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-quiet.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:quiet:seedance2-vs-wan3",
+  "brief": "quiet",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-quiet.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-quiet.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:slowroad:heygen-vs-omni",
+  "brief": "slowroad",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-slowroad.mp4"
+  },
+  "b": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-slowroad.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:slowroad:heygen-vs-seedance2",
+  "brief": "slowroad",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-slowroad.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-slowroad.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:slowroad:heygen-vs-wan3",
+  "brief": "slowroad",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "heygen",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-slowroad.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-slowroad.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:slowroad:omni-vs-seedance2",
+  "brief": "slowroad",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-slowroad.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-slowroad.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:slowroad:omni-vs-wan3",
+  "brief": "slowroad",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-slowroad.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-slowroad.mp4"
+  }
+ },
+ {
+  "pair_id": "ads2-redo:slowroad:seedance2-vs-wan3",
+  "brief": "slowroad",
+  "shoot": "ads2-redo",
+  "a": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-seedance2-slowroad.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-slowroad.mp4"
+  }
+ },
+ {
+  "pair_id": "ads6-omni:orchard:omni-vs-seedance2",
+  "brief": "orchard",
+  "shoot": "ads6-omni",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-orchard.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-seedance2-orchard.mp4"
+  }
+ },
+ {
+  "pair_id": "ads6-omni:lantern:omni-vs-wan3",
+  "brief": "lantern",
+  "shoot": "ads6-omni",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-lantern.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-lantern.mp4"
+  }
+ },
+ {
+  "pair_id": "ads6-omni:harbor:omni-vs-wan3",
+  "brief": "harbor",
+  "shoot": "ads6-omni",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-harbor.mp4"
+  },
+  "b": {
+   "engine": "wan3",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-harbor.mp4"
+  }
+ },
+ {
+  "pair_id": "ads6-omni:slowroad:omni-vs-seedance2",
+  "brief": "slowroad",
+  "shoot": "ads6-omni",
+  "a": {
+   "engine": "omni",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-slowroad.mp4"
+  },
+  "b": {
+   "engine": "seedance2",
+   "url": "https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-seedance2-slowroad.mp4"
+  }
+ }
+]
