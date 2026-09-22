@@ -21,6 +21,14 @@ Two intervals and one null, because five briefs is very few clusters:
                      so it is a simple null, not a permutation of the observed outcomes.
 Percentile bounds use the floor(p * n) index into the sorted resamples.
 
+The hit rate scores the same kills as hit or miss. A hit is a kill on the render humans
+liked least, so the oracle hits every brief by definition and a coin hits one in k. A miss
+is a false positive and a false negative at once, the wrong render dies and the worst ships.
+It is scored only where every render met every other, since otherwise the lowest value can
+belong to a render that never faced the rest. Its p is the exact chance that a coin gets at
+least that many hits. The rater resamples also report how often the oracle's own kill stays
+the worst, which is how reliable the label is, and how often the gate's kill is the worst.
+
 A voted render the chosen judge never scored would drop out of the candidate set on both
 sides of every line, so by default a partial judge run refuses to print metrics at all.
 --allow-missing prints them with the gap named in a WARNING line first.
@@ -115,6 +123,49 @@ def summary(pairs, votes, calls):
     return tuple(statistics.mean(x[i] for x in L.values()) for i in range(4)), L
 
 
+def met(pairs, votes):
+    """brief -> the set of render pairs raters were actually shown."""
+    out = defaultdict(set)
+    for v in votes:
+        p = pairs[v["pair_id"]]
+        out[p["brief"]].add(frozenset((clip(p, "a"), clip(p, "b"))))
+    return out
+
+
+def kill_hits(vals, calls, meetings):
+    """Per brief: (the kill landed on the render humans liked least, a coin's chance of that,
+    the kill's rank from the bottom), or None where the scored renders did not all meet.
+
+    Without a round robin the lowest value can belong to a render that never faced the rest,
+    so "the render humans liked least" has no single answer there and no hit is scored.
+    """
+    out = {}
+    for b, val in vals.items():
+        val = {c: v for c, v in val.items() if calls.get(c)}
+        if len(val) < 3:
+            continue
+        if any(frozenset(pr) not in meetings[b] for pr in itertools.combinations(val, 2)):
+            out[b] = None
+            continue
+        dead = kill({c: calls[c] for c in val})
+        lo = min(val.values())
+        bottom = sum(1 for x in val.values() if x == lo)
+        rank = 1 + sum(1 for x in val.values() if x < val[dead])
+        out[b] = (val[dead] == lo, bottom / len(val), rank)
+    return out
+
+
+def at_least(ps, h):
+    """Exact P(at least h successes) when trial i succeeds with probability ps[i]."""
+    dist = [1.0]
+    for p in ps:
+        dist = [a * (1 - p) + b * p for a, b in zip(dist + [0.0], [0.0] + dist)]
+    return sum(dist[h:])
+
+
+ORDINAL = {2: "second", 3: "third", 4: "fourth", 5: "fifth", 6: "sixth"}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cohort", default="aug24", choices=["aug24", "all"])
@@ -151,6 +202,24 @@ def main():
     print("  per brief, gate minus uniform: " + " ".join(
         f"{b[:2]}{100 * (per[b][1] - per[b][0]):+.1f}" for b in BRIEFS if b in per))
 
+    # Hit rate. The same kills scored hit or miss, so the oracle reads 100% by definition and a
+    # coin one in k. A miss is a false positive and a false negative at once, the wrong render
+    # dies and the worst one ships.
+    vals0 = values(pairs, votes)
+    H = kill_hits(vals0, calls, met(pairs, votes))
+    rr = {b: h for b, h in H.items() if h is not None}
+    if len(rr) < len(H):
+        print(f"  hit rate         not reported, {len(H) - len(rr)} of {len(H)} briefs are not a round robin, "
+              "so the render humans liked least there never met every other render")
+    else:
+        n_hit = sum(h[0] for h in rr.values())
+        coin = [h[1] for h in rr.values()]
+        print(f"  hit rate         gate {n_hit} of {len(rr)} = {100 * n_hit / len(rr):.0f}%   "
+              f"coin {100 * statistics.mean(coin):.0f}%   oracle 100%   "
+              f"P(coin gets at least {n_hit}) = {at_least(coin, n_hit):.2f}")
+        misses = [f"{b} killed the {ORDINAL.get(h[2], str(h[2]))}-worst" for b, h in sorted(rr.items()) if not h[0]]
+        print("  misses           " + (", ".join(misses) if misses else "none"))
+
     # Brief bootstrap: exhaustive. With five clusters there are 3125 resamples; enumerate.
     lift = {b: per[b][1] - per[b][0] for b in per}
     bs = sorted(statistics.mean(lift[b] for b in s) for s in itertools.product(list(per), repeat=len(per)))
@@ -163,16 +232,40 @@ def main():
     for v in votes:
         byr[v["rater"]].append(v)
     keys = list(byr)
+    # The same resamples also ask how stable "the render humans liked least" is. The oracle's
+    # kill is fixed from all the votes, so its share is the label's own reliability, and the
+    # gate's share is its hit rate against resampled raters. Round-robin cohorts only.
+    ref = {}
+    if rr and len(rr) == len(H):
+        for b in rr:
+            val = {c: v for c, v in vals0[b].items() if calls.get(c)}
+            ref[b] = (min(val, key=val.get), kill({c: calls[c] for c in val}), set(val))
+    stab = defaultdict(lambda: [0, 0, 0])
     rs = []
     for _ in range(4000):
         samp = [v for k in (random.choice(keys) for _ in keys) for v in byr[k]]
-        s = summary(pairs, samp, calls)
-        if s:
-            rs.append(s[0][1] - s[0][0])
+        vb = values(pairs, samp)
+        L = lines(vb, calls)
+        if L:
+            rs.append(statistics.mean(x[1] for x in L.values()) - statistics.mean(x[0] for x in L.values()))
+        for b, (orc_kill, gate_kill, clips) in ref.items():
+            vv = vb.get(b, {})
+            if not clips <= set(vv):
+                continue
+            lo = min(vv[c] for c in clips)
+            stab[b][0] += 1
+            stab[b][1] += vv[orc_kill] == lo
+            stab[b][2] += vv[gate_kill] == lo
     rs.sort()
     print(f"  rater bootstrap  (4000 resamples, {len(keys)} raters, interval)  lift {100 * statistics.mean(rs):+.1f}  "
           f"95% [{100 * rs[int(0.025 * len(rs))]:+.1f}, {100 * rs[int(0.975 * len(rs))]:+.1f}]  "
           f"P(lift<=0) {sum(1 for x in rs if x <= 0) / len(rs):.4f}")
+    seen = [b for b in ref if stab[b][0]]
+    if seen:
+        o = statistics.mean(stab[b][1] / stab[b][0] for b in seen)
+        g = statistics.mean(stab[b][2] / stab[b][0] for b in seen)
+        print(f"  hit stability    (same resamples)  the oracle's kill is still the worst {100 * o:.1f}% of the time, "
+              f"the gate's kill {100 * g:.1f}%")
 
     # The fair-coin null. Every winner is replaced by a coin between the two renders shown.
     base = gate - uni

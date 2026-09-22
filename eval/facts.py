@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "eval"))
-from gate import AXES  # noqa: E402
+from gate import AXES, kill  # noqa: E402
 from run import clip, lines, load, values  # noqa: E402
 
 R = ROOT / "results"
@@ -145,6 +145,26 @@ gc = statistics.mean(x[1] for x in Lc.values())
 pc = statistics.mean(x[2] for x in Lc.values())
 print(f"  gate  claude alone {100 * gc:.1f}%   claude+gpt {100 * gp:.1f}%")
 print(f"  pick  claude alone {100 * pc:.1f}%   claude+gpt {100 * pp:.1f}%")
+
+print("\nPAIRWISE WORST, Aug 24, whether the lowest win rate also lost every head-to-head")
+h2h = defaultdict(lambda: [0.0, 0])
+for v in votes:
+    p = pairs[v["pair_id"]]
+    if p["shoot"] != "ads2-redo":
+        continue
+    a, c = clip(p, "a"), clip(p, "b")
+    for x, y, e in ((a, c, p["a"]["engine"]), (c, a, p["b"]["engine"])):
+        h2h[(x, y)][0] += 1 if v["winner"] == e else (0.5 if not v["winner"] else 0)
+        h2h[(x, y)][1] += 1
+for b, val in sorted(aug.items()):
+    worst = min(val, key=val.get)
+    lost = all(h2h[(worst, o)][0] < h2h[(worst, o)][1] / 2 for o in val if o != worst)
+    dead = kill({c: cc[c] for c in val})
+    line = f"  {b:10s} {eng(worst):10s} lowest win rate, {'lost every head-to-head' if lost else 'did NOT lose every head-to-head'}"
+    if dead != worst:
+        s, n = h2h[(dead, worst)]
+        line += f", and the gate killed {eng(dead)}, which won {100 * s / n:.0f}% of their head-to-head votes against it"
+    print(line)
 
 print("\nCONSTANT BASELINE, pick the engine with the best mean human value on the other four briefs, Aug 24")
 eng = lambda c: c.split("-")[-2]

@@ -5,10 +5,10 @@ Run these yourself, cold, in a fresh terminal, before the call. `cd ~/ad-creativ
 | # | Command | What its output proves |
 |---|---|---|
 | 1 | `python3 test_gate.py` | Eleven guardrails hold. Eleven `ok test_...` lines, nothing else |
-| 2 | `python3 eval/run.py` | The headline. Header says `20 of 20 voted renders scored`, then `gate 53.9%`, `gap closed +86%`, `pick 47.9%` below a coin, and `gate minus pick +6.1` |
-| 3 | `python3 eval/run.py --cohort all` | The sensitivity check with the second shoot's eight renders added. `gate 51.9%`, `gap closed +57%`, every brief still positive |
+| 2 | `python3 eval/run.py` | The headline. Header says `20 of 20 voted renders scored`, then `gate 53.9%`, `gap closed +86%`, `pick 47.9%` below a coin, and `gate minus pick +6.1`, then `hit rate` with the gate at 3 of 5 against a coin's 25% and the oracle's 100%, `P(coin gets at least 3) = 0.10`, and both misses on the second-worst |
+| 3 | `python3 eval/run.py --cohort all` | The sensitivity check with the second shoot's eight renders added. `gate 51.9%`, `gap closed +57%`, every brief still positive. The hit rate reads `not reported`, since four of its briefs are not a round robin |
 | 4 | `python3 eval/run.py --judge gemini` | A partial judge run refuses. A `WARNING` line names the two renders Gemini never scored, then `refusing to report metrics`, exit 1. Add `--allow-missing` and the same warning is followed by the lines, with `uniform` at 50.5% because those two are left out |
-| 5 | `python3 eval/facts.py` | Every number the README quotes that command 2 does not print. Agreement 53.1%, position bias 28/34 for both vendors, craft r = +0.28, 7 then 23 distinct totals, the five winning engines with their margins, the Claude+GPT panel at the same 53.9%, and the constant baseline at 58.6% |
+| 5 | `python3 eval/facts.py` | Every number the README quotes that command 2 does not print. Agreement 53.1%, position bias 28/34 for both vendors, craft r = +0.28, 7 then 23 distinct totals, the five winning engines with their margins, the Claude+GPT panel at the same 53.9%, the pairwise check that every brief's lowest win rate lost each head-to-head with the two misses at 53% and 61% against it, and the constant baseline at 58.6% |
 | 6 | `echo '{"a":[{"craft":6,"message":5,"warmth":4}],"b":[{"craft":3,"message":3,"warmth":3}],"c":[{"craft":5,"message":5,"warmth":5}]}' \| python3 gate.py` | The protocol. Prints `{"kill": "b", "ship": ["a", "c"]}` |
 | 7 | Same as 6 with `"craft":NaN` in render b | It refuses a broken reply. Prints `{"error": "score out of range 1.0 to 10.0: [nan]"}` and exits 1 |
 
