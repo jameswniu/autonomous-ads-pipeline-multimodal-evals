@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/evals-three-tiers.svg" alt="How do you craft evals? Split the question in three. Process evals ask whether every step ran and its gate fired, and their source of truth is the pipeline graph, fixed by the scripts. Outcome evals ask whether what shipped is true to the facts, and their source of truth is the research pass, re-derived per brief. Quality evals ask whether it meets the bar for this audience, and their source of truth is the golden set, re-derived per audience." width="100%">
+  <img src="assets/evals-three-tiers.svg" alt="How do you craft evals? Split the question in three. Process evals: did every step run, and did its gate fire? Source of truth, the pipeline graph, fixed by the scripts. Outcome evals: is what shipped true to the facts? Source of truth, the research pass, re-derived per brief. Quality evals: does it meet the bar for this audience? Source of truth, the golden set, re-derived per audience." width="100%">
 </p>
 
 <div align="center">

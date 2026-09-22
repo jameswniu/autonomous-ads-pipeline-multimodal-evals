@@ -135,5 +135,12 @@ jobs:
       # fresh clone because it asserts on a string only emitted when
       # learned_rules.md exists, and that file was never committed. It is now
       # shipped, so this blocks like everything else.
+      # Both figures are output, not drawings. A hand edit to either SVG, or a
+      # change to a generator without regenerating, fails here.
+      - name: Figures match their generators
+        run: |
+          python3 tools/render_map.py --check
+          python3 tools/render_tiers.py --check
+
       - name: Prop gate selftest
         run: bash guards/prop_gate.sh selftest

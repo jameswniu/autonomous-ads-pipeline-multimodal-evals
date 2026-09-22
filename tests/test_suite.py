@@ -307,8 +307,10 @@ def test_no_retired_claim_survives_on_any_surface():
     This used to matter more than a normal staleness check, because both SVGs
     were written by a generator that was NOT in this repository: regenerating
     from that private tree would have silently restored both claims with nothing
-    to notice. tools/render_diagrams.py closes that hole. Both SVGs are
-    generated here now and byte-checked in CI.
+    to notice. Both are generated here now and byte-checked in CI, the system map
+    by tools/render_map.py and the README hero by tools/render_tiers.py. This
+    paragraph named a tools/render_diagrams.py that never existed until
+    2026-09-22, which is the same staleness in the file that polices it.
 
     This test stays, and not merely out of caution. A retired CLAIM is a
     sentence, not a number, so no count check can see one; and docs/ and
@@ -541,6 +543,63 @@ def test_system_map_matches_its_generator():
     """The system map is output, not a drawing. A hand edit to the SVG fails here."""
     r = run(["tools/render_map.py", "--check"])
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_the_hero_generator_escapes_text_it_is_given():
+    """A byte check compares this output against a committed copy of the same
+    output, so an unescaped ampersand agrees with itself and CI stays green on a
+    malformed file. Feed it the characters that break XML and parse the result."""
+    import importlib.util
+    import xml.etree.ElementTree as ET
+    spec = importlib.util.spec_from_file_location(
+        "render_tiers_esc", os.path.join(ROOT, "tools", "render_tiers.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.TIERS = [("A & B <EVALS>", ('He said "go",', 'and did its gate fire?'),
+                  "the <graph> & map", 'fixed by "the" scripts')] + list(mod.TIERS[1:])
+    svg = mod.render()
+    ET.fromstring(svg)  # raises if the ampersands or angle brackets leaked through
+    assert "A &amp; B &lt;EVALS&gt;" in svg, "text node was not escaped"
+
+
+def test_readme_hero_matches_its_generator():
+    """The hero is output too, as of 2026-09-22. It was not, for weeks, while the
+    docstring below said it was, which is the exact staleness this file polices."""
+    r = run(["tools/render_tiers.py", "--check"])
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_the_hero_aria_label_is_built_from_the_same_data_as_the_cards():
+    """Fixing the visible pixels and leaving the accessible text is not fixing it.
+
+    Both come from one tuple per tier now, so this asserts the words a screen
+    reader gets are the words on the card, rather than asserting they were
+    updated together by hand.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "render_tiers", os.path.join(ROOT, "tools", "render_tiers.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    label = mod.aria()
+
+    # GitHub renders the SVG as an <img>, so the alt on that tag is the text a
+    # screen reader actually gets and the aria-label inside the file never
+    # reaches one. Two accessible texts for one figure is how one goes stale, so
+    # the README carries the same sentence and this asserts it.
+    readme = open(os.path.join(ROOT, "README.md")).read()
+    tag = [ln for ln in readme.splitlines() if "evals-three-tiers.svg" in ln]
+    assert len(tag) == 1, "the hero is embedded more than once, or not at all"
+    alt = re.search(r'alt="([^"]*)"', tag[0])
+    assert alt, "the hero <img> has no alt text"
+    assert alt.group(1) == label, (
+        "the README alt and the generated one differ; run "
+        "python3 tools/render_tiers.py --alt")
+
+    for name, (q1, q2), truth, how in mod.TIERS:
+        for phrase in (name, q1.rstrip(","), q2.rstrip("?"), truth, how):
+            assert phrase.lower() in label.lower(), (
+                f"the card says {phrase!r} and the aria-label does not")
 
 
 def test_readme_process_cards_match_the_ledgers():
