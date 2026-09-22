@@ -56,6 +56,20 @@ def test_caption_gate_compares_digits(tmp_path):
     assert r.returncode != 0, f"199 passed against spoken 999:\n{r.stdout}"
 
 
+def test_caption_gate_compares_numbers_exactly_inside_a_long_caption(tmp_path):
+    """Fuzzy matching on the whole line hid a wrong number. "Get only 199 dollars today" against
+    spoken 999 scores about 0.97, well past the 0.90 bar, so the price shipped."""
+    t = str(tmp_path)
+    text = "Get only 199 dollars today and keep the rest"
+    spoken = [("get", 0.0, 0.1), ("only", 0.1, 0.2), ("999", 0.2, 0.3), ("dollars", 0.3, 0.4),
+              ("today", 0.4, 0.5), ("and", 0.5, 0.6), ("keep", 0.6, 0.7), ("the", 0.7, 0.8),
+              ("rest", 0.8, 0.9)]
+    cues = [{"text": text, "start": 0.0, "end": 1.0, "spoken_start": 0.0, "spoken_end": 1.0}]
+    p = manifest(t, cues, spoken, [])
+    r = run([sys.executable, os.path.join(GATES, "caption_gate.py"), p])
+    assert r.returncode != 0, f"a wrong price passed inside a long caption:\n{r.stdout}"
+
+
 def test_caption_gate_refuses_a_manifest_with_no_cues(tmp_path):
     """Zero cues printed PASS. An upstream omission then reads as a clean inspection."""
     p = manifest(str(tmp_path), [], [], [])
@@ -71,6 +85,16 @@ def test_caption_gate_times_against_the_words_actually_spoken(tmp_path):
     p = manifest(t, cues, [("hello", 4.0, 5.0)], [])
     r = run([sys.executable, os.path.join(GATES, "caption_gate.py"), p])
     assert r.returncode != 0, f"a caption up 4s before its word passed:\n{r.stdout}"
+
+
+def test_caption_gate_refuses_a_window_that_leaves_out_a_spoken_word(tmp_path):
+    """The manifest used to decide which words existed. A stale window could exclude part of the
+    line, and the caption then passed against speech it never covered."""
+    t = str(tmp_path)
+    cues = [{"text": "buy one", "start": 0.0, "end": 2.0, "spoken_start": 0.0, "spoken_end": 1.0}]
+    p = manifest(t, cues, [("buy", 0.1, 0.5), ("one", 0.5, 0.9), ("free", 1.4, 1.9)], [])
+    r = run([sys.executable, os.path.join(GATES, "caption_gate.py"), p])
+    assert r.returncode != 0, f"a word spoken under the caption was ignored:\n{r.stdout}"
 
 
 # --------------------------------------------------------------------------------------
@@ -112,21 +136,18 @@ def test_edge_probe_merges_each_side_on_its_own():
 # script_match.sh
 # --------------------------------------------------------------------------------------
 
-def test_script_match_fails_when_its_normaliser_cannot_run(tmp_path):
-    """The captured exit code belonged to python3, not to the normaliser that supplies its
-    program, so an infrastructure failure printed SCRIPT-MATCH PASS on an empty comparison."""
+def test_script_match_fails_when_its_normaliser_is_missing(tmp_path):
+    """The normaliser used to be a program built by a command substitution, so a failure to
+    produce it handed python3 an empty program, which exits 0, and the gate printed
+    SCRIPT-MATCH PASS on a comparison that never ran. It is now a file, checked before use."""
     t = str(tmp_path)
     shutil.copy(os.path.join(GATES, "script_match.sh"), os.path.join(t, "sm.sh"))
-    src = open(os.path.join(t, "sm.sh")).read()
-    head, rest = src.split("norm_py() {", 1)
-    broken = head + "norm_py() { return 1\n}\n# " + rest.split("\n}\n", 1)[1]
-    open(os.path.join(t, "broken.sh"), "w").write(broken)
     for n in ("a", "b"):
         open(os.path.join(t, f"{n}.txt"), "w").write("hello world")
-    r = subprocess.run(["bash", os.path.join(t, "broken.sh"),
+    r = subprocess.run(["bash", os.path.join(t, "sm.sh"),
                         os.path.join(t, "a.txt"), os.path.join(t, "b.txt")],
                        capture_output=True, text=True, timeout=60)
-    assert r.returncode != 0, f"a gate with no normaliser passed:\n{r.stdout}"
+    assert r.returncode != 0, f"a gate with no normaliser beside it passed:\n{r.stdout}"
     assert "PASS" not in r.stdout, r.stdout
 
 
@@ -145,20 +166,36 @@ def test_script_match_accept_requires_a_comparison_to_have_happened(tmp_path):
 @pytest.mark.parametrize("text,expected", [
     ("one thousand two hundred dollars", ["1200", "dollars"]),
     ("one two", ["1", "2"]),
+    ("twenty five", ["25"]),
+    ("one hundred and five", ["105"]),
+    ("black and white", ["black", "and", "white"]),
+    ("a thousand dollars at three in the morning", ["1000", "dollars", "at", "3", "in", "the", "morning"]),
 ])
-def test_script_match_normalises_numbers_without_changing_them(tmp_path, text, expected):
+def test_number_words_normalise_without_changing_their_value(text, expected):
     """Adjacent number words were accumulated arithmetically, so one thousand two hundred became
     100200 and one two collided with three."""
+    tn = load("textnorm.py")
+    assert tn.norm(text) == expected
+
+
+def test_both_gates_share_one_normaliser():
+    """The normaliser used to live inside a bash heredoc, where caption_gate.py could not reach
+    it, so the two gates disagreed about what two texts saying the same thing looks like."""
+    sm = open(os.path.join(GATES, "script_match.sh")).read()
+    cg = open(os.path.join(GATES, "caption_gate.py")).read()
+    assert "textnorm.py" in sm, "script_match.sh does not use the shared normaliser"
+    assert "from textnorm import" in cg, "caption_gate.py does not use the shared normaliser"
+    assert "norm_py" not in sm, "the old heredoc normaliser is still in script_match.sh"
+
+
+def test_caption_gate_accepts_a_spoken_number_written_as_digits(tmp_path):
+    """A caption reading 199 against a transcript that spells the number out is the same claim."""
     t = str(tmp_path)
-    src = open(os.path.join(GATES, "script_match.sh")).read()
-    body = src.split("cat <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
-    # Take the normaliser's definitions and print one normalised document, so the test reads the
-    # shipped program rather than a copy of it.
-    prog = body.split("# Exit 1 means", 1)[0] + "print(norm(load(sys.argv[1])))"
-    p = os.path.join(t, "t.txt")
-    open(p, "w").write(text)
-    r = subprocess.run([sys.executable, "-c", prog, p], capture_output=True, text=True, timeout=60)
-    assert r.stdout.strip() == str(expected), f"{text!r} normalised to {r.stdout.strip()}"
+    cues = [{"text": "Only 199", "start": 0.0, "end": 1.0, "spoken_start": 0.0, "spoken_end": 1.0}]
+    p = manifest(t, cues, [("only", 0.0, 0.3), ("one", 0.3, 0.5), ("hundred", 0.5, 0.7),
+                           ("ninety", 0.7, 0.85), ("nine", 0.85, 1.0)], [])
+    r = run([sys.executable, os.path.join(GATES, "caption_gate.py"), p])
+    assert r.returncode == 0, f"digits rejected against the same number spoken:\n{r.stdout}"
 
 
 # --------------------------------------------------------------------------------------

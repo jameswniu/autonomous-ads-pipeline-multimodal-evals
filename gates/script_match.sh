@@ -20,95 +20,13 @@
 # with a stated reason, never a silent judgement call.
 set -euo pipefail
 
-norm_py() {
-cat <<'PY'
-import json,re,sys
-def load(p):
-    raw=open(p,encoding="utf-8").read()
-    if p.endswith(".json"):
-        d=json.loads(raw)
-        return d.get("text") or d.get("script") or raw
-    return raw
-UNITS={"zero":0,"one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,
-"ten":10,"eleven":11,"twelve":12,"thirteen":13,"fourteen":14,"fifteen":15,"sixteen":16,
-"seventeen":17,"eighteen":18,"nineteen":19,"twenty":20,"thirty":30,"forty":40,"fifty":50,
-"sixty":60,"seventy":70,"eighty":80,"ninety":90}
-SCALES={"hundred":100,"thousand":1000,"million":1000000}
-def norm(t):
-    t=t.replace("’","'").replace("‘","'").replace("“",'"').replace("”",'"')
-    t=t.replace("—"," ").replace("–"," ")
-    t=t.lower()
-    # currency: $1,000 / $1000 -> 1000 dollars
-    t=re.sub(r"\$\s*([\d,]+)", lambda m: m.group(1).replace(",","")+" dollars", t)
-    # clock times: 3:00 -> 3 ; 03:30 -> 3 30  pii-allow, documents the normaliser
-    t=re.sub(r"\b(\d{1,2}):(\d{2})\b", lambda m: str(int(m.group(1)))+("" if m.group(2)=="00" else " "+str(int(m.group(2)))), t)
-    t=re.sub(r"(\d),(\d{3})", r"\1\2", t)
-    t=re.sub(r"[^a-z0-9' ]"," ",t)
-    w=t.split()
-    # Number words to digits. One spoken number is parsed at a time, with scales applied properly
-    # and a new number started whenever two bare units meet. The old loop added every adjacent
-    # number word together, so "one thousand two hundred" became 100200 and "one two" became 3,
-    # the same token as "three" (2026-09-21).
-    out=[]
-    i=0
-    while i<len(w):
-        tok=w[i]
-        if tok in UNITS or tok in SCALES or (tok=="a" and i+1<len(w) and w[i+1] in SCALES):
-            if tok=="a":
-                i+=1
-            total=0
-            cur=0
-            prev=None
-            while i<len(w):
-                x=w[i]
-                if x in SCALES:
-                    if SCALES[x]==100:
-                        cur=(cur or 1)*100
-                    else:
-                        total+=(cur or 1)*SCALES[x]
-                        cur=0
-                    prev="scale"
-                elif x in UNITS:
-                    v=UNITS[x]
-                    kind="ten" if v>=20 else ("teen" if v>=10 else "unit")
-                    if prev in ("unit","teen") or (prev=="ten" and kind!="unit"):
-                        break
-                    cur+=v
-                    prev=kind
-                else:
-                    break
-                i+=1
-            out.append(str(total+cur))
-            continue
-        out.append(tok)
-        i+=1
-    return out
-# Exit 1 means the audio and the script differ. Any other failure, an unreadable file or a
-# parse error, exits 3, so it can never be mistaken for a mismatch that --accept may override.
-try:
-    a=norm(load(sys.argv[1]))
-    b=norm(load(sys.argv[2]))
-except Exception as e:
-    print(f"ERROR could not compare: {e}")
-    sys.exit(3)
-import difflib
-if a==b:
-    print("MATCH"); sys.exit(0)
-print("MISMATCH")
-for d in difflib.unified_diff(b,a,lineterm="",n=1):
-    if d.startswith(("+","-")) and not d.startswith(("+++","---")): print("  "+d)
-sys.exit(1)
-PY
-}
 
-# The normaliser is a program handed to python3 through a command substitution. If producing it
-# fails, python3 receives an empty program, exits 0, and the gate used to print PASS on a
-# comparison that never ran (2026-09-21). So the program is captured once and checked first.
-NORM=$(norm_py) || NORM=""
-case "$NORM" in
-  *"def norm("*) ;;
-  *) echo "SCRIPT-MATCH ERROR: the normaliser could not be loaded, nothing was compared" >&2; exit 3 ;;
-esac
+# The normaliser now lives beside this script as textnorm.py, shared with caption_gate.py, and is
+# checked before anything is compared. It used to be a heredoc piped into python3 -c, so a failure
+# producing it handed python an empty program, which exits 0, and the gate printed PASS on a
+# comparison that never ran (2026-09-21).
+NORM="$(cd "$(dirname "$0")" && pwd)/textnorm.py"
+[ -f "$NORM" ] || { echo "SCRIPT-MATCH ERROR: normaliser missing at $NORM, nothing was compared" >&2; exit 3; }
 
 if [ "${1:-}" = "--selftest" ]; then
   T=$(mktemp -d)
@@ -119,8 +37,8 @@ if [ "${1:-}" = "--selftest" ]; then
   printf '%s' 'notice what you were actually looking for'               > "$T/script2.txt"
   printf '%s' 'notice what you are actually looking for'                > "$T/stt2.txt"
   ok=0
-  python3 -c "$NORM" "$T/stt1.txt" "$T/script1.txt" >/dev/null 2>&1 && { echo "PASS: currency+clock normalise (no false alarm)"; ok=$((ok+1)); } || echo "FAIL: false alarm on \$1,000 / 3:00"
-  python3 -c "$NORM" "$T/stt2.txt" "$T/script2.txt" >/dev/null 2>&1 && echo "FAIL: missed the were->are flip" || { echo "PASS: caught were->are"; ok=$((ok+1)); }
+  python3 "$NORM" "$T/stt1.txt" "$T/script1.txt" >/dev/null 2>&1 && { echo "PASS: currency+clock normalise (no false alarm)"; ok=$((ok+1)); } || echo "FAIL: false alarm on \$1,000 / 3:00"
+  python3 "$NORM" "$T/stt2.txt" "$T/script2.txt" >/dev/null 2>&1 && echo "FAIL: missed the were->are flip" || { echo "PASS: caught were->are"; ok=$((ok+1)); }
   rm -rf "$T"
   [ "$ok" = 2 ] && { echo "script_match selftest: all passed"; exit 0; } || { echo "script_match selftest: FAILED"; exit 1; }
 fi
@@ -131,7 +49,7 @@ ACCEPT=""
 [ "${3:-}" = "--accept" ] && ACCEPT="${4:?--accept requires a stated reason}"
 
 set +e
-OUT=$(python3 -c "$NORM" "$STT" "$SCRIPT" 2>&1); RC=$?
+OUT=$(python3 "$NORM" "$STT" "$SCRIPT" 2>&1); RC=$?
 set -e
 echo "$OUT"
 
