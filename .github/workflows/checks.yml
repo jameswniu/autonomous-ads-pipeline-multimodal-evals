@@ -64,8 +64,21 @@ jobs:
           done
           echo "all probes import"
 
+      # The calibration report. Whoever opens a run sees, without cloning anything, which
+      # thresholds are derived, which are typed, which their own labels refuse, and how many
+      # labels were re-measured from pixels against re-read from a committed shipping ledger.
+      # This is the maintenance answer made visible rather than asserted.
       - name: Derive thresholds from the labelled exemplars
-        run: python3 evals/derive.py
+        run: |
+          set -o pipefail
+          {
+            echo "### Threshold calibration"
+            echo
+            echo '```'
+            python3 evals/derive.py | tee /tmp/derive.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -E 'NAMED gating thresholds|AUTHORED|REFUTED|labelled rows' /tmp/derive.txt || true
 
       # Every selftest the repository already ships. script_match's has existed since
       # 2026-07-26 and nothing ever called it.
@@ -76,7 +89,15 @@ jobs:
       # comes back, and the fit says whether the needle moves one for one and how tightly. A
       # probe that has gone blind fails here rather than passing everything downstream.
       - name: Certify the probes against a known shift
-        run: python3 evals/certify.py
+        run: |
+          set -o pipefail
+          {
+            echo "### Instrument certificate"
+            echo
+            echo '```'
+            python3 evals/certify.py
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Lint
         run: ruff check .

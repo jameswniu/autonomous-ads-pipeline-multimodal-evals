@@ -191,6 +191,50 @@ def test_a_withheld_mouth_row_with_no_ledger_named_fails_closed():
             fh.write(original)
 
 
+CLASSES = {"unit", "probe", "eval", "runner"}
+
+
+def registry():
+    """{path: class} from the table in docs/EVALS.md, which IS the registry."""
+    doc = os.path.join(ROOT, "docs", "EVALS.md")
+    with open(doc) as fh:
+        body = fh.read()
+    rows = re.findall(r"^\| `([^`]+)` \| (\w+) \|", body, re.M)
+    return {path: cls for path, cls in rows}
+
+
+def executables():
+    """Every check that ships, which is what the registry has to cover."""
+    found = []
+    for d in ("probes", "gates"):
+        for name in sorted(os.listdir(os.path.join(ROOT, d))):
+            if name.endswith((".py", ".sh")) and not name.startswith("_"):
+                found.append(f"{d}/{name}")
+    return found
+
+
+def test_every_check_is_classified_as_unit_probe_eval_or_runner():
+    """The rule a reviewer asks about, applied file by file rather than asserted.
+
+    A check nobody has decided the shape of is the thing this makes impossible,
+    and a doc that quietly falls behind the directory is the way it comes back.
+    """
+    reg = registry()
+    assert reg, "docs/EVALS.md has no classification table"
+    missing = [f for f in executables() if f not in reg]
+    assert not missing, f"not classified in docs/EVALS.md: {missing}"
+    ghosts = [f for f in reg if not os.path.exists(os.path.join(ROOT, f))]
+    assert not ghosts, f"docs/EVALS.md classifies files that do not exist: {ghosts}"
+    odd = {f: c for f, c in reg.items() if c not in CLASSES}
+    assert not odd, f"class outside {sorted(CLASSES)}: {odd}"
+
+
+def test_the_registry_names_at_least_one_of_each_class():
+    """Three classes and a runner, or the rule is describing something else."""
+    have = set(registry().values())
+    assert have == CLASSES, f"the table uses {sorted(have)}, the rule names {sorted(CLASSES)}"
+
+
 WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven",
          8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen",
          14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen"}

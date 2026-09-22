@@ -18,6 +18,42 @@ The pipeline is autonomous. It renders on a schedule with nobody watching, and t
 label  ->  derive  ->  gate  ->  render  ->  relabel
 ```
 
+## 0. Which of the three a check is
+
+The question a reviewer asks first is why any of this is a probe rather than an ordinary test. The answer is a rule, and the rule is applied file by file below rather than asserted.
+
+**A deterministic function gets a unit test.** One input, one right answer, assert equality. Text normalisation and caption-to-speech comparison are in this class: the same words in and the same verdict out, every run, forever.
+
+**A generative output gets a probe with a calibrated threshold.** The same prompt returns different pixels every run, so there is no equality to assert. What survives is a measured property and a line drawn on it, and the line has to come from somewhere, which is what the rest of this document is about.
+
+**A judgement no measurement captures gets an eval with human labels behind it.** Whether an ad is worth watching is not a number. It is a verdict, and the only honest way to enforce it later is to have recorded enough of them.
+
+**A runner is none of the three.** It orders the others and spends money; it decides nothing itself.
+
+Every executable in `probes/` and `gates/` is classified here, and `tests/test_suite.py` fails if one is missing, if a row names a file that does not exist, or if a class outside these four appears. A check that nobody has decided the shape of is the thing this table exists to make impossible.
+
+| File | Class | What it settles |
+|---|---|---|
+| `probes/bg_detail.py` | probe | Background busyness against a calibrated ceiling |
+| `probes/coherence_probe.py` | probe | Whether a scene holds together or drifts |
+| `probes/eye_eval.py` | eval | Reproduces the human's own recorded verdicts, validated by accuracy against them |
+| `probes/hand_probe.py` | probe | Gesture energy against a floor |
+| `probes/level_probe.py` | probe | One lighting level held all the way through, at any level |
+| `probes/lipsync_probe.py` | probe | Mouth against audio, onset and correlation |
+| `probes/mirror_probe.py` | probe | A frozen or mirrored span inside a clip that should be moving |
+| `probes/scene_simplicity.py` | probe | Scene complexity against the engine's own ceiling |
+| `probes/spasm_probe.py` | probe | Motion that jerks rather than moves |
+| `probes/sync_probe.py` | probe | Audio lag inside a two-sided band |
+| `gates/ad_gates.sh` | runner | Orders the caption and closer gates and writes the receipt |
+| `gates/board_probe.py` | unit | The mechanical half of the board law, exact checks on a declared board |
+| `gates/caption_gate.py` | unit | Every burned caption says what is spoken, when it is spoken |
+| `gates/edge_clip_probe.py` | probe | A story prop amputated by a frame edge the engine never saw |
+| `gates/mouth_sync_probe.py` | probe | The lip-sync check that actually blocks a master |
+| `gates/script_match.sh` | unit | The spoken read-back against the written script |
+| `gates/source_gate.py` | probe | Jaw stretch and end-of-clip robotics on the flat render |
+| `gates/textnorm.py` | unit | One normaliser, so two gates cannot disagree about what a word is |
+| `gates/voice_take.sh` | runner | Draws N narrations and keeps the one that sounds like her |
+
 ## 1. Label
 
 Verdicts come first, in plain language, on real takes. They accumulate into labelled sets:
