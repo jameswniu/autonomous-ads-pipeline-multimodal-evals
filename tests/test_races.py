@@ -17,8 +17,8 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from backfill_races import (EXTERNAL_PROVENANCE_LABEL, Sources, _load_scorer, append_rows,
-                            baseline_cost, build_rows)
+from backfill_races import (EXTERNAL_PROVENANCE_LABEL, Sources, _load_scorer,  # noqa: E402
+                            append_rows, baseline_cost, build_rows)
 from score_race import resolve_panel, score_race  # noqa: E402
 
 

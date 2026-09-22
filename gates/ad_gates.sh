@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# ad_gates.sh <master.mp4> <captions.json>: the two gates an ad master must clear before deliver.sh will take it.
+# ad_gates.sh <master.mp4> <captions.json>: the two gates an ad master must clear before delivery.
+#   It writes a pass receipt, below. Nothing in this repository reads that receipt yet, so the gate
+#   is only as binding as the caller that runs it; an earlier comment claimed deliver.sh enforced it.
 #   caption gate  every burned caption says what is spoken, when it is spoken (caption_gate.py)
 #   closer gate   the closer window cut out of the MASTER, not the raw render: its video must start where its
 #                 audio was placed (frame-exact, 40 ms), sync_probe must not read late, lipsync_probe must not FAIL
@@ -20,14 +22,24 @@ echo "== closer assembly"
 Q=$(python3 - "$V" <<'PY'
 import subprocess, sys
 v = sys.argv[1]; tot = 0
+from fractions import Fraction
+# Duration from each segment's own frame rate. This used to divide the frame total by a hardcoded
+# 25, so a 30 fps render mismeasured the closer offset the 40 ms check exists to catch.
+ms = 0.0
 for q in ("q1","q2","q3"):
-    n = subprocess.run(["ffprobe","-v","error","-select_streams","v","-count_frames","-show_entries","stream=nb_read_frames","-of","csv=p=0",f"{v}/{q}.mp4"],capture_output=True,text=True).stdout.strip()
-    tot += int(n)
-print(int(tot/25*1000))
+    out = subprocess.run(["ffprobe","-v","error","-select_streams","v","-count_frames","-show_entries","stream=nb_read_frames,r_frame_rate","-of","csv=p=0",f"{v}/{q}.mp4"],capture_output=True,text=True).stdout.strip()
+    rate, n = out.split(",")
+    ms += int(n) / float(Fraction(rate)) * 1000
+print(int(ms))
 PY
 )
+case "$Q" in
+  ''|*[!0-9]*) echo "  closer assembly unreadable (q1/q2/q3 missing or corrupt): FAIL"; Q=""; fail=1 ;;
+esac
+if [ -n "$Q" ]; then
 D=$(( Q - AMS )); [ $D -lt 0 ] && D=$(( -D ))
 if [ "$D" -le 40 ]; then echo "  closer video at ${Q} ms, audio placed at ${AMS} ms, drift ${D} ms: ok"; else echo "  closer video at ${Q} ms, audio placed at ${AMS} ms, drift ${D} ms: FAIL"; fail=1; fi
+fi
 echo "== closer window probes"
 W=/tmp/ad-gate-closer-$(basename "$M")
 ffmpeg -v error -y -ss "$CS" -t "$CD" -i "$M" -c:v libx264 -crf 18 -c:a aac "$W" || { echo "  could not cut closer window"; exit 1; }
@@ -46,9 +58,9 @@ else echo "  sync lag ${LAG} ms (disclosure only): ok"; fi
 FACEPY=${FACEPY:-python3}
 MS=$("$FACEPY" "$SK/mouth_sync_probe.py" "$W" 2>/dev/null | tail -1); rm=$?
 echo "  $MS"
-case "$rm" in 0) ;; 2) echo "  mouth sync REVIEW, eye decides (logged)";; *) echo "  mouth sync FAIL"; fail=1;; esac
+case "$rm" in 0) ;; 2) echo "  mouth sync REVIEW, eye decides (logged)";; 3) echo "  mouth sync NO FACE, nothing was measured"; fail=1;; *) echo "  mouth sync FAIL"; fail=1;; esac
 if [ "$fail" -eq 0 ]; then
-  SZ=$(stat -f %z "$M"); touch "/tmp/.ad-gates-$(basename "$M")-$SZ"; echo "AD GATES PASS $(basename "$M")"
+  SZ=$(wc -c < "$M" | tr -d ' '); touch "/tmp/.ad-gates-$(basename "$M")-$SZ"; echo "AD GATES PASS $(basename "$M")"
 else
   echo "AD GATES FAIL $(basename "$M")"
 fi

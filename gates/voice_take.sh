@@ -38,6 +38,11 @@ fi
 case "$OUT" in *.wav) FMT=wav;; *) FMT=mp3;; esac
 [ -s "$SCRIPT" ] || { echo "voice_take: script not readable: $SCRIPT"; exit 64; }
 [ -n "${ELEVENLABS_API_KEY:-}" ] || { echo "voice_take: ELEVENLABS_API_KEY not in env"; exit 64; }
+# The consensus probe is checked BEFORE the first draw. It is invoked far below, after N paid TTS
+# requests, and it is not in this repository, so a fresh clone used to spend vendor credit and then
+# fail with nothing to select from (2026-09-21). VOICE_PROBE points at it when it lives elsewhere.
+PROBE="${VOICE_PROBE:-$SKILL/voice_probe.py}"
+[ -f "$PROBE" ] || { echo "voice_take: consensus probe not found at $PROBE, refusing to spend draws"; echo "  set VOICE_PROBE to its path, or install it beside this script"; exit 64; }
 
 CHARS=$(wc -c < "$SCRIPT" | tr -d ' ')
 if [ "$CHARS" -lt 250 ]; then
@@ -105,7 +110,7 @@ done
 set -- $DRAWS
 [ "$#" -ge 2 ] || { echo "voice_take: fewer than 2 usable draws, cannot form a consensus"; exit 64; }
 
-OUTPUT=$(python3 "$SKILL/voice_probe.py" "$@")
+OUTPUT=$(python3 "$PROBE" "$@")
 RC=$?
 echo "$OUTPUT"
 WINNER=$(echo "$OUTPUT" | grep '^SURVIVOR: ' | tail -1 | sed 's/^SURVIVOR: //')
@@ -114,7 +119,10 @@ if [ "$RC" -ne 0 ]; then
   echo "voice_take: draws did not agree; nothing written to $OUT. Redraw, or let the author's ear pick."
   exit 1
 fi
-cp "$WINNER" "$OUT"
+# The probe can exit 0 without naming a survivor. Copying an empty path used to fail while the
+# script still exited 0 and announced a take, leaving downstream automation with no audio.
+[ -n "$WINNER" ] && [ -f "$WINNER" ] || { echo "voice_take: the probe named no usable survivor, nothing written to $OUT"; exit 1; }
+cp "$WINNER" "$OUT" || { echo "voice_take: could not write $OUT"; exit 1; }
 echo "voice_take: wrote $(basename "$WINNER") -> $OUT (a SURVIVOR of the outlier check, not a"
 echo "  quality pick: ranking within survivors was falsified by the author's ear 2026-07-26)"
 echo "  rejected draws kept beside it as failure exemplars; delete them once the author has labelled."

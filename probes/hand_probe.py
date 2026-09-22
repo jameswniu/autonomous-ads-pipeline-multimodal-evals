@@ -40,7 +40,7 @@ def main():
     hands = band.mean()
     ratio = hands/max(head,1e-6)
     print(f"HAND gesture ratio {ratio:.3f}  (head-band motion {head:.2f}, hand-band motion {hands:.2f})")
-    print(f"  reference: avatar_v clips I call natural show visible gesture; a frozen talking head ~0.2 or less")
+    print("  reference: avatar_v clips I call natural show visible gesture; a frozen talking head ~0.2 or less")
     sys.exit(0)
 
 if __name__ == "__main__":

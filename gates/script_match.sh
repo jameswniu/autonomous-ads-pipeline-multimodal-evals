@@ -45,22 +45,52 @@ def norm(t):
     t=re.sub(r"(\d),(\d{3})", r"\1\2", t)
     t=re.sub(r"[^a-z0-9' ]"," ",t)
     w=t.split()
-    # number words -> digits, composing "a thousand" / "one thousand" / "twenty five"
-    out=[];i=0
+    # Number words to digits. One spoken number is parsed at a time, with scales applied properly
+    # and a new number started whenever two bare units meet. The old loop added every adjacent
+    # number word together, so "one thousand two hundred" became 100200 and "one two" became 3,
+    # the same token as "three" (2026-09-21).
+    out=[]
+    i=0
     while i<len(w):
         tok=w[i]
-        if tok in UNITS or (tok=="a" and i+1<len(w) and w[i+1] in SCALES):
-            cur=0 if tok=="a" else UNITS[tok]
-            if tok=="a": cur=1
-            i+=1
-            while i<len(w) and (w[i] in UNITS or w[i] in SCALES):
-                if w[i] in SCALES: cur=(cur or 1)*SCALES[w[i]]
-                else: cur+=UNITS[w[i]]
+        if tok in UNITS or tok in SCALES or (tok=="a" and i+1<len(w) and w[i+1] in SCALES):
+            if tok=="a":
                 i+=1
-            out.append(str(cur)); continue
-        out.append(tok); i+=1
+            total=0
+            cur=0
+            prev=None
+            while i<len(w):
+                x=w[i]
+                if x in SCALES:
+                    if SCALES[x]==100:
+                        cur=(cur or 1)*100
+                    else:
+                        total+=(cur or 1)*SCALES[x]
+                        cur=0
+                    prev="scale"
+                elif x in UNITS:
+                    v=UNITS[x]
+                    kind="ten" if v>=20 else ("teen" if v>=10 else "unit")
+                    if prev in ("unit","teen") or (prev=="ten" and kind!="unit"):
+                        break
+                    cur+=v
+                    prev=kind
+                else:
+                    break
+                i+=1
+            out.append(str(total+cur))
+            continue
+        out.append(tok)
+        i+=1
     return out
-a=norm(load(sys.argv[1])); b=norm(load(sys.argv[2]))
+# Exit 1 means the audio and the script differ. Any other failure, an unreadable file or a
+# parse error, exits 3, so it can never be mistaken for a mismatch that --accept may override.
+try:
+    a=norm(load(sys.argv[1]))
+    b=norm(load(sys.argv[2]))
+except Exception as e:
+    print(f"ERROR could not compare: {e}")
+    sys.exit(3)
 import difflib
 if a==b:
     print("MATCH"); sys.exit(0)
@@ -71,6 +101,15 @@ sys.exit(1)
 PY
 }
 
+# The normaliser is a program handed to python3 through a command substitution. If producing it
+# fails, python3 receives an empty program, exits 0, and the gate used to print PASS on a
+# comparison that never ran (2026-09-21). So the program is captured once and checked first.
+NORM=$(norm_py) || NORM=""
+case "$NORM" in
+  *"def norm("*) ;;
+  *) echo "SCRIPT-MATCH ERROR: the normaliser could not be loaded, nothing was compared" >&2; exit 3 ;;
+esac
+
 if [ "${1:-}" = "--selftest" ]; then
   T=$(mktemp -d)
   # Real cases from 2026-07-26. The first two are STT rendering conventions and MUST pass;
@@ -80,8 +119,8 @@ if [ "${1:-}" = "--selftest" ]; then
   printf '%s' 'notice what you were actually looking for'               > "$T/script2.txt"
   printf '%s' 'notice what you are actually looking for'                > "$T/stt2.txt"
   ok=0
-  python3 -c "$(norm_py)" "$T/stt1.txt" "$T/script1.txt" >/dev/null 2>&1 && { echo "PASS: currency+clock normalise (no false alarm)"; ok=$((ok+1)); } || echo "FAIL: false alarm on \$1,000 / 3:00"
-  python3 -c "$(norm_py)" "$T/stt2.txt" "$T/script2.txt" >/dev/null 2>&1 && echo "FAIL: missed the were->are flip" || { echo "PASS: caught were->are"; ok=$((ok+1)); }
+  python3 -c "$NORM" "$T/stt1.txt" "$T/script1.txt" >/dev/null 2>&1 && { echo "PASS: currency+clock normalise (no false alarm)"; ok=$((ok+1)); } || echo "FAIL: false alarm on \$1,000 / 3:00"
+  python3 -c "$NORM" "$T/stt2.txt" "$T/script2.txt" >/dev/null 2>&1 && echo "FAIL: missed the were->are flip" || { echo "PASS: caught were->are"; ok=$((ok+1)); }
   rm -rf "$T"
   [ "$ok" = 2 ] && { echo "script_match selftest: all passed"; exit 0; } || { echo "script_match selftest: FAILED"; exit 1; }
 fi
@@ -92,11 +131,13 @@ ACCEPT=""
 [ "${3:-}" = "--accept" ] && ACCEPT="${4:?--accept requires a stated reason}"
 
 set +e
-OUT=$(python3 -c "$(norm_py)" "$STT" "$SCRIPT" 2>&1); RC=$?
+OUT=$(python3 -c "$NORM" "$STT" "$SCRIPT" 2>&1); RC=$?
 set -e
 echo "$OUT"
 
 if [ "$RC" = 0 ]; then echo "SCRIPT-MATCH PASS"; exit 0; fi
+# Only a genuine mismatch, exit 1, may be accepted. An error means no comparison happened.
+if [ "$RC" != 1 ]; then echo "SCRIPT-MATCH ERROR: the comparison did not run (exit $RC), refusing to pass or accept" >&2; exit 3; fi
 
 if [ -n "$ACCEPT" ]; then
   echo "SCRIPT-MATCH ACCEPTED (deliberate): $ACCEPT"

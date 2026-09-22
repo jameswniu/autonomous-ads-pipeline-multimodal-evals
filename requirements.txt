@@ -4,6 +4,10 @@
 # minimum that might work. Nothing here is pinned exactly, because the probes
 # use long-stable APIs (VideoCapture, absdiff, matchTemplate, ndarray math) and
 # an exact pin would age worse than the code does.
+# PyYAML is a TEST dependency, and it is here because two workflow-wiring tests degrade to
+# nothing without it. One of them passed vacuously in CI for months because its import sat
+# above every assertion in the function (2026-09-21).
+PyYAML>=6.0
 opencv-python>=4.8
 numpy>=1.24
 Pillow>=10.0

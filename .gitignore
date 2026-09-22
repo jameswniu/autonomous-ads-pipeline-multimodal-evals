@@ -45,3 +45,7 @@ tools/pii_names.txt
 !samples/
 !samples/**
 .pytest_cache/
+
+# Coverage data. The report is a CI artifact, the raw files are per-machine.
+.coverage
+.coverage.*

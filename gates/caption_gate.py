@@ -11,7 +11,9 @@ them; the gate that shipped them measured the whole master and never looked at a
 import json, re, sys
 from difflib import SequenceMatcher
 
-def letters(t): return re.sub(r"[^a-z]", "", t.lower())
+# Digits are part of what a caption claims. Stripping them compared "Only $199" against
+# spoken "$999" as the same string, so a wrong price, quantity or date passed (2026-09-21).
+def letters(t): return re.sub(r"[^a-z0-9]", "", t.lower())
 def words(stt):
     return [w for w in json.load(open(stt))["words"] if w["type"] == "word"]
 
@@ -19,6 +21,11 @@ def main():
     m = json.load(open(sys.argv[1]))
     vo, av = words(m["vo_stt"]), words(m["av_stt"])
     off = m["closer_start"]
+    # A manifest with no cues used to print PASS (0 cues). An upstream omission or a schema
+    # change then read as a clean inspection of captions nobody looked at.
+    if not m["cues"]:
+        print("CAPTION GATE FAIL (0 cues: nothing to inspect)")
+        return 1
     fails = []
     for i, c in enumerate(m["cues"], 1):
         if i <= 3:
@@ -27,8 +34,17 @@ def main():
             spoken = [w for w in av if off + w["start"] >= c["spoken_start"] - 0.05 and off + w["end"] <= c["spoken_end"] + 0.05]
         said = " ".join(w["text"] for w in spoken)
         sim = SequenceMatcher(None, letters(c["text"]), letters(said)).ratio()
-        lead = c["spoken_start"] - c["start"]
-        tail = c["end"] - c["spoken_end"]
+        # Timing is measured against the words the transcript actually carries, not against the
+        # window the manifest declares for them. Trusting the declared window hid a caption that
+        # stood for five seconds over a word not spoken until the fourth (2026-09-21).
+        if not spoken:
+            print(f"  cue {i} [{c['start']:.2f}-{c['end']:.2f}] FAIL no transcript word inside its window :: {c['text'][:50]}")
+            fails.append(i)
+            continue
+        first = min(w["start"] for w in spoken) + (0 if i <= 3 else off)
+        last = max(w["end"] for w in spoken) + (0 if i <= 3 else off)
+        lead = first - c["start"]
+        tail = c["end"] - last
         verdict = []
         if sim < 0.90: verdict.append(f"text {sim:.2f} vs spoken '{said}'")
         if lead > 0.50: verdict.append(f"cue up {lead:.2f}s before speech")

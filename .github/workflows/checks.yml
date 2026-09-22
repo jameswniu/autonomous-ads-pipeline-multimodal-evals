@@ -44,15 +44,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest pytest-cov ruff
 
-      # A fresh clone must be able to import every probe. This catches an
+      # A fresh clone must be able to import every probe AND every gate. This catches an
       # undeclared dependency, which is how Pillow stayed missing from
-      # requirements.txt while eight files imported it.
-      - name: Import every probe
+      # requirements.txt while eight files imported it. gates/ was added on 2026-09-21,
+      # when a sweep found that nothing in CI had ever loaded those eight files: one read
+      # sys.argv at import time and two imported model libraries nothing declared.
+      - name: Import every probe and gate
         run: |
           set -e
-          for f in probes/*.py; do
+          for f in probes/*.py gates/*.py; do
             python -c "
           import importlib.util, sys
           spec = importlib.util.spec_from_file_location('p', '$f')
@@ -64,8 +66,36 @@ jobs:
 
       - name: Derive thresholds from the labelled exemplars
         run: python3 evals/derive.py
-      - name: Test suite
-        run: python3 -m pytest tests/ -v
+
+      # Every selftest the repository already ships. script_match's has existed since
+      # 2026-07-26 and nothing ever called it.
+      - name: Gate selftests
+        run: bash gates/script_match.sh --selftest
+
+      - name: Lint
+        run: ruff check .
+
+      # COVERAGE_PROCESS_START is what makes this number honest. The gates and probes are
+      # invoked as subprocesses by their tests, and without it every one of them reads 0%
+      # while being thoroughly exercised: 27% against the real 54%.
+      - name: Test suite with coverage
+        env:
+          COVERAGE_PROCESS_START: ${{ github.workspace }}/pyproject.toml
+        run: |
+          python3 -m pytest tests/ -v --cov --cov-report=
+          python3 -m coverage report
+          {
+            echo "### Coverage"
+            echo
+            echo '```'
+            python3 -m coverage report
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # A subprocess killed mid-write leaves a torn data file, which coverage warns about
+          # and skips. tests/test_races.py kills a child with SIGXFSZ on purpose, so expect it.
+          # The floor ratchets. It sits just under the measured 54% so an environment
+          # difference cannot flap the build, and it rises with each test added.
+          python3 -m coverage report --fail-under=50
       # The one executable test that predates this workflow. It used to fail on a
       # fresh clone because it asserts on a string only emitted when
       # learned_rules.md exists, and that file was never committed. It is now

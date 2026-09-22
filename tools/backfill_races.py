@@ -179,7 +179,7 @@ def build_rows(root=ROOT):
         values = [float(cell.strip().replace("**", "")) for cell in cells]
         if len(values) != 4:
             raise ValueError("Orchard table must contain the four recorded engines")
-        original_scores[probe] = (dict(zip(ENGINES, values)), source)
+        original_scores[probe] = (dict(zip(ENGINES, values, strict=True)), source)
 
     def measurement(probe, value=None, refs=None, output_path=None):
         probe_path = f"probes/{probe}.py"
@@ -284,7 +284,7 @@ def build_rows(root=ROOT):
                         "batch_id": "ads2-redo-omni", "scene_count": 15, "scene_rate": 0.6,
                         "basis": "recorded approximate batch and scene rate; not a render invoice",
                         "source": sources.ref("README.md", "| B1 | Omni Flash |")})
-                for n, landing in zip(landing_refs, landings):
+                for n, landing in zip(landing_refs, landings, strict=True):
                     if landing["status"] != "OK":
                         skipped.append({"item": f"{n['path']}:{n['line']}",
                                         "reason": f"{landing['status']} scene attempt is not a scored render."})
@@ -323,7 +323,7 @@ def build_rows(root=ROOT):
                 board_ref = sources.ref("shoots/ads6-omni/boards.json", '"engine"')
             req_refs, requests = sources.ledger_refs(render_shoot, "requests.jsonl", brief)
             landing_refs, landings = sources.ledger_refs(render_shoot, "landings.jsonl", brief)
-            masters = [(ref, item) for ref, item in zip(landing_refs, landings)
+            masters = [(ref, item) for ref, item in zip(landing_refs, landings, strict=True)
                        if item.get("kind") == "gated master"]
             if not masters:
                 raise ValueError(f"{render_shoot}/{brief}: no gated master")

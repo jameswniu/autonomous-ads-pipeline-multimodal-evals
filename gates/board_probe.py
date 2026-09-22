@@ -22,6 +22,10 @@ def main():
     b = json.load(open(sys.argv[1]))
     spots = b.get("spots", {})
     guard = b.get("guard", "")
+    # An empty board printed PASS (0 spots). Nothing inspected is not a pass.
+    if not spots:
+        print("BOARD PROBE FAIL (0 spots: nothing to inspect)")
+        return 1
     fails = []
     rows = []
     for ad, sp in spots.items():

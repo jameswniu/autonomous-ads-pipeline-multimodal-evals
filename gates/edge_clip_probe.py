@@ -14,9 +14,33 @@ import json, sys
 import numpy as np
 import cv2
 
+def merge_events(hits):
+    """Group hits into sustained events, each side tracked on its own.
+
+    Merging only with the immediately preceding event meant a prop clipped on BOTH edges
+    alternated sides, left every event one frame long, and never reached the three-frame
+    floor, so the probe reported CLEAN while both detectors fired (2026-09-21).
+    """
+    open_side = {}
+    events = []
+    for t, side, _area in hits:
+        e = open_side.get(side)
+        if e is not None and t - e["until"] < 0.4:
+            e["until"] = t; e["frames"] += 1
+        else:
+            e = {"at": round(t, 1), "until": t, "side": side, "frames": 1}
+            events.append(e); open_side[side] = e
+    return events
+
+
 def main():
     path = sys.argv[1]
     cap = cv2.VideoCapture(path)
+    # A missing or unreadable file used to fall straight out of the read loop and print CLEAN,
+    # so absent media was indistinguishable from inspected footage.
+    if not cap.isOpened():
+        print(f"EDGE PROBE ERROR: cannot open {path}", file=sys.stderr)
+        return 64
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     prev = None; idx = 0; hits = []
     EDGE = 26        # px band at each side of the delivered frame
@@ -38,12 +62,10 @@ def main():
                         hits.append((idx / fps, side, area))
         prev = g; idx += 1
     cap.release()
-    events = []
-    for t, side, area in hits:
-        if events and t - events[-1]["until"] < 0.4 and events[-1]["side"] == side:
-            events[-1]["until"] = t; events[-1]["frames"] += 1
-        else:
-            events.append({"at": round(t, 1), "until": t, "side": side, "frames": 1})
+    if idx == 0:
+        print(f"EDGE PROBE ERROR: no frames decoded from {path}", file=sys.stderr)
+        return 64
+    events = merge_events(hits)
     real = [e for e in events if e["frames"] >= 3]
     for e in real: e["until"] = round(e["until"], 1)
     out = {"clip": path, "events": real, "verdict": "EDGE CLIP" if real else "CLEAN"}

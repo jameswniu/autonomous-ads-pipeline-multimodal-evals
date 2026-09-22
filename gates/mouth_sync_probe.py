@@ -16,9 +16,27 @@ Calibrated 2026-08-26 on a shifted control: the same clip with its audio delayed
 import json, subprocess, sys, tempfile, os
 import numpy as np
 import cv2
-from insightface.app import FaceAnalysis
 
 HZ = 25
+
+# The verdict rule, named so it can be bracketed and tested without a face model. Values are the
+# ones calibrated on shifted controls on 2026-08-26 and mirrored from lipsync_probe's rule.
+PASS_CORR = 0.25   # correlation at or above this, with the lag inside PASS_LAG, is a PASS
+PASS_LAG = 0.20    # seconds either way
+FAIL_CORR = 0.10   # below this the mouth is unrelated to the audio
+EXIT = {"PASS": 0, "REVIEW": 2, "FAIL": 1}
+# No face is not a measurement. It used to share exit 2 with REVIEW, and ad_gates.sh passes every
+# REVIEW, so a closer with no measurable mouth reached AD GATES PASS (2026-09-21).
+NO_FACE = 3
+
+
+def verdict(corr, lag):
+    """PASS, REVIEW or FAIL for a best correlation and its lag in seconds."""
+    if corr >= PASS_CORR and abs(lag) <= PASS_LAG:
+        return "PASS"
+    if corr < FAIL_CORR:
+        return "FAIL"
+    return "REVIEW"
 
 def envelope(path, hz=HZ):
     wav = tempfile.mktemp(suffix=".wav")
@@ -36,6 +54,10 @@ def mouth_motion(path):
     """Per-frame mouth openness from the 106-point landmarks (indices 52-71 are the lips, verified 2026-08-26
     at y 0.69-0.84 of the face box): vertical extent of the lip cluster over face height. Landmark openness,
     not region frame-difference, because hair, hands and head motion pass through a region and drown the lips."""
+    # Imported here, not at module level, so the gate imports on a machine without the face
+    # model and its verdict rule stays testable everywhere. The model itself is still required
+    # to measure, and its absence fails loud at this line.
+    from insightface.app import FaceAnalysis
     app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])  # pii-allow, a model name, not a time
     app.prepare(ctx_id=0, det_size=(640, 640))
     cap = cv2.VideoCapture(path)
@@ -60,7 +82,7 @@ def main():
     env = envelope(path)
     mouth, fps, found, total = mouth_motion(path)
     if found < 5:
-        print(f"MOUTH SYNC: no face found ({found} detections in {total} frames)"); return 2
+        print(f"MOUTH SYNC NO FACE: {found} detections in {total} frames, nothing measured"); return NO_FACE
     # resample mouth series to HZ
     t = np.arange(len(mouth)) / fps
     grid = np.arange(0, t[-1], 1.0 / HZ)
@@ -75,11 +97,11 @@ def main():
         if len(x) < 20: continue
         c = float(np.corrcoef(x, y)[0, 1])
         if c > best: best, bl = c, lag / HZ
-    verdict = "PASS" if (best >= 0.25 and abs(bl) <= 0.20) else ("FAIL" if best < 0.10 else "REVIEW")
-    out = {"clip": path, "corr": round(best, 3), "lag_s": round(bl, 2), "face_frames": found, "frames": total, "verdict": verdict}
+    v = verdict(best, bl)
+    out = {"clip": path, "corr": round(best, 3), "lag_s": round(bl, 2), "face_frames": found, "frames": total, "verdict": v}
     if "--json" in sys.argv: print(json.dumps(out))
-    else: print(f"MOUTH SYNC {verdict}: corr {best:.2f} at lag {bl:+.2f}s (mouth leads audio when positive) | face in {found} of {total} frames")
-    return {"PASS": 0, "REVIEW": 2, "FAIL": 1}[verdict]
+    else: print(f"MOUTH SYNC {v}: corr {best:.2f} at lag {bl:+.2f}s (mouth leads audio when positive) | face in {found} of {total} frames")
+    return EXIT[v]
 
 if __name__ == "__main__":
     sys.exit(main())
