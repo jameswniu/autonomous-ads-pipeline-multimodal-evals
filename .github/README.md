@@ -1,13 +1,13 @@
 # Kill Gate
 
 ```
-python3 test_gate.py                    # eleven guardrails, from ties-by-name to one JSON object per judge reply
-python3 eval/run.py                     # headline: hit rate, uniform, gate, pick, oracle, Aug 24 cohort
-python3 eval/run.py --cohort all        # sensitivity check with the 8 second-shoot renders added
-python3 eval/run.py --judge gpt         # a second vendor as the judge, for contrast
-python3 eval/facts.py                   # every other number quoted below, from results/
-python3 judge.py path/to/render.mp4     # score one render, 20 lean calls, ready for gate.py
-python3 gate.py < scores.json           # stdin scores in, kill and ship out (RUNSHEET.md has a one-liner)
+python3 test_gate.py                 # eleven guardrails on the gate and the judge's reply
+python3 eval/run.py                  # headline: hit rate, then the four lines, Aug 24
+python3 eval/run.py --cohort all     # sensitivity check, 8 second-shoot renders added
+python3 eval/run.py --judge gpt      # a second vendor as the judge, for contrast
+python3 eval/facts.py                # every other number quoted below, from results/
+python3 judge.py path/to/render.mp4  # score one render, 20 lean calls, for gate.py
+python3 gate.py < scores.json        # scores in on stdin, kill and ship out
 ```
 
 ## What I found
