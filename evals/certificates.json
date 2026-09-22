@@ -5,6 +5,8 @@
   "certificates": [
     {
       "probe": "lipsync_probe",
+      "source_sha256": "2208235dae0f6e1acade1211f1cd777f213209c90e2b0f12af217c6e6c3e98f0",
+      "certifier_sha256": "558b44ddc4a11dc0bb816e3798ec5af29a7f094aa1a0ee237fb39abdd01d4973",
       "doses_ms": [
         -160,
         -120,
@@ -30,7 +32,8 @@
       "slope": 1.002,
       "expected_sign": 1,
       "intercept_ms": -23.8,
-      "sigma_ms": 1.0,
+      "sigma_ms": 1.009872,
+      "sigma_ms_shown": 1.0,
       "slope_min": 0.8,
       "sigma_max_ms": 40.0,
       "skipped_ms": [],
@@ -38,6 +41,8 @@
     },
     {
       "probe": "sync_probe",
+      "source_sha256": "0fd5de98b9179b5e1f4b739b600c58618259ef1bbd9f96b4be36e415b64eb011",
+      "certifier_sha256": "558b44ddc4a11dc0bb816e3798ec5af29a7f094aa1a0ee237fb39abdd01d4973",
       "doses_ms": [
         -160,
         -120,
@@ -64,6 +69,7 @@
       "expected_sign": -1,
       "intercept_ms": 0.0,
       "sigma_ms": 0.0,
+      "sigma_ms_shown": 0.0,
       "slope_min": 0.8,
       "sigma_max_ms": 40.0,
       "skipped_ms": [],

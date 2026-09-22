@@ -43,6 +43,7 @@ they are.
 Exit 0 every probe tracks its axis / 1 one does not / 64 ffmpeg or a probe is unusable.
 """
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -55,6 +56,35 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RECEIPT = os.path.join(ROOT, "evals", "certificates.json")
+
+
+def probe_source(probe):
+    return os.path.join(ROOT, "probes", f"{probe}.py")
+
+
+def certifier_sha():
+    """Hash THIS file too.
+
+    Hashing only the probe binds the receipt to the thing measured and not to the
+    ruler. The stimulus, the dose delivery and the fit all live here, and any of
+    them can change while a probe is untouched, leaving a receipt that still matches
+    its probe and describes a measurement nobody made. Edit this file and every
+    certificate has to be earned again, which is cheap and is the point.
+    """
+    with open(os.path.abspath(__file__), "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def source_sha(probe):
+    """Hash the probe this certificate is about, so a stale receipt is detectable.
+
+    A certificate is a claim about one version of one file. Edit the probe and the
+    receipt keeps saying TRACKS about code that no longer exists, and derive.py goes
+    on granting a margin from a number nothing measured. The reader recomputes this
+    and refuses a receipt that does not match.
+    """
+    with open(probe_source(probe), "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
 
 FPS = 25
 SECONDS = 14
@@ -250,13 +280,20 @@ def certify(probe, vid, wav, tmp):
     # left is how a probe blind on its whole positive side still certifies as tracking, which is
     # the same fail-open shape the gates in this repository were full of (2026-09-21).
     if skipped:
-        return {"probe": probe, "doses_ms": doses, "skipped_ms": skipped,
-                "verdict": "INCOMPLETE"}
+        return {"probe": probe, "source_sha256": source_sha(probe),
+                "certifier_sha256": certifier_sha(),
+                "doses_ms": doses, "skipped_ms": skipped, "verdict": "INCOMPLETE"}
     slope, intercept, sigma = fit(doses, measured)
     expect = EXPECT_SIGN[probe]
-    return {"probe": probe, "doses_ms": doses, "measured_ms": [round(m, 1) for m in measured],
+    return {"probe": probe, "source_sha256": source_sha(probe),
+            "certifier_sha256": certifier_sha(),
+            "doses_ms": doses, "measured_ms": [round(m, 1) for m in measured],
             "slope": round(slope, 3), "expected_sign": expect, "intercept_ms": round(intercept, 1),
-            "sigma_ms": round(sigma, 1), "slope_min": SLOPE_MIN, "sigma_max_ms": SIGMA_MAX_MS,
+            # Six decimals, not one. Rounding a residual scatter of 0.04 ms to 0.0
+            # hands derive.py a zero margin and reads as a perfect instrument, so
+            # the precision that sets the margin is kept and a display copy rounded.
+            "sigma_ms": round(sigma, 6), "sigma_ms_shown": round(sigma, 1),
+            "slope_min": SLOPE_MIN, "sigma_max_ms": SIGMA_MAX_MS,
             "skipped_ms": skipped,
             "verdict": "TRACKS" if tracks(slope, sigma, expect) else "BLIND"}
 
@@ -290,8 +327,32 @@ def main():
               f"(sign {c['expected_sign']:+d} expected)  sigma {c['sigma_ms']:.1f} ms  "
               f"n={len(c['doses_ms'])}")
     if a.write:
-        json.dump(out, open(RECEIPT, "w"), indent=2)
-        print(f"  receipt written to {os.path.relpath(RECEIPT, ROOT)}")
+        # MERGE, never replace. `--probe sync_probe --write` used to drop the other
+        # probe's receipt on the floor, and nothing downstream requires a probe to be
+        # present, so a routine partial recalibration silently removed coverage while
+        # everything still reported success.
+        merged = out
+        if a.probe and os.path.exists(RECEIPT):
+            try:
+                with open(RECEIPT) as fh:
+                    before = json.load(fh)
+            except (OSError, json.JSONDecodeError):
+                before = None
+            if before:
+                kept = [c for c in before.get("certificates", [])
+                        if c.get("probe") not in names]
+                merged = dict(before)
+                merged["certificates"] = sorted(
+                    kept + out["certificates"], key=lambda c: c.get("probe", ""))
+        expected = sorted(EXPECT_SIGN)
+        have = sorted({c.get("probe") for c in merged["certificates"]})
+        if have != expected:
+            print(f"certify: refusing to write a receipt missing {set(expected) - set(have)}",
+                  file=sys.stderr)
+            return 65
+        json.dump(merged, open(RECEIPT, "w"), indent=2)
+        print(f"  receipt written to {os.path.relpath(RECEIPT, ROOT)}, "
+              f"{len(merged['certificates'])} probe(s)")
     return 0 if all(c["verdict"] == "TRACKS" for c in out["certificates"]) else 1
 
 

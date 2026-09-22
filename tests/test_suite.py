@@ -18,6 +18,8 @@ import subprocess
 import sys
 import tempfile
 
+import pytest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROBES = os.path.join(ROOT, "probes")
 
@@ -98,6 +100,225 @@ def test_derive_json_shape():
     assert data["reproduced"], "no labelled row ships pixels, so nothing is reproducible"
     for row in data["reproduced"]:
         assert row.get("ok"), f"{row['item']} did not reproduce"
+
+
+def _label_rows(blob):
+    """The DATA rows only. The prose above them is documentation, not evidence."""
+    return [ln for ln in blob.splitlines(True)
+            if ln.strip() and not ln.lstrip().startswith(b"#" if isinstance(blob, bytes) else "#")]
+
+
+def test_labels_are_append_only_across_every_reachable_commit():
+    """A label is evidence, and evidence that can be quietly rewritten is not.
+
+    The same rule the race ledger lives under, applied here: an ordinary commit may
+    only extend its parent's rows, and a merge has to keep both parents' rows in
+    order. Walking every reachable commit rather than first parents is what stops a
+    side branch adding a row, deleting it, and merging the result.
+
+    FROM A BASELINE, and the honest reason is that this file was not append-only
+    before. Commit 59141b6 replaced a placeholder exemplar with a real shipped one,
+    which is a legitimate edit under the old regime and a violation under this rule.
+    Backdating the rule would mean either failing on history that cannot be changed
+    or weakening the rule until it passes. The rule starts at the commit named
+    below and binds every commit after it.
+
+    Comment lines are excluded on purpose. The provenance block at the top of the
+    file is prose and has been rewritten more than once, most recently when a third
+    kind of row was documented. The ROWS are the part that must never move.
+    """
+    BASELINE = "a7bc029f95466d390193430a7720d69793e18c63"
+    known = subprocess.run(["git", "cat-file", "-e", BASELINE + "^{commit}"], cwd=ROOT,
+                           capture_output=True)
+    if known.returncode:
+        pytest.skip("the baseline commit is not in this clone")
+    out = subprocess.run(["git", "rev-list", "--parents", f"{BASELINE}..HEAD"], cwd=ROOT,
+                         capture_output=True, text=True)
+    shallow = subprocess.run(["git", "rev-parse", "--is-shallow-repository"], cwd=ROOT,
+                             capture_output=True, text=True)
+    if out.returncode or shallow.stdout.strip() != "false":
+        pytest.skip("no full history to compare against")
+
+    cache = {}
+
+    def rows(rev):
+        if rev not in cache:
+            shown = subprocess.run(["git", "show", f"{rev}:evals/labels.csv"], cwd=ROOT,
+                                   capture_output=True, text=True)
+            cache[rev] = _label_rows(shown.stdout) if shown.returncode == 0 else []
+        return cache[rev]
+
+    checked = 0
+    for line in out.stdout.splitlines():
+        ids = line.split()
+        rev, parents = ids[0], ids[1:]
+        here = rows(rev)
+        for parent in parents:
+            before = rows(parent)
+            if len(parents) == 1:
+                assert here[:len(before)] == before, (
+                    f"{rev} rewrote or dropped label rows committed in {parent}")
+            else:
+                kept = iter(here)
+                assert all(any(r == h for h in kept) for r in before), (
+                    f"{rev} merged {parent} but did not keep its label rows")
+        if any(here != rows(p) for p in parents) or (not parents and here):
+            checked += 1
+    with open(os.path.join(ROOT, "evals", "labels.csv")) as fh:
+        working = _label_rows(fh.read())
+    assert working[:len(rows("HEAD"))] == rows("HEAD"), (
+        "the working labels file rewrote or dropped rows that are already committed")
+    # Nothing after the baseline may have touched the labels yet, which is fine and
+    # is not the same as the check being unable to run. The working-tree assertion
+    # above always runs and is what binds an uncommitted edit.
+
+
+def test_a_certificate_that_no_longer_describes_its_probe_is_refused():
+    """A receipt is a claim about one version of one file.
+
+    Edit the probe and a committed receipt keeps saying TRACKS about code that no
+    longer exists, and the margin comes from a number nothing measured. This changes
+    the probe by one comment line and asserts the derivation refuses the receipt
+    instead of trusting it.
+    """
+    probe = os.path.join(ROOT, "probes", "sync_probe.py")
+    with open(probe) as fh:
+        original = fh.read()
+    try:
+        with open(probe, "w") as fh:
+            fh.write(original + "\n# touched by a test, so the certificate is stale\n")
+        r = run([os.path.join("evals", "derive.py")])
+        assert r.returncode != 0, "a stale certificate was trusted"
+        assert "changed since it was certified" in r.stdout, r.stdout
+    finally:
+        with open(probe, "w") as fh:
+            fh.write(original)
+
+
+def test_a_certificate_from_a_different_ruler_is_refused():
+    """Hashing the probe binds the receipt to the thing measured, not the thing
+    measuring. The stimulus, the dosing and the fit live in certify.py, and any of
+    them can change while the probe is untouched."""
+    ruler = os.path.join(ROOT, "evals", "certify.py")
+    with open(ruler) as fh:
+        original = fh.read()
+    try:
+        with open(ruler, "w") as fh:
+            fh.write(original + "\n# touched by a test, so every receipt is stale\n")
+        r = run([os.path.join("evals", "derive.py")])
+        assert r.returncode != 0, "a receipt from another version of the ruler was trusted"
+        assert "different version of evals/certify.py" in r.stdout, r.stdout
+    finally:
+        with open(ruler, "w") as fh:
+            fh.write(original)
+
+
+def test_certifying_one_probe_does_not_drop_the_other():
+    """--probe X --write used to replace the whole receipt with one entry, so a routine
+    partial recalibration removed coverage while everything reported success."""
+    cert = os.path.join(ROOT, "evals", "certificates.json")
+    with open(cert) as fh:
+        original = fh.read()
+    before = {c["probe"] for c in json.loads(original)["certificates"]}
+    assert len(before) > 1, "there is only one probe, so this cannot regress"
+    try:
+        r = run([os.path.join("evals", "certify.py"), "--probe", "sync_probe", "--write"],
+                timeout=600)
+        assert r.returncode == 0, r.stdout + r.stderr
+        with open(cert) as fh:
+            after = {c["probe"] for c in json.load(fh)["certificates"]}
+        assert after == before, f"certifying one probe dropped {before - after}"
+    finally:
+        with open(cert, "w") as fh:
+            fh.write(original)
+
+
+def test_two_certificates_for_one_probe_is_an_error_not_a_winner():
+    """The same shape as the duplicate ledger record: last writer wins is not a choice
+    a reader gets to make quietly. A second entry with a tiny sigma would otherwise
+    overwrite the real resolution and switch the margin off."""
+    cert = os.path.join(ROOT, "evals", "certificates.json")
+    with open(cert) as fh:
+        original = fh.read()
+    doc = json.loads(original)
+    twin = dict(doc["certificates"][0])
+    twin["sigma_ms"] = 0.001
+    doc["certificates"].append(twin)
+    try:
+        with open(cert, "w") as fh:
+            json.dump(doc, fh, indent=2)
+        r = run([os.path.join("evals", "derive.py")])
+        assert r.returncode != 0, "a duplicate certificate picked a winner"
+        assert "certified more than once" in r.stdout, r.stdout
+    finally:
+        with open(cert, "w") as fh:
+            fh.write(original)
+
+
+def test_a_certificate_with_no_source_hash_is_refused():
+    """The hash is the only thing tying a hand-edited TRACKS to real measurement."""
+    cert = os.path.join(ROOT, "evals", "certificates.json")
+    with open(cert) as fh:
+        original = fh.read()
+    doc = json.loads(original)
+    for c in doc["certificates"]:
+        c.pop("source_sha256", None)
+    try:
+        with open(cert, "w") as fh:
+            json.dump(doc, fh, indent=2)
+        r = run([os.path.join("evals", "derive.py")])
+        assert r.returncode != 0, "an unattributable certificate was accepted"
+        assert "no source hash" in r.stdout, r.stdout
+    finally:
+        with open(cert, "w") as fh:
+            fh.write(original)
+
+
+def test_a_blunt_instrument_refuses_the_threshold_it_used_to_allow():
+    """The margin is the link between the two mechanisms, so it has to be shown working.
+
+    Today's certificate reads sigma 0.0 ms on sync_probe, meaning the probe returned
+    every dose exactly, so the margin is zero and the check passes without doing
+    anything. A check whose precondition never arrives is worse than no check, so this
+    swaps in a certificate with a scatter wide enough to swallow the bracket and
+    asserts the constant is refused. The real file is restored either way.
+    """
+    cert = os.path.join(ROOT, "evals", "certificates.json")
+    with open(cert) as fh:
+        original = fh.read()
+    doc = json.loads(original)
+    for c in doc["certificates"]:
+        if c["probe"] == "sync_probe":
+            c["sigma_ms"] = 30.0          # 2 sigma is 60 ms, wider than the 40 ms to either edge
+            c["sigma_max_ms"] = 100.0
+    try:
+        with open(cert, "w") as fh:
+            json.dump(doc, fh, indent=2)
+        r = run([os.path.join("evals", "derive.py")])
+        assert r.returncode != 0, "a threshold inside the instrument's own noise was accepted"
+        assert "closer than the probe can resolve" in r.stdout, r.stdout
+    finally:
+        with open(cert, "w") as fh:
+            fh.write(original)
+
+
+def test_a_probe_with_no_certificate_is_reported_unmargined_not_assumed_fine():
+    """Silence is the failure mode here. mouth_sync_probe blocks masters and has no
+    certificate, so its lag constant gets no margin, and the report must not read as
+    though it cleared one."""
+    data = derive_json()
+    by = {f"{g['module']}.{g['constant']}": g for g in data["gates"]}
+    assert by["mouth_sync_probe.PASS_LAG"].get("margin") is None, (
+        "a margin was applied to a probe the certificate does not cover")
+    # No gate carries a margin today and that is the honest state, not a bug. The one
+    # certified probe on a time axis reports no scatter at all, which means a
+    # resolution finer than it can report rather than a perfect one, so granting it a
+    # zero margin would be a check that passes by construction. Every uncovered
+    # threshold has to be NAMED, which is what this asserts.
+    named = " ".join(data["uncertified"])
+    for gate in ("mouth_sync_probe.PASS_LAG", "mouth_sync_probe.FAIL_CORR"):
+        assert gate in named, f"{gate} carries no margin and the report does not say so"
+    assert "sync_probe" in named, "the certified probe's unusable resolution is not reported"
 
 
 def test_every_withheld_mouth_row_is_re_read_from_a_committed_ledger():

@@ -42,7 +42,9 @@ Exit 0 all checks pass / 1 a check failed / 2 the labels could not be read.
 """
 import csv
 import glob
+import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -154,6 +156,115 @@ def ledger_mouth():
 
 
 ATTESTED = {"mouth_sync_probe": ledger_mouth}
+
+
+# The certificate feeds the bracket. evals/certify.py measures each lip-sync probe's
+# RESOLUTION, the scatter left after fitting its readings against known doses, and a
+# threshold that sits closer to a labelled edge than the instrument can resolve is not
+# a threshold, it is noise with a number on it. So a time-axis constant has to clear
+# each edge by K_SIGMA times that scatter.
+#
+# K_SIGMA is 2, which is a choice and not a measurement: two sigma is the usual
+# distance at which two readings are called apart, and a bracket this suite has is
+# rarely wide enough to afford three.
+#
+# Sigma is reported in milliseconds, so each time axis says how many of ITS units make
+# one millisecond. An axis absent here gets no margin and the report says the constant
+# is unmargined rather than implying it passed one.
+K_SIGMA = 2.0
+CERTIFICATE = os.path.join(ROOT, "evals", "certificates.json")
+MS_PER_UNIT = {"mouth_lag_ms": 1.0, "mouth_lag_abs_s": 0.001}
+
+
+def resolutions():
+    """({probe: sigma in ms}, [problems]) from the committed certificate.
+
+    A missing, truncated or unparseable certificate used to return an empty dict,
+    which silently switched every margin off while the run still reported success.
+    That is the shape of failure this whole file exists to refuse, so the problems
+    come back beside the readings and the caller fails on them.
+    """
+    if not os.path.exists(CERTIFICATE):
+        return {}, [f"no certificate at {os.path.relpath(CERTIFICATE, ROOT)}, so no "
+                    f"threshold can be checked against the instrument's resolution"], []
+    try:
+        with open(CERTIFICATE) as fh:
+            doc = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        return {}, [f"the certificate could not be read ({exc}), so every margin would "
+                    f"have been skipped silently"], []
+
+    found, problems, problems_note = {}, [], []
+    entries = doc.get("certificates")
+    if not isinstance(entries, list) or not entries:
+        return {}, ["the certificate names no probes"], []
+    for c in entries:
+        probe = c.get("probe", "?")
+        # A certificate is a claim about one version of one file. Edit the probe and a
+        # committed receipt keeps saying TRACKS about code that no longer exists, and
+        # the margin below comes from a number nothing measured. The hash is what makes
+        # the receipt refuseable, including one hand-edited to TRACKS with sigma 0.
+        src = os.path.join(ROOT, "probes", f"{probe}.py")
+        stamped = c.get("source_sha256")
+        if not stamped:
+            problems.append(f"{probe} is certified with no source hash, so the receipt "
+                            f"cannot be tied to the probe it describes")
+            continue
+        if not os.path.exists(src):
+            problems.append(f"{probe} is certified but probes/{probe}.py is gone")
+            continue
+        with open(src, "rb") as fh:
+            now = hashlib.sha256(fh.read()).hexdigest()
+        if now != stamped:
+            problems.append(f"{probe} changed since it was certified; rerun "
+                            f"python3 evals/certify.py --write")
+            continue
+        # The ruler too. Hashing only the probe binds the receipt to the thing measured
+        # and not to the thing measuring: the stimulus, the dosing and the fit all live
+        # in certify.py and any of them can change while the probe is untouched.
+        certifier = os.path.join(ROOT, "evals", "certify.py")
+        with open(certifier, "rb") as fh:
+            ruler = hashlib.sha256(fh.read()).hexdigest()
+        if c.get("certifier_sha256") != ruler:
+            problems.append(f"{probe} was certified by a different version of "
+                            f"evals/certify.py; rerun python3 evals/certify.py --write")
+            continue
+        if c.get("verdict") != "TRACKS":
+            problems.append(f"{probe} is certified {c.get('verdict', 'with no verdict')}, "
+                            f"so its readings set no resolution")
+            continue
+        try:
+            sigma = float(c["sigma_ms"])
+        except (KeyError, TypeError, ValueError):
+            problems.append(f"{probe} certifies TRACKS with no readable sigma_ms")
+            continue
+        if not math.isfinite(sigma) or sigma < 0:
+            problems.append(f"{probe} reports sigma_ms {sigma}, which is not a resolution")
+            continue
+        if sigma == 0:
+            # A scatter of exactly zero is not a perfect instrument, it is a reading
+            # finer than the probe can report. sync_probe quantises its answer to the
+            # dose grid, so it returns every dose exactly and its true resolution is
+            # somewhere below one bin. Granting a zero margin from that would be a
+            # check that passes by construction while reading as a check, so the probe
+            # is left unmargined and the report says why.
+            problems_note.append(
+                f"{probe} reports no scatter at all, so its resolution is finer than it "
+                f"can report and no margin can be derived from it")
+            continue
+        if probe in found:
+            problems.append(f"{probe} is certified more than once, so there is no single "
+                            f"resolution to margin against")
+            continue
+        found[probe] = sigma
+    return found, problems, problems_note
+
+
+def margin(module, axis, sigmas):
+    """How far a constant on this axis must sit from an edge, in the axis's own unit."""
+    if axis not in MS_PER_UNIT or module not in sigmas:
+        return None
+    return K_SIGMA * sigmas[module] * MS_PER_UNIT[axis]
 
 
 # How closely a measurement can be expected to come back, and why it differs.
@@ -365,6 +476,8 @@ def main():
                              "ledger": rec[r["axis"]], "label": r["measured"]})
 
     # --- 2 + 3. bracket and classify ------------------------------------
+    sigmas, cert_problems, cert_notes = resolutions()
+    failures.extend(cert_problems)
     excluded = {}
     for module, const, axis, polarity, scale, gating in GATES:
         mod = load_module(module)
@@ -389,6 +502,25 @@ def main():
         if passes and rejects:
             pe, re_ = bracket(polarity, passes, rejects)
             rec.update(status="DERIVED", pass_edge=pe, reject_edge=re_)
+            room = margin(module, axis, sigmas)
+            rec["margin"] = room
+            if room is not None:
+                # Pull both edges inward by the margin, so a constant sitting closer to
+                # one than the instrument can resolve is refused here rather than
+                # enforced downstream as if it meant something.
+                if polarity == CEILING:
+                    tight_pass, tight_reject = pe + room, re_ - room
+                else:
+                    tight_pass, tight_reject = pe - room, re_ + room
+                rec["margin_pass_edge"] = round(tight_pass, 4)
+                rec["margin_reject_edge"] = round(tight_reject, 4)
+                if inside(polarity, value, pe, re_) and not inside(
+                        polarity, value, tight_pass, tight_reject):
+                    rec["status"] = "REFUTED"
+                    failures.append(
+                        f"{module}.{const} = {value:g} sits inside its labelled interval "
+                        f"but within {K_SIGMA:g} sigma ({room:g}) of an edge, which is "
+                        f"closer than the probe can resolve")
             if not inside(polarity, value, pe, re_):
                 rec["status"] = "REFUTED"
                 failures.append(
@@ -415,6 +547,33 @@ def main():
         out.append(rec)
 
     gates = [r for r in out if r["gating"]]
+    # WHICH GATES THE CERTIFICATE ACTUALLY REACHES, which today is none of the blocking
+    # ones, and saying so is the point. certify.py doses a synthetic clip whose motion
+    # follows its own audio, so it can certify a probe that reads a LAG in time. It
+    # cannot certify a correlation floor, and it cannot reach gates/mouth_sync_probe.py
+    # at all, because that probe needs a face and the reference clip is a moving bar.
+    # mouth_sync_probe is the check that refuses a master, so the most important gate
+    # here is the one with no instrument certificate behind it. A reviewer should read
+    # that from the tool, not discover it.
+    coverage, off_axis = list(cert_notes), []
+    for r in out:
+        if r.get("margin") is not None:
+            continue
+        name = f"{r['module']}.{r['constant']}"
+        if r["axis"] not in MS_PER_UNIT:
+            if r["gating"]:
+                off_axis.append(name)
+        else:
+            blocks = "BLOCKS a clip and " if r["gating"] else ""
+            why = ("its certificate yields no usable resolution, see above"
+                   if any(r["module"] in n for n in cert_notes)
+                   else f"{r['module']} has no entry in the certificate")
+            coverage.append(f"{name} is on a time axis, {blocks}has no margin: {why}")
+    if off_axis:
+        coverage.append(
+            f"{len(off_axis)} blocking thresholds measure something other than time, so "
+            f"the certificate cannot speak to them at all: {', '.join(off_axis)}")
+
     derived = [r for r in gates if r["status"] == "DERIVED"]
     authored = [r for r in gates if r["status"] == "AUTHORED"]
     refuted = [r for r in gates if r["status"] == "REFUTED"]
@@ -422,6 +581,7 @@ def main():
     if as_json:
         print(json.dumps({"gates": out, "reproduced": repro,
                           "ledger_attested": attested,
+                          "uncertified": coverage,
                           "derived": len(derived), "authored": len(authored),
                           "refuted": len(refuted), "n_gating": len(gates),
                           "excluded_rows": excluded, "failures": failures}, indent=2))
@@ -446,6 +606,24 @@ def main():
         tail = "" if r["gating"] else "  (not a gate)"
         print(f"{r['module'] + '.' + r['constant']:40s} {r['compared_as']:>8.2f} "
               f"{r['polarity']:>9s}  {pe:>9s} {re_:>11s}  {r['status']}{tail}")
+
+    if coverage:
+        print("\nWHAT THE CERTIFICATE DOES NOT REACH, named rather than left silent")
+        for line in coverage:
+            print(f"  {line}")
+
+    margined = [r for r in out if r.get("margin") is not None]
+    if margined:
+        print("\nHEADROOM AGAINST THE CERTIFIED RESOLUTION "
+              f"(a constant must clear each labelled edge by {K_SIGMA:g} sigma)")
+        for r in margined:
+            room = r["margin"]
+            sigma_unit = room / K_SIGMA if K_SIGMA else 0.0
+            near = min(abs(r["compared_as"] - r["pass_edge"]),
+                       abs(r["compared_as"] - r["reject_edge"]))
+            how = (f"{near / sigma_unit:.1f} sigma" if sigma_unit
+                   else "no scatter to clear, the probe read every dose exactly")
+            print(f"  {r['module'] + '.' + r['constant']:36s} nearest edge {near:g} away, {how}")
 
     if refuted_notes:
         print("\nREFUTED BY THEIR OWN LABELS, scored but unable to refuse a clip on their own")
