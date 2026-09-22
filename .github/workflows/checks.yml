@@ -78,6 +78,12 @@ jobs:
             python3 evals/derive.py | tee /tmp/derive.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          # The report is a claim like any other. GITHUB_STEP_SUMMARY is a SEPARATE file per
+          # step, concatenated at the end, so a step can only check its own write and has to
+          # do it here. Without this a broken redirect leaves a green run with an empty
+          # summary and the only way to notice is for a human to open the page and look.
+          grep -qF "Threshold calibration" "$GITHUB_STEP_SUMMARY" || { echo "summary write failed"; exit 1; }
+          grep -qF "NAMED gating thresholds" "$GITHUB_STEP_SUMMARY" || { echo "summary has the heading but not the report"; exit 1; }
           grep -E 'NAMED gating thresholds|AUTHORED|REFUTED|labelled rows' /tmp/derive.txt || true
 
       # Every selftest the repository already ships. script_match's has existed since
@@ -98,6 +104,8 @@ jobs:
             python3 evals/certify.py
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          grep -qF "Instrument certificate" "$GITHUB_STEP_SUMMARY" || { echo "summary write failed"; exit 1; }
+          grep -qF "TRACKS slope" "$GITHUB_STEP_SUMMARY" || { echo "summary has the heading but not the readings"; exit 1; }
 
       - name: Lint
         run: ruff check .
@@ -129,13 +137,3 @@ jobs:
       # shipped, so this blocks like everything else.
       - name: Prop gate selftest
         run: bash guards/prop_gate.sh selftest
-
-      # The report is a claim like any other, so it is checked rather than assumed. A
-      # redirect that silently goes nowhere leaves a green run whose summary is empty,
-      # and the only way to notice would be for a human to open the page and look.
-      - name: The job summary actually has the report in it
-        run: |
-          for want in "Threshold calibration" "Instrument certificate" "NAMED gating thresholds" "TRACKS slope" "Coverage"; do
-            grep -qF "$want" "$GITHUB_STEP_SUMMARY" || { echo "summary is missing: $want"; exit 1; }
-          done
-          echo "summary carries every section, $(wc -c < "$GITHUB_STEP_SUMMARY") bytes"
