@@ -14,7 +14,7 @@
 <img alt="spend: every render gated first" src="https://img.shields.io/badge/spend-every_render_gated_first-55595e?style=flat-square&labelColor=18181c">
 <img alt="router: a different engine wins per audience" src="https://img.shields.io/badge/router-a_different_engine_per_audience-55595e?style=flat-square&labelColor=18181c">
 <img alt="graded by hand: 48 exemplars, 42 scenes" src="https://img.shields.io/badge/graded_by_hand-48_exemplars_%C2%B7_42_scenes-55595e?style=flat-square&labelColor=18181c">
-<img alt="thresholds traced to those grades: 10 of 10, and 10 of 10 named gating thresholds derived from labelled exemplars" src="https://img.shields.io/badge/thresholds_traced_to_grades-10%2F10_derived-55595e?style=flat-square&labelColor=18181c">
+<img alt="thresholds traced to those grades: 10 of 11, and 10 of 11 named gating thresholds derived from labelled exemplars" src="https://img.shields.io/badge/thresholds_traced_to_grades-10%2F11_derived-55595e?style=flat-square&labelColor=18181c">
 <img alt="license: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-55595e?style=flat-square&labelColor=18181c">
 
 <br/><br/>
@@ -31,6 +31,38 @@ This repository is that pipeline, released in full.
 
 ---
 
+## Three questions reviewers ask about this
+
+**Is any of this mechanical, or did you type the numbers?** Mechanical, and the count is printed rather than claimed. `evals/derive.py` recomputes every named threshold from labelled exemplars in `evals/labels.csv`, holds each one inside the interval its own labels imply, and reports what it could not derive. Ten of eleven gating thresholds are bracketed by a labelled pass and a labelled reject. The eleventh is typed and says so. Nothing on this page states a count that the tool does not print in CI, which is enforced by a test.
+
+**Why probes and not ordinary tests?** A deterministic function has one right answer, so it gets a unit test. A generated video does not: the same prompt returns different pixels every run, so there is nothing to assert equality against. What you can assert is a measured property with a calibrated threshold, which is what a probe is. And a judgement no measurement captures, whether an ad is worth watching, goes to an eval with human labels behind it. All three live here, and `docs/EVALS.md` names which question each one answers.
+
+**How does any of it stay correct over time?** Two mechanisms, both running on every push.
+
+```
+python3 evals/certify.py     # can each probe still measure a known shift?
+python3 evals/derive.py      # does every threshold still sit inside its labels?
+```
+
+The first is the one people do not expect. A calibrated threshold is worthless on an instrument that has quietly gone blind, so `certify.py` applies a known audio shift to a reference clip, reads what the probe reports, and fits the readings against the doses. Slope says whether a 100 ms shift still reads as 100 ms. Sigma says how tightly, and it has to be finer than the 80 ms that separates the labelled worst pass from the best reject, or no threshold on that axis means anything. The sign is checked too, because the two lip-sync probes use opposite conventions and a silent inversion once shipped a desync here.
+
+```
+lipsync_probe    TRACKS slope +1.00 (sign +1 expected)  sigma 1.0 ms  n=9
+sync_probe       TRACKS slope -1.00 (sign -1 expected)  sigma 0.0 ms  n=9
+```
+
+Three of the defects found building that certificate were in the certificate, not in the probes. A periodic reference clip gave the correlation an identical peak every 435 ms. Motion that was the envelope's derivative flipped the measured sign between runs. And ffmpeg silently capped a positive audio delay at 75 ms, so three different doses arrived identical and both probes correctly reported the same number three times. The harness now verifies that each dose landed before believing any reading, because a ruler needs its own calibration.
+
+The second mechanism is the one that caught something real. Pointing the deriver at `gates/mouth_sync_probe.py`, the lip-sync check that actually blocks a master, showed its PASS bar sitting above eight masters that shipped with the eye's approval:
+
+```
+mouth_sync_probe.PASS_CORR = 0.25 refuses 8 labelled pass(es) (floor, worst 0.14)
+```
+
+That constant never stopped anything, because the gate lets every REVIEW through to a human, which is why nobody noticed for a month. It is reported as refuted by its own labels rather than quietly adjusted to match.
+
+Those eight labels are not numbers anyone typed. Each one is the verdict a gate wrote into a shipping ledger the day that master went out, and `derive.py` re-reads the number and the verdict from that committed file on every run. Nudge a label to make a threshold pass and the build fails, naming both values. Cite the wrong shoot, leave a master with two gated records, or drop the citation entirely and it fails there too. Three tests break it on purpose so that stays true.
+
 ## Run it on the pixels that ship
 
 Two things are checkable here without accounts, keys or a GPU. `python3` and `ffmpeg` are the only prerequisites.
@@ -43,7 +75,7 @@ python3 probes/mirror_probe.py samples/exemplar-harbor-wan3-live.mp4
 python3 probes/mirror_probe.py samples/frozen-control-slowroad.mp4
 ```
 
-The derivation prints every named constant beside the labelled pass and labelled reject that bracket it, counts them at `10 of 10 NAMED gating thresholds are DERIVED`, and exits 0. The two probes print one line each:
+The derivation prints every named constant beside the labelled pass and labelled reject that bracket it, counts them at `10 of 11 NAMED gating thresholds are DERIVED`, and exits 0. The two probes print one line each:
 
 ```
 MIRROR FORWARD: 16s | repeat 1.00 at P=5s (reject <0.4) | mirror 0.58 at t=10.4 (reject <0.22)
@@ -243,7 +275,7 @@ Quality evals are the tier everyone argues about, so I made them the most mechan
 - The source of truth is that golden set plus the market's own bar. The vendor's premium baseline sits in the race as the A0 column.
 - Change the audience and the tier is re-derived, because what good means has flipped.
 - One probe battery for everything. A category picks which rows gate and which merely report, and that pick is what defines the category. The direction of good is set per audience. A coffee ad reads gesture energy upward and a sleep ad flips the same instrument, because calm sells.
-- 10 of the 10 named gating thresholds in [`probes/`](probes/) sit between a labelled pass and a labelled reject. A tool re-measures the shipped pixels and refuses to stay green if the number does not come back.
+- 10 of the 11 named gating thresholds in [`probes/`](probes/) and [`gates/`](gates/) sit between a labelled pass and a labelled reject. The other 1 were typed by hand and the tool says so. A tool re-measures the shipped pixels and refuses to stay green if the number does not come back.
 - I stay the final judge. A language-model judge attaches a blind description and a flag to the strip as evidence and never holds the verdict.
 
 ### The router, and the race behind it
@@ -413,16 +445,16 @@ Everything below ran.
 
 ## Recounted on every push
 
-- 10 of the 10 named gating thresholds in [`probes/`](probes/) are bracketed by a labelled pass and a labelled reject.
+- 10 of the 11 named gating thresholds in [`probes/`](probes/) and [`gates/`](gates/) are bracketed by a labelled pass and a labelled reject.
 - [`evals/derive.py`](evals/derive.py) re-measures the shipped pixels and refuses to exit clean if a constant has drifted outside its own bracket.
 - Its report is checked in CI, so a hand-typed count cannot go stale on this page:
 
 ```
-10 of 10 NAMED gating thresholds are DERIVED from a labelled pass/reject pair on the same axis
-0 are AUTHORED: typed by hand, no exemplar pair in evals/labels
+10 of 11 NAMED gating thresholds are DERIVED from a labelled pass/reject pair on the same axis
+1 are AUTHORED: typed by hand, no exemplar pair in evals/labels
 ```
 
-**Ten of ten.** The tool counts NAMED constants only. One probe still refuses clips on nine inline numbers that cannot be bracketed until they are named, and the page says so rather than rounding them away. You can check it without accounts, keys or a GPU, with `python3` and `ffmpeg` installed:
+**Ten of eleven.** The eleventh is the correlation floor inside the lip-sync gate that actually blocks a master, which has passes on one side and no reject on the other, so it stays authored and says so. The tool counts NAMED constants only, and the nine inline numbers that one probe used to refuse clips with are now named and counted too. You can check it without accounts, keys or a GPU, with `python3` and `ffmpeg` installed:
 
 ```
 git clone https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals

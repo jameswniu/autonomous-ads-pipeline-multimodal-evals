@@ -1,12 +1,18 @@
 # Labelled exemplars behind the named gating thresholds in probes/.
 #
-# PROVENANCE. Two kinds of row, and the difference is the point:
+# PROVENANCE. Three kinds of row, and the difference is the point:
 #   pixels=<path>     the frame ships here. derive.py re-measures it with the
 #                     probe's OWN function and fails if the number does not come
 #                     back. A stranger can check it.
-#   pixels=withheld   the source render is not retained. `measured` is the number
-#                     recorded in the probe's docstring at derivation time.
-#                     Attested, not reproducible. Counted separately, never quietly.
+#   pixels=withheld,  the render is not retained, but the gate that measured it
+#   note cites a      wrote its verdict into shoots/<shoot>/landings.jsonl when the
+#   landing ledger    master shipped, and that file IS committed. derive.py
+#                     re-reads the number and the verdict from it on every run,
+#                     so nudging either one alone fails the build.
+#   pixels=withheld,  the source render is not retained and no ledger names it.
+#   no ledger         `measured` is the number recorded in the probe's docstring at
+#                     derivation time. Attested, not reproducible. Counted
+#                     separately, never quietly.
 #
 # VERDICT is the human call, made before any metric existed. pass and reject are
 # the only two that form a bracket. Two other values exist and are reported by
@@ -73,3 +79,33 @@ coherence_probe,calm-wave,out-of-domain,0.130,rest_fraction,withheld,KNOWN CONFO
 mirror_probe,frozen-control,reject,0.7,replay_signal,samples/frozen-control-slowroad.mp4,"one frame of the Slow Road master held for 40 s, no signal by construction"
 mirror_probe,live-take,pass,6982.6,replay_signal,samples/exemplar-harbor-wan3-live.mp4,"the first 16 s of the Harbor Lane Realty master on Wan 3.0, a real take with a moving scene"
 mirror_probe,static-band-incident,reject,0.60,replay_signal,withheld,recorded in the probe's docstring: a control of 0.6 exonerated a clip that ping-ponged at t=80
+mouth_sync_probe,ads5-orchard-final-v3.mp4,pass,0.3,mouth_corr,withheld,"shipped master, ads5/landings.jsonl records PASS"
+mouth_sync_probe,ads5-orchard-final-v3.mp4,pass,0.08,mouth_lag_abs_s,withheld,"shipped master, ads5/landings.jsonl records PASS"
+mouth_sync_probe,ads5-lantern-final-v5.mp4,pass,0.19,mouth_corr,withheld,"shipped master, ads5/landings.jsonl records REVIEW, eye approved"
+mouth_sync_probe,ads5-lantern-final-v5.mp4,pass,0.16,mouth_lag_abs_s,withheld,"shipped master, ads5/landings.jsonl records REVIEW, eye approved"
+mouth_sync_probe,ads5-harbor-final-v3.mp4,pass,0.34,mouth_corr,withheld,"shipped master, ads5/landings.jsonl records PASS"
+mouth_sync_probe,ads5-harbor-final-v3.mp4,pass,0.12,mouth_lag_abs_s,withheld,"shipped master, ads5/landings.jsonl records PASS"
+mouth_sync_probe,ads5-slowroad-final-v4.mp4,pass,0.22,mouth_corr,withheld,"shipped master, ads5/landings.jsonl records REVIEW, eye approved"
+mouth_sync_probe,ads5-slowroad-final-v4.mp4,pass,0.04,mouth_lag_abs_s,withheld,"shipped master, ads5/landings.jsonl records REVIEW, eye approved"
+mouth_sync_probe,ads5-lantern-final-v7.mp4,pass,0.22,mouth_corr,withheld,"shipped master, ads5/landings.jsonl records REVIEW, eye approved"
+mouth_sync_probe,ads5-lantern-final-v7.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads5/landings.jsonl records REVIEW, eye approved"
+mouth_sync_probe,ads5-harbor-final-v5.mp4,pass,0.34,mouth_corr,withheld,"shipped master, ads5/landings.jsonl records PASS"
+mouth_sync_probe,ads5-harbor-final-v5.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads5/landings.jsonl records PASS"
+mouth_sync_probe,ads6omni-orchard-final-v1.mp4,pass,0.31,mouth_corr,withheld,"shipped master, ads6-omni/landings.jsonl records PASS"
+mouth_sync_probe,ads6omni-orchard-final-v1.mp4,pass,0.08,mouth_lag_abs_s,withheld,"shipped master, ads6-omni/landings.jsonl records PASS"
+mouth_sync_probe,ads6omni-lantern-final-v1.mp4,pass,0.22,mouth_corr,withheld,"shipped master, ads6-omni/landings.jsonl records REVIEW, eye approved"
+mouth_sync_probe,ads6omni-lantern-final-v1.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads6-omni/landings.jsonl records REVIEW, eye approved"
+mouth_sync_probe,ads6omni-harbor-final-v2.mp4,pass,0.35,mouth_corr,withheld,"shipped master, ads6-omni/landings.jsonl records PASS"
+mouth_sync_probe,ads6omni-harbor-final-v2.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads6-omni/landings.jsonl records PASS"
+mouth_sync_probe,ads6omni-slowroad-final-v1.mp4,pass,0.22,mouth_corr,withheld,"shipped master, ads6-omni/landings.jsonl records REVIEW, eye approved"
+mouth_sync_probe,ads6omni-slowroad-final-v1.mp4,pass,0.04,mouth_lag_abs_s,withheld,"shipped master, ads6-omni/landings.jsonl records REVIEW, eye approved"
+mouth_sync_probe,ads7-gemini-final-v1.mp4,pass,0.45,mouth_corr,withheld,"shipped master, ads7-real/landings.jsonl records PASS"
+mouth_sync_probe,ads7-gemini-final-v1.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads7-real/landings.jsonl records PASS"
+mouth_sync_probe,ads7-chatgpt-final-v1.mp4,pass,0.14,mouth_corr,withheld,"shipped master, ads7-real/landings.jsonl records REVIEW"
+mouth_sync_probe,ads7-chatgpt-final-v1.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads7-real/landings.jsonl records REVIEW"
+mouth_sync_probe,ads7-perplexity-final-v1.mp4,pass,0.19,mouth_corr,withheld,"shipped master, ads7-real/landings.jsonl records REVIEW"
+mouth_sync_probe,ads7-perplexity-final-v1.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads7-real/landings.jsonl records REVIEW"
+mouth_sync_probe,ads7-metaai-final-v1.mp4,pass,0.36,mouth_corr,withheld,"shipped master, ads7-real/landings.jsonl records PASS"
+mouth_sync_probe,ads7-metaai-final-v1.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads7-real/landings.jsonl records PASS"
+mouth_sync_probe,ads7-pics-final-v1.mp4,pass,0.23,mouth_corr,withheld,"shipped master, ads7-real/landings.jsonl records REVIEW"
+mouth_sync_probe,ads7-pics-final-v1.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads7-real/landings.jsonl records REVIEW"

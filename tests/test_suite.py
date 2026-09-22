@@ -100,6 +100,97 @@ def test_derive_json_shape():
         assert row.get("ok"), f"{row['item']} did not reproduce"
 
 
+def test_every_withheld_mouth_row_is_re_read_from_a_committed_ledger():
+    """A row that ships no pixels is a typed number unless something checks it.
+
+    These thirty carry the verdict a gate recorded when the master shipped, and
+    that record is committed in shoots/<shoot>/landings.jsonl. derive.py re-reads
+    each one on every run, so a label nudged to make a threshold pass fails here.
+    """
+    data = derive_json()
+    att = data.get("ledger_attested")
+    assert att, "no withheld row is checked against a ledger"
+    bad = [a for a in att if not a.get("ok")]
+    assert not bad, f"{len(bad)} withheld row(s) disagree with the ledger: {bad[:3]}"
+
+
+def test_a_nudged_label_is_caught_by_the_ledger():
+    """The check above is only worth anything if it can fail. Move one number."""
+    labels = os.path.join(ROOT, "evals", "labels.csv")
+    with open(labels) as fh:
+        before = fh.read()
+    hit = "mouth_sync_probe,ads5-orchard-final-v3.mp4,pass,0.3,mouth_corr"
+    assert hit in before, "the row this test nudges is no longer in labels.csv"
+    try:
+        with open(labels, "w") as fh:
+            fh.write(before.replace(hit, hit.replace(",0.3,", ",0.44,")))
+        r = run([os.path.join("evals", "derive.py")])
+        assert r.returncode != 0, "derive.py accepted a label the ledger contradicts"
+        assert "ledger records" in r.stdout, (
+            f"derive.py failed for some other reason\n{r.stdout}")
+    finally:
+        with open(labels, "w") as fh:
+            fh.write(before)
+
+
+def _swap(path, before, after):
+    """Rewrite a file for the length of a test and always put it back."""
+    with open(path) as fh:
+        original = fh.read()
+    assert before in original, f"{path} no longer contains the text this test edits"
+    with open(path, "w") as fh:
+        fh.write(original.replace(before, after, 1))
+    return original
+
+
+def test_a_withheld_row_citing_the_wrong_shoot_is_caught():
+    """The ledger is keyed by shoot AND master, so a master of the same name in
+    another shoot cannot answer for this one."""
+    labels = os.path.join(ROOT, "evals", "labels.csv")
+    original = _swap(labels, "ads5/landings.jsonl records PASS",
+                     "ads7-real/landings.jsonl records PASS")
+    try:
+        r = run([os.path.join("evals", "derive.py")])
+        assert r.returncode != 0, "derive.py accepted a label citing the wrong ledger"
+        assert "no gated master record there names it" in r.stdout, r.stdout
+    finally:
+        with open(labels, "w") as fh:
+            fh.write(original)
+
+
+def test_two_gated_records_for_one_master_is_a_conflict_not_a_winner():
+    """A second record must not quietly overwrite the first. Append a duplicate."""
+    led = os.path.join(ROOT, "shoots", "ads5", "landings.jsonl")
+    with open(led) as fh:
+        original = fh.read()
+    dup = [ln for ln in original.splitlines()
+           if "ads5-orchard-final-v3.mp4" in ln and "gated master" in ln]
+    assert dup, "the record this test duplicates is no longer in the ledger"
+    try:
+        with open(led, "w") as fh:
+            fh.write(original + dup[0].replace("corr 0.30", "corr 0.99") + "\n")
+        r = run([os.path.join("evals", "derive.py")])
+        assert r.returncode != 0, "derive.py picked a winner between two records"
+        assert "gated master records" in r.stdout, r.stdout
+    finally:
+        with open(led, "w") as fh:
+            fh.write(original)
+
+
+def test_a_withheld_mouth_row_with_no_ledger_named_fails_closed():
+    """Skipping an uncited row is how the check stops covering new rows."""
+    labels = os.path.join(ROOT, "evals", "labels.csv")
+    original = _swap(labels, '"shipped master, ads5/landings.jsonl records PASS"',
+                     '"shipped master, eye approved"')
+    try:
+        r = run([os.path.join("evals", "derive.py")])
+        assert r.returncode != 0, "derive.py skipped a row nothing can check"
+        assert "names no landing ledger" in r.stdout, r.stdout
+    finally:
+        with open(labels, "w") as fh:
+            fh.write(original)
+
+
 WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven",
          8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen",
          14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen"}

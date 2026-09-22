@@ -41,8 +41,10 @@ Exit 0 all checks pass / 1 a check failed / 2 the labels could not be read.
     python3 evals/derive.py --json
 """
 import csv
+import glob
 import json
 import os
+import re
 import sys
 import types
 
@@ -79,6 +81,14 @@ GATES = [
     # which guards/ship_gate.sh honours by catching its exit 1. Counting it as a
     # gate overstated the derived tally, so it is scored but not counted.
     ("sync_probe",       "LAG_MAX",        "mouth_lag_ms",    CEILING, 40.0, False),
+    # gates/mouth_sync_probe.py, the lip-sync check that actually refuses a master. Its labels
+    # are the verdicts recorded beside the shipped masters in shoots/*/landings.jsonl.
+    # Only FAIL_CORR can refuse a master. PASS_CORR and PASS_LAG sort PASS from REVIEW, and
+    # ad_gates.sh:49 lets every REVIEW through to the eye, so neither can stop a clip on its own.
+    # They are scored here and kept out of the gating denominator, the same way LAG_MAX is.
+    ("mouth_sync_probe", "FAIL_CORR",      "mouth_corr",      FLOOR,   1.0,  True),
+    ("mouth_sync_probe", "PASS_CORR",      "mouth_corr",      FLOOR,   1.0,  False),
+    ("mouth_sync_probe", "PASS_LAG",       "mouth_lag_abs_s", CEILING, 1.0,  False),
 ]
 
 # How to re-measure a labelled frame, per probe.
@@ -90,6 +100,60 @@ RECOMPUTE = {
     "scene_simplicity": lambda m, path, row: m.measure(path),
     "mirror_probe": lambda m, path, row: m.control(path),
 }
+
+
+# Checking a WITHHELD row, which is the hole a reviewer put a finger in on
+# 2026-09-21. A row that ships no pixels cannot be re-measured, so on its own it
+# is a number somebody typed, and nothing in CI would notice if it drifted or was
+# nudged to make a threshold pass. For mouth_sync_probe it does not have to stay
+# that way. Every one of these masters was gated when it shipped and the verdict
+# was written into shoots/<shoot>/landings.jsonl, which IS committed, as
+# "PASS corr 0.30 lag +0.08". That line is the record the label was read from, so
+# the label is re-read from it on every run. Edit either one alone and this fails.
+MOUTH = re.compile(r"(PASS|REVIEW|FAIL)\s+corr\s+(-?[\d.]+)\s+lag\s+([-+]?[\d.]+)")
+
+
+def ledger_mouth():
+    """{"<shoot>/<master>": {verdict, mouth_corr, mouth_lag_abs_s}} from the ledgers.
+
+    Keyed by SHOOT and master, not master alone, and only a record whose kind is
+    "gated master", which is the kind written when a gate passed judgement. Three
+    ways this could otherwise be fooled, all raised by a reviewer on 2026-09-21
+    and none of them hypothetical, since these ledgers already carry withdrawn
+    and superseded entries: a second record for the same master quietly winning
+    because it was read last, a withdrawn record standing in for the gated one,
+    and a master of the same name in another shoot answering for this one. A
+    duplicate is recorded as a conflict rather than resolved, because picking a
+    winner is the failure.
+    """
+    found, seen = {}, {}
+    for path in sorted(glob.glob(os.path.join(ROOT, "shoots", "*", "landings.jsonl"))):
+        shoot = os.path.basename(os.path.dirname(path))
+        for line in open(path):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            hit = MOUTH.search(str(rec.get("mouth", "")))
+            if not rec.get("master") or not hit or rec.get("kind") != "gated master":
+                continue
+            key = f"{shoot}/{rec['master']}"
+            seen[key] = seen.get(key, 0) + 1
+            found[key] = {
+                "verdict": hit.group(1),
+                "mouth_corr": float(hit.group(2)),
+                "mouth_lag_abs_s": abs(float(hit.group(3))),
+            }
+    for key, n in seen.items():
+        if n > 1:
+            found[key] = {"conflict": n}
+    return found
+
+
+ATTESTED = {"mouth_sync_probe": ledger_mouth}
 
 
 # How closely a measurement can be expected to come back, and why it differs.
@@ -129,7 +193,12 @@ def load_module(name):
     happened while testing this file: it reported a threshold not in the source.
     A checker that can read a stale copy of what it checks is worse than none.
     """
+    # probes/ first, then gates/. mouth_sync_probe is the only lip-sync check that BLOCKS a
+    # master, and it lives in gates/, which this file could not reach until 2026-09-21. Its
+    # constants were therefore in neither the derived count nor the denominator.
     path = os.path.join(ROOT, "probes", f"{name}.py")
+    if not os.path.exists(path):
+        path = os.path.join(ROOT, "gates", f"{name}.py")
     with open(path) as fh:
         src = fh.read()
     mod = types.ModuleType(f"_probe_{name}")
@@ -193,7 +262,7 @@ def main():
     orphans = [f"{r['probe']}/{r['axis']} ({r['item']})"
                for r in rows if (r["probe"], r["axis"]) not in known]
 
-    failures, repro, out = [], [], []
+    failures, repro, out, refuted_notes = [], [], [], []
     for o in sorted(set(orphans)):
         failures.append(f"label {o} matches no gate; check the probe and axis spelling")
 
@@ -241,6 +310,60 @@ def main():
             repro.append({"item": r["item"], "label": r["measured"],
                           "recomputed": round(got, 3), "ok": ok})
 
+    # --- 1b. a withheld row for an attested probe is checked against the ledger
+    attested = []
+    for probe, rs in sorted(by_probe.items()):
+        if probe not in ATTESTED:
+            continue
+        recorded = ATTESTED[probe]()
+        for r in [x for x in rs if x["pixels"] == "withheld"]:
+            note = r.get("note", "") or ""
+            cites = re.search(r"([\w.-]+)/landings\.jsonl", note)
+            if not cites:
+                # Fail closed. This probe's labels are attested BY a ledger, so a
+                # withheld row that names none is a number with nothing behind it,
+                # and skipping it is how the check quietly stops covering new rows.
+                failures.append(
+                    f"{probe}: {r['item']} ships no pixels and its note names no "
+                    f"landing ledger, so nothing can check it")
+                attested.append({"item": r["item"], "axis": r["axis"], "ok": False,
+                                 "why": "no ledger cited"})
+                continue
+            key = f"{cites.group(1)}/{r['item']}"
+            rec = recorded.get(key)
+            if rec is None:
+                failures.append(
+                    f"{probe}: {r['item']} cites {cites.group(1)}/landings.jsonl but no "
+                    f"gated master record there names it")
+                attested.append({"item": key, "axis": r["axis"], "ok": False,
+                                 "why": "no gated record in the ledger it cites"})
+                continue
+            if "conflict" in rec:
+                failures.append(
+                    f"{probe}: {key} has {rec['conflict']} gated master records, so "
+                    f"there is no single recorded verdict to check against")
+                attested.append({"item": key, "axis": r["axis"], "ok": False,
+                                 "why": "duplicate ledger records"})
+                continue
+            if r["axis"] not in rec:
+                continue
+            ok = abs(rec[r["axis"]] - r["measured"]) < 1e-9
+            if not ok:
+                failures.append(
+                    f"{probe}: {key} {r['axis']} is labelled {r['measured']} "
+                    f"and the ledger records {rec[r['axis']]}")
+            # The note names the verdict the probe gave. A REVIEW that a human
+            # passed is the most load-bearing row in this file, so a note that
+            # drifts from the record is caught here too.
+            said = re.search(r"records (PASS|REVIEW|FAIL)", r.get("note", "") or "")
+            if said and said.group(1) != rec["verdict"]:
+                ok = False
+                failures.append(
+                    f"{probe}: {key} notes say the probe recorded "
+                    f"{said.group(1)} and the ledger says {rec['verdict']}")
+            attested.append({"item": key, "axis": r["axis"], "ok": ok,
+                             "ledger": rec[r["axis"]], "label": r["measured"]})
+
     # --- 2 + 3. bracket and classify ------------------------------------
     excluded = {}
     for module, const, axis, polarity, scale, gating in GATES:
@@ -273,6 +396,22 @@ def main():
                     f"labels imply ({polarity}: pass edge {pe:g}, reject edge {re_:g})")
         else:
             rec.update(status="AUTHORED", pass_edge=None, reject_edge=None)
+
+        # A constant that REFUSES a clip the human passed is refuted by that fact alone, with or
+        # without a reject on the other side. Requiring both edges hid exactly that: the blocking
+        # probe's correlation floor sits above eight masters that shipped with the eye's approval
+        # (2026-09-21).
+        refused = [v for v in passes if (polarity == FLOOR and v < value) or (polarity == CEILING and v > value)]
+        if refused:
+            rec["status"] = "REFUTED"
+            rec["refuses_passes"] = sorted(refused)
+            worst = min(refused) if polarity == FLOOR else max(refused)
+            line = (f"{module}.{const} = {value:g} refuses {len(refused)} labelled pass(es) "
+                    f"({polarity}, worst {worst:g})")
+            # A gating constant that refuses a labelled pass fails the build. One that cannot
+            # refuse a clip on its own is reported just as loudly and does not, the same rule the
+            # denominator already uses.
+            (failures if gating else refuted_notes).append(line)
         out.append(rec)
 
     gates = [r for r in out if r["gating"]]
@@ -282,6 +421,7 @@ def main():
 
     if as_json:
         print(json.dumps({"gates": out, "reproduced": repro,
+                          "ledger_attested": attested,
                           "derived": len(derived), "authored": len(authored),
                           "refuted": len(refuted), "n_gating": len(gates),
                           "excluded_rows": excluded, "failures": failures}, indent=2))
@@ -307,6 +447,11 @@ def main():
         print(f"{r['module'] + '.' + r['constant']:40s} {r['compared_as']:>8.2f} "
               f"{r['polarity']:>9s}  {pe:>9s} {re_:>11s}  {r['status']}{tail}")
 
+    if refuted_notes:
+        print("\nREFUTED BY THEIR OWN LABELS, scored but unable to refuse a clip on their own")
+        for line in refuted_notes:
+            print(f"  {line}")
+
     if excluded:
         print("\nROWS EXCLUDED FROM A BRACKET (verdict neither pass nor reject)")
         for gate, items in excluded.items():
@@ -324,11 +469,14 @@ def main():
 
     n_live = sum(1 for r in rows if r["pixels"] != "withheld")
     n_ok = sum(1 for r in repro if r.get("ok"))
+    n_att = sum(1 for a in attested if a.get("ok"))
+    n_notes = len(rows) - n_live - len(attested)
     verb = ("were recomputed" if n_ok == n_live
             else f"ship pixels, {n_ok} of which recomputed")
-    print(f"\n{n_live} of {len(rows)} labelled rows {verb}. "
-          f"The rest are attested from the derivation notes; those source renders are "
-          f"not retained.")
+    print(f"\n{n_live} of {len(rows)} labelled rows {verb}, and {n_att} more were "
+          f"re-read from the committed landing ledger that recorded them.")
+    print(f"The remaining {n_notes} are attested from the derivation notes; those "
+          f"source renders are not retained.")
 
     if failures:
         print("\nFAILURES")
