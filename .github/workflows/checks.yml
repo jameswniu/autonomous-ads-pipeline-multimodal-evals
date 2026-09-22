@@ -72,6 +72,12 @@ jobs:
       - name: Gate selftests
         run: bash gates/script_match.sh --selftest
 
+      # Can the lip-sync probes still measure a shift at all? A known dose goes in, the reading
+      # comes back, and the fit says whether the needle moves one for one and how tightly. A
+      # probe that has gone blind fails here rather than passing everything downstream.
+      - name: Certify the probes against a known shift
+        run: python3 evals/certify.py
+
       - name: Lint
         run: ruff check .
 

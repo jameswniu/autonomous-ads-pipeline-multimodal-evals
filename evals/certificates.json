@@ -1,0 +1,73 @@
+{
+  "clip": "synthetic, a bar whose motion follows the audio envelope",
+  "seconds": 14,
+  "fps": 25,
+  "certificates": [
+    {
+      "probe": "lipsync_probe",
+      "doses_ms": [
+        -160,
+        -120,
+        -80,
+        -40,
+        0,
+        40,
+        80,
+        120,
+        160
+      ],
+      "measured_ms": [
+        -185.0,
+        -144.0,
+        -104.0,
+        -62.0,
+        -23.0,
+        15.0,
+        56.0,
+        96.0,
+        137.0
+      ],
+      "slope": 1.002,
+      "expected_sign": 1,
+      "intercept_ms": -23.8,
+      "sigma_ms": 1.0,
+      "slope_min": 0.8,
+      "sigma_max_ms": 40.0,
+      "skipped_ms": [],
+      "verdict": "TRACKS"
+    },
+    {
+      "probe": "sync_probe",
+      "doses_ms": [
+        -160,
+        -120,
+        -80,
+        -40,
+        0,
+        40,
+        80,
+        120,
+        160
+      ],
+      "measured_ms": [
+        160.0,
+        120.0,
+        80.0,
+        40.0,
+        0.0,
+        -40.0,
+        -80.0,
+        -120.0,
+        -160.0
+      ],
+      "slope": -1.0,
+      "expected_sign": -1,
+      "intercept_ms": 0.0,
+      "sigma_ms": 0.0,
+      "slope_min": 0.8,
+      "sigma_max_ms": 40.0,
+      "skipped_ms": [],
+      "verdict": "TRACKS"
+    }
+  ]
+}
