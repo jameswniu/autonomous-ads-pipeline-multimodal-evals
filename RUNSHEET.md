@@ -1,6 +1,6 @@
 # Run sheet
 
-Run these yourself, cold, in a fresh terminal, before the call. `cd ~/ad-creative-pipeline-multimodal-evals` first. Nothing here calls a model; the judge scores are on disk in `results/`.
+Run these yourself, cold, in a fresh terminal, before the call. `cd ~/ad-creative-pipeline-multimodal-evals` first. Nothing here calls a model; the judge scores are on disk in `results/`. The write-up GitHub shows on this branch is `.github/README.md`. The root `README.md` is the pipeline's own, byte-identical to main, because the pipeline's tests read their claims from it.
 
 | # | Command | What its output proves |
 |---|---|---|
