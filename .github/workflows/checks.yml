@@ -129,3 +129,13 @@ jobs:
       # shipped, so this blocks like everything else.
       - name: Prop gate selftest
         run: bash guards/prop_gate.sh selftest
+
+      # The report is a claim like any other, so it is checked rather than assumed. A
+      # redirect that silently goes nowhere leaves a green run whose summary is empty,
+      # and the only way to notice would be for a human to open the page and look.
+      - name: The job summary actually has the report in it
+        run: |
+          for want in "Threshold calibration" "Instrument certificate" "NAMED gating thresholds" "TRACKS slope" "Coverage"; do
+            grep -qF "$want" "$GITHUB_STEP_SUMMARY" || { echo "summary is missing: $want"; exit 1; }
+          done
+          echo "summary carries every section, $(wc -c < "$GITHUB_STEP_SUMMARY") bytes"
