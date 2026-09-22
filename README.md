@@ -61,7 +61,11 @@ mouth_sync_probe.PASS_CORR = 0.25 refuses 8 labelled pass(es) (floor, worst 0.14
 
 That constant never stopped anything, because the gate lets every REVIEW through to a human, which is why nobody noticed for a month. It is reported as refuted by its own labels rather than quietly adjusted to match.
 
-Those eight labels are not numbers anyone typed. Each one is the verdict a gate wrote into a shipping ledger the day that master went out, and `derive.py` re-reads the number and the verdict from that committed file on every run. Nudge a label to make a threshold pass and the build fails, naming both values. Cite the wrong shoot, leave a master with two gated records, or drop the citation entirely and it fails there too. Three tests break it on purpose so that stays true.
+Those eight labels are not numbers anyone typed. Each one is the verdict a gate wrote into a shipping ledger the day that master went out, and `derive.py` re-reads the number and the verdict from that committed file on every run. Nudge a label to make a threshold pass and the build fails, naming both values. Cite the wrong shoot, leave a master with two gated records, or drop the citation entirely and it fails there too. Labels are append only from a named commit forward, so a row cannot be quietly rewritten later either.
+
+The two mechanisms are wired together. A certificate is a claim about one version of two files, the probe and the certifier, and both hashes are recomputed before any threshold is allowed to lean on it. Edit either one and the receipt is refused rather than granting a margin from a number nothing measured.
+
+**What that margin does not reach yet, which the tool says itself.** A threshold has to clear its nearest labelled edge by twice the certified resolution. Today none does, and not because they are close. The reference clip is a moving bar with no face, so it cannot drive the gate that actually refuses masters. Eleven blocking thresholds measure something other than time, which the certificate has nothing to say about. And the one certified probe on a time axis returns every dose exactly, meaning a resolution finer than it can report rather than a perfect instrument, so granting it a zero margin would be a check that passes by construction. Every one of those is printed by name on each run. The mechanism is proven by a test that widens the scatter until the constant is refused.
 
 ## Run it on the pixels that ship
 
