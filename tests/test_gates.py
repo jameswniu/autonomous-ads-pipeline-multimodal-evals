@@ -5,9 +5,11 @@ of shipping the clip it was supposed to stop.
 
 Each test names the defect it guards. Run with: python3 -m pytest tests/test_gates.py -v
 """
+import glob
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -260,3 +262,47 @@ def test_voice_take_checks_its_probe_before_spending():
     assert "voice_probe.py" in guard or "PROBE" in guard, (
         "the probe is not checked before the first TTS request")
     assert probe_line != -1
+
+def test_the_gate_header_only_names_probes_the_gate_runs():
+    """A comment that names a check the script never runs is a false claim, and this
+    repository is about claims being checked.
+
+    Found on 2026-09-23 by re-reading the file rather than trusting the summary of it:
+    the header said the closer gate required lipsync_probe not to FAIL, and
+    lipsync_probe is not invoked anywhere in this script. It also still named
+    sync_probe as a gate condition a month after sync_probe was demoted to a printed
+    disclosure. Both read as enforcement to anyone skimming.
+    """
+    path = os.path.join(ROOT, "gates", "ad_gates.sh")
+    with open(path) as fh:
+        text = fh.read()
+    header = "\n".join(ln for ln in text.splitlines() if ln.startswith("#"))
+    body = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+
+    probes = {os.path.basename(p)[:-3]
+              for p in glob.glob(os.path.join(ROOT, "probes", "*.py"))
+              + glob.glob(os.path.join(ROOT, "gates", "*.py"))}
+    # Word boundary, not substring. `sync_probe.py in body` is TRUE whenever the body
+    # mentions mouth_sync_probe.py, so deleting the real sync_probe call would leave
+    # this test green while the header still described it. That is the same
+    # substring-for-token mistake this repository has shipped before.
+    run_here = {name for name in probes
+                if re.search(rf"(?<![A-Za-z0-9_]){re.escape(name)}\.py\b", body)}
+    assert run_here, "the gate runs no probe at all, so this test is checking nothing"
+    assert "sync_probe" in run_here and "mouth_sync_probe" in run_here, (
+        "the two probes this gate is known to run are not both detected, so the "
+        "matcher is wrong rather than the header")
+
+    # No excuse list. An earlier cut excused any line containing "not run" or "until",
+    # so "lipsync_probe must not FAIL; not run here" would have passed the test written
+    # to reject exactly that sentence. Instead a CLAUSE that names an unrun probe may
+    # not also carry obligation language, whatever else it says.
+    clauses = [c for line in header.splitlines() for c in re.split(r"[.;]", line)]
+    obligation = re.compile(r"\b(must|has to|have to|needs to|required to)\b")
+    for name in sorted(probes - run_here):
+        for clause in clauses:
+            if name not in clause or not obligation.search(clause):
+                continue
+            raise AssertionError(
+                f"the header states {name} as a gate condition and the script never "
+                f"runs it:\n  {clause.strip()}")

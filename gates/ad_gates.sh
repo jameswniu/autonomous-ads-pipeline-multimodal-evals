@@ -4,8 +4,11 @@
 #   is only as binding as the caller that runs it; an earlier comment claimed deliver.sh enforced it.
 #   caption gate  every burned caption says what is spoken, when it is spoken (caption_gate.py)
 #   closer gate   the closer window cut out of the MASTER, not the raw render: its video must start where its
-#                 audio was placed (frame-exact, 40 ms), sync_probe must not read late, lipsync_probe must not FAIL
-#                 (REVIEW is the talking-photo baseline and passes with a logged line; the eye still decides)
+#                 audio was placed (frame-exact, 40 ms) and mouth_sync_probe must not FAIL or read NO FACE
+#                 (REVIEW is the talking-photo baseline and passes with a logged line; the eye still decides).
+#                 sync_probe is PRINTED and never fails, demoted on the evidence below. lipsync_probe is not
+#                 run here at all; this line named both as gate conditions until 2026-09-23, which was false
+#                 for sync_probe since its demotion and false for lipsync_probe since this file was written.
 # Writes /tmp/.ad-gates-<basename>-<size> on pass. the author, 2026-08-26: "are the lip-syncs correct? add evals and
 # gates for the subtitles and the lip-sync"; the whole-master sync read had hidden a 2.8 s closer offset.
 set -uo pipefail
