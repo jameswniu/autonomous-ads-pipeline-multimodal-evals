@@ -10,6 +10,7 @@ that a thing can announce failure and still report success.
     python3 tests/test_suite.py          # same checks, no pytest needed
 """
 import ast
+import csv
 import json
 import os
 import re
@@ -481,6 +482,20 @@ def test_documented_counts_match_the_tool():
         f"derive.py is internally inconsistent: {d} derived + {a} authored != {m} gating")
     num = {v: k for k, v in WORDS.items()}
 
+    # Counted from the file rather than typed here, so adding a row updates the
+    # expectation and the prose has to follow.
+    with open(os.path.join(ROOT, "evals", "labels.csv")) as fh:
+        body = [ln for ln in fh if not ln.lstrip().startswith("#")]
+    label_rows = [r for r in csv.DictReader(body) if r.get("probe")]
+    rows = len(label_rows)
+    lipsync = sum(1 for r in label_rows if "sync" in r["probe"])
+    # The judge's calibration set size comes from the rubric that records it, which is
+    # the same source the README cites, rather than a number typed twice.
+    with open(os.path.join(ROOT, "evals", "judge-rubric.json")) as fh:
+        rubric = json.load(fh)
+    declared = rubric["groundedness"]["calibration"]["set"]
+    scenes = int(re.search(r"(\d+) film5 scenes", declared).group(1))
+
     def val(tok):
         tok = tok.strip().lower()
         return int(tok) if tok.isdigit() else num.get(tok)
@@ -497,6 +512,16 @@ def test_documented_counts_match_the_tool():
         (r"[Tt]he other (\w+) were typed by hand", (a,), a > 0),
         (r"(\d+) are AUTHORED", (a,), True),
         (r"is one of the (\w+):", (d,), False),
+        # The row count. It drifted on 2026-09-23: thirty rows were appended to
+        # labels.csv and three sentences plus a front-page badge went on saying
+        # forty-eight. The count checks above only covered what derive.py prints
+        # about THRESHOLDS, so nothing noticed. A reviewer who checks one number
+        # and finds it wrong stops believing the rest of them.
+        (r"(\d+) exemplars, (\d+) scenes", (rows, scenes), True),
+        (r"graded_by_hand-(\d+)_exemplars_%C2%B7_(\d+)_scenes", (rows, scenes), True),
+        (r"on the (\d+) labelled exemplars behind the thresholds and the (\d+) eye", (rows, scenes), True),
+        (r"the (\d+) labelled rows behind the thresholds and the (\d+) scenes", (rows, scenes), True),
+        (r"(\d+) calibration scenes, (\d+) lip-sync labels", (scenes, lipsync), True),
     ]
     problems = []
     for rel in ("README.md", "docs/EVALS.md"):
@@ -515,6 +540,109 @@ def test_documented_counts_match_the_tool():
         f"derive.py reports {d} derived / {a} authored / {m} gating. "
         + "; ".join(problems))
 
+
+
+def test_the_judge_table_matches_the_rubric_that_recorded_it():
+    """The judge section is the weakest thing on the page if nobody checks it.
+
+    Its numbers came out of evals/judge-rubric.json, which is where the versions
+    were scored. This reads them back. A version re-scored in the rubric and left
+    alone in the README fails here, and so does a row invented for the table.
+    """
+    with open(os.path.join(ROOT, "evals", "judge-rubric.json")) as fh:
+        cal = json.load(fh)["groundedness"]["calibration"]
+
+    declared = cal["set"]
+    fails = int(re.search(r"(\d+) FAIL", declared).group(1))
+    passes = int(re.search(r"(\d+) PASS", declared).group(1))
+
+    # Split by DENOMINATOR, not by name. A version scored against the whole set
+    # belongs in the table; one scored against a sample does not, because showing it
+    # under headers that say "of 16" and "of 26" would state a denominator it never
+    # faced. The rubric says which is which, so the page cannot decide for itself.
+    full_set, sampled = {}, {}
+    for name, body in cal.items():
+        if not isinstance(body, dict) or "recall_on_eye_fail" not in body:
+            continue
+        caught, of_fail = (int(x) for x in body["recall_on_eye_fail"].split("/"))
+        cleared, of_pass = (int(x) for x in body["specificity_on_eye_pass"].split("/"))
+        target = full_set if (of_fail, of_pass) == (fails, passes) else sampled
+        target[name] = (caught, cleared, of_fail, of_pass)
+    assert full_set, "the rubric scores no judge version against the whole set"
+
+    readme = open(os.path.join(ROOT, "README.md")).read()
+    lines = readme.splitlines()
+    # Anchored on the judge table's own header. A bare "two numeric columns" match
+    # picked up an unrelated table elsewhere on the page and reported its numbers as
+    # invented judge scores, which is a false alarm and would have got this muted.
+    head = [i for i, ln in enumerate(lines)
+            if ln.startswith("|") and "eye-fails" in ln and "eye-passes" in ln]
+    assert len(head) == 1, f"expected exactly one judge score table, found {len(head)}"
+    table = []
+    for ln in lines[head[0] + 2:]:
+        if not ln.startswith("|"):
+            break
+        table.append(ln)
+    stated = []
+    for ln in table:
+        cells = [c.strip() for c in ln.strip("|").split("|")]
+        assert len(cells) == 3, f"judge table row has {len(cells)} cells: {ln}"
+        stated.append((cells[0], (int(cells[1]), int(cells[2]))))
+
+    # EXACT, in both directions. A subset check alone let the page say four versions
+    # while showing three, dropping the least flattering one, and a first attempt to
+    # fix that with a fuzzy search for an excusing phrase passed both break tests.
+    # Omission is the easiest way to lie with a table, so it is an equality here.
+    want = sorted((v[0], v[1]) for v in full_set.values())
+    assert sorted(p for _lbl, p in stated) == want, (
+        f"the judge table states {sorted(p for _l, p in stated)} and the rubric "
+        f"scored {want} against the full set")
+    assert len(table) == len(full_set), (
+        f"the rubric scored {len(full_set)} versions against the full set and the "
+        f"table has {len(table)} rows; two versions with the same pair still need "
+        f"a row each, which a set comparison would have let through")
+
+    # ROW BY ROW, bound by name. Checking only the numeric multiset let a contributor
+    # swap two labels and attribute one prompt shape's scores to another, which is
+    # the misreading that would actually cost somebody something: it is the argument
+    # about WHICH prompt made the judge agreeable, not the totals.
+    stop = {"sonnet", "opus", "the", "in", "and", "then", "a", "one", "of", "on",
+            "prompt", "judge", "clips", "decisive", "set", "full", "v1", "v2", "v3", "v4"}
+    for name, (caught, cleared, _f, _p) in full_set.items():
+        keys = {w.strip(",+") for w in re.split(r"[\s,+]+", name.lower())} - stop
+        keys = {k for k in keys if len(k) > 3 and not k.isdigit()}
+        hits = [(lbl, pair) for lbl, pair in stated
+                if keys & {w.strip(",.") for w in lbl.lower().split()}]
+        assert len(hits) == 1, (
+            f"rubric version {name!r} matches {len(hits)} table rows on {sorted(keys)}; "
+            f"each scored version needs exactly one row that names it")
+        lbl, pair = hits[0]
+        assert pair == (caught, cleared), (
+            f"the row {lbl!r} states {pair} and the rubric scores {name!r} at "
+            f"{(caught, cleared)}")
+
+    # A sampled version has to be on the page with its OWN denominator, so it is not
+    # quietly dropped and not silently shown as if it faced the whole set. Scoped to
+    # the judge section and matched on a whole word: a bare search of the README for
+    # "8" passed while the sentence naming the sample had been deleted, because a
+    # page full of numbers contains every small one somewhere.
+    start = readme.index("## Why a language model flags")
+    nxt = readme.find("\n## ", start + 1)
+    section = readme[start:nxt if nxt != -1 else len(readme)]
+    for name, (caught, cleared, of_fail, of_pass) in sampled.items():
+        # Its OWN denominators and its OWN result, not just the sample size. Checking
+        # the size alone let the rubric's 5-of-5 and 0-of-3 change underneath a page
+        # that still said "eight clips" and stayed green.
+        for n, what in ((caught, "fails caught"), (of_fail, "fails in the sample"),
+                        (cleared, "passes cleared"), (of_pass, "passes in the sample"),
+                        (of_fail + of_pass, "clips in the sample")):
+            forms = [rf"\b{n}\b"] + ([rf"\b{WORDS[n]}\b"] if n in WORDS else [])
+            assert any(re.search(f, section, re.I) for f in forms), (
+                f"the rubric scores {name} with {n} {what} and the judge section "
+                f"never states that number")
+
+    for phrase in (f"of {fails} eye-fails", f"of {passes} eye-passes"):
+        assert phrase in readme, f"the README does not say {phrase!r}"
 
 
 def test_no_retired_claim_survives_on_any_surface():

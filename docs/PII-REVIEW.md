@@ -82,8 +82,8 @@ The failures were never the models. A `head -1` in the extraction code kept each
 
 Two rules survived the ablation and are now written into the tool:
 
-- **Recall lives in the prompt, precision lives in the post-filter.** Listing human-dismissed classes in the prompt taught the reviewer to ignore adjacent real findings. The ledger (`tools/pii_review_ledger.txt`, tracked, reasoned, tab-separated) is applied only after the model answers and is never shown to it.
-- **A per-call-billed privacy gate prices itself out of use.** The reviewer seat runs on the operator's flat-rate subscription (`tools/reviewers/claude_cli.sh`), because a gate with a marginal cost per run is a gate you learn to skip.
+- **Recall in the prompt, precision in the post-filter.** Listing human-dismissed classes in the prompt taught the reviewer to ignore adjacent real findings. The ledger (`tools/pii_review_ledger.txt`, tracked, reasoned, tab-separated) is applied only after the model answers and is never shown to it.
+- **Billing per call** prices a privacy gate out of use. The reviewer seat runs on the operator's flat-rate subscription (`tools/reviewers/claude_cli.sh`), because a gate with a marginal cost per run is a gate you learn to skip.
 
 Calibrated result on this tree: 14 chunks, 0 blockers, 5 low-severity advisories, 3 findings absorbed by the ledger, 0 unavailable. The gate blocks only on a high-severity, high-confidence finding that survives the ledger, and the first thing the calibrated reviewer caught was this repo's own tooling: the gitignored roster of third-party names sat one `.gitignore` line away from publication, with nothing asserting that line held. The deterministic scanner now blocks if that wall ever falls.
 

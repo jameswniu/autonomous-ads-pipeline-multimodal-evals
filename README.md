@@ -13,7 +13,7 @@
 <img alt="spec ads: 10, for real products" src="https://img.shields.io/badge/spec_ads-10_for_real_products-55595e?style=flat-square&labelColor=18181c">
 <img alt="spend: every render gated first" src="https://img.shields.io/badge/spend-every_render_gated_first-55595e?style=flat-square&labelColor=18181c">
 <img alt="router: a different engine wins per audience" src="https://img.shields.io/badge/router-a_different_engine_per_audience-55595e?style=flat-square&labelColor=18181c">
-<img alt="graded by hand: 48 exemplars, 42 scenes" src="https://img.shields.io/badge/graded_by_hand-48_exemplars_%C2%B7_42_scenes-55595e?style=flat-square&labelColor=18181c">
+<img alt="graded by hand: 78 exemplars, 42 scenes" src="https://img.shields.io/badge/graded_by_hand-78_exemplars_%C2%B7_42_scenes-55595e?style=flat-square&labelColor=18181c">
 <img alt="thresholds traced to those grades: 10 of 11, and 10 of 11 named gating thresholds derived from labelled exemplars" src="https://img.shields.io/badge/thresholds_traced_to_grades-10%2F11_derived-55595e?style=flat-square&labelColor=18181c">
 <img alt="license: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-55595e?style=flat-square&labelColor=18181c">
 
@@ -66,6 +66,44 @@ Those eight labels are not numbers anyone typed. Each one is the verdict a gate 
 The two mechanisms are wired together. A certificate is a claim about one version of two files, the probe and the certifier, and both hashes are recomputed before any threshold is allowed to lean on it. Edit either one and the receipt is refused rather than granting a margin from a number nothing measured.
 
 **What that margin does not reach yet, which the tool says itself.** A threshold has to clear its nearest labelled edge by twice the certified resolution. Today none does, and not because they are close. The reference clip is a moving bar with no face, so it cannot drive the gate that actually refuses masters. Eleven blocking thresholds measure something other than time, which the certificate has nothing to say about. And the one certified probe on a time axis returns every dose exactly, meaning a resolution finer than it can report rather than a perfect instrument, so granting it a zero margin would be a check that passes by construction. Every one of those is printed by name on each run. The mechanism is proven by a test that widens the scatter until the constant is refused.
+
+## Where a label comes from, and how a wrong one gets caught
+
+A threshold is only as good as the grades behind it, so the first question is what a grade actually is here. It is a person watching a clip and saying good enough or not, written down before any metric existed. Seventy-eight of those live in `evals/labels.csv`, and they are not all worth the same, so the file says which kind each one is and the tool checks each kind differently.
+
+Seven ship their pixels. The frame is in the repository, and `derive.py` re-measures it with the probe's own function on every run. A stranger can check those without asking me anything.
+
+Thirty are withheld but attested. The render is too big to ship, but the gate that measured it wrote its verdict into a shipping ledger the day that master went out, and the ledger is committed. The number and the verdict are re-read from it every run, keyed by shoot and master together. Cite the wrong shoot, leave a master with two gated records, or drop the citation and the build fails.
+
+Forty-one are attested from the derivation notes alone, and those source renders are gone. That is the weakest tier and it is counted separately rather than folded in.
+
+**How a wrong label surfaces.** Not by inspection. A label and a threshold are two claims about the same boundary, so the deriver reports when they disagree and makes somebody choose which one is wrong. That is not hypothetical here:
+
+```
+mouth_sync_probe.PASS_CORR = 0.25 refuses 8 labelled pass(es) (floor, worst 0.14)
+```
+
+Eight masters shipped with my approval sit below a bar that calls them failures. Either the bar is wrong or eight grades are, and the tool refuses to guess. It is reported as refuted by its own labels rather than quietly nudged to agree. A label whose probe and axis match no gate at all is a hard failure too, because a typo that looks like evidence is worse than a missing row. Labels are append only from a named commit, so a row cannot be rewritten later to make a threshold pass.
+
+## Why a language model flags and never decides
+
+The judge was built, measured against grades I had already made, and lost. Forty-two scenes, labelled by eye as sixteen fail and twenty-six pass before any model saw them. Three prompt shapes were scored against the whole set, and all of them are recorded in [`evals/judge-rubric.json`](evals/judge-rubric.json):
+
+| Version | Caught, of 16 eye-fails | Cleared, of 26 eye-passes |
+|---|---|---|
+| One strip, brief in the prompt | 12 | 12 |
+| Three panels, the eye standard in the prompt | 2 | 24 |
+| Blind describe, then judge | 11 | 10 |
+
+A fourth ran on a stronger model against eight decisive clips rather than the full set, so it is kept out of the table rather than shown against denominators it never faced. It is in the rubric with the other three.
+
+The second version is the one worth sitting with. Handing the model my own standard made it agree with me about what passes and blind to almost everything that fails, which is the shape of a judge that has learned the answer rather than the task. Disagreement never fell below about four in ten however it was prompted.
+
+The failure is specific, not vague. It misses object and subject substitutions, a phone for a ring box, a tablet for an umbrella, a young woman for a grandmother, and it false-alarms on gestalt calls the eye accepts. That fourth version caught all 5 fails in its 8 clips and cleared 0 of the 3 passes, and it never once caught a fail for the reason the eye had.
+
+One confound turned up and is recorded rather than buried. The eye had labelled the trimmed window the cut actually used while the judge was shown the whole five seconds, so part of the disagreement was the two of them looking at different footage. The pipeline now judges the used window only.
+
+So the judge attaches a blind description and a flag to the strip as evidence, and the verdict stays with a person. Each eye row records whether it agreed with the flag, so the disagreement rate is reported next to what the leg cost. On the last night of the shoot every instrument favoured a swapped voice take and a nudged mouth, and I reverted both by ear.
 
 ## Run it on the pixels that ship
 
@@ -275,7 +313,7 @@ The first batch landed fifteen scenes on fifteen requests with zero content reje
 
 Quality evals are the tier everyone argues about, so I made them the most mechanical of the three.
 
-- A quality check, in practice, is a person watching a clip and saying good enough or not. I did that first, on the 48 labelled exemplars behind the thresholds and the 42 eye-labelled scenes behind the judge. Then the verdicts were compiled into numbers a scheduler can enforce.
+- A quality check, in practice, is a person watching a clip and saying good enough or not. I did that first, on the 78 labelled exemplars behind the thresholds and the 42 eye-labelled scenes behind the judge. Then the verdicts were compiled into numbers a scheduler can enforce.
 - The source of truth is that golden set plus the market's own bar. The vendor's premium baseline sits in the race as the A0 column.
 - Change the audience and the tier is re-derived, because what good means has flipped.
 - One probe battery for everything. A category picks which rows gate and which merely report, and that pick is what defines the category. The direction of good is set per audience. A coffee ad reads gesture energy upward and a sleep ad flips the same instrument, because calm sells.
@@ -485,16 +523,18 @@ A probe says which of those it means in its exit code. `mirror_probe.py` exits 0
 
 Every threshold here is a hand-picked number over a measured signal, and no probe holds a trained model. That was a choice about iteration speed, not a claim that it is the better answer.
 
-- **Taste moved weekly while this was being built.** A constant sitting between a labelled pass and a labelled reject can be moved in an afternoon and re-bracketed by `derive.py` in one command. A fitted model needs relabelling and a retrain to answer the same question.
-- **The scale path runs the other way.** At enough traffic to segment by audience, per-demographic learned thresholds beat one hand-picked line, and the labelled exemplars in `evals/labels.csv` are already the training data for that.
-- **The generative side does hold models.** They are vendor APIs called over the network, not weights in this repository.
+Taste moved weekly while this was being built. A constant sitting between a labelled pass and a labelled reject can be moved in an afternoon and re-bracketed by `derive.py` in one command, where a fitted model needs relabelling and a retrain to answer the same question.
+
+At scale the argument runs the other way. With enough traffic to segment by audience, per-demographic learned thresholds beat one hand-picked line, and the labelled rows in `evals/labels.csv` are already the training data for that.
+
+The generative side does hold models. They are vendor APIs called over the network rather than weights in this repository.
 
 ## Where the claims stop
 
 - Production on this page means the pipeline ran unattended and spent real money on renders under its own gates. It does not mean a media buy, and no delivery metric is claimed anywhere here.
 - The golden set carries one labeller's judgement, mine, and it is internally consistent. A second labeller and an agreement score are the next calibration step.
-- Only what ships here is claimed, the 48 labelled rows behind the thresholds and the 42 scenes behind the judge. The production battery was calibrated on a larger labelled history that stays private.
-- Sample sizes are counts, never rates: 15 governed runs, 42 calibration scenes, 8 lip-sync labels.
+- Only what ships here is claimed, the 78 labelled rows behind the thresholds and the 42 scenes behind the judge. The production battery was calibrated on a larger labelled history that stays private.
+- Sample sizes are counts, never rates: 15 governed runs, 42 calibration scenes, 36 lip-sync labels.
 - Every outcome number here is measured on the creative. Hook rate, hold rate and view-through are the buy's numbers and are not on this page.
 - The spec ads are unaffiliated. None of the eight companies has seen them.
 - Engine prices and product positioning are as of August 2026, when the shoots ran, and are not re-checked.
