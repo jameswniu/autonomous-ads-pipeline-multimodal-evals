@@ -5,8 +5,13 @@
 # What this file is for is the one real gap requirements.txt left: it declares
 # the probe dependencies, so the measurement layer has a documented install path.
 #
-#   pip install -r requirements.txt          the probes and the guards
-#   pip install '.[dev]'                     adds pytest and ruff
+#   make setup                               the probes, the guards, pytest and ruff
+#   pip install -r requirements.txt          the same by hand, then pytest pytest-cov ruff
+#
+# `pip install '.[dev]'` does NOT work here and this comment used to say it did:
+# there is no build backend, so pip fails before installing anything. The dev
+# extra below is kept as the declaration of what CI installs, and `make setup`
+# is the path that installs it.
 #
 # ffmpeg and ffprobe are required by both halves and cannot be expressed here.
 # They are system binaries; install them with your package manager.

@@ -10,7 +10,7 @@ lags of -0.6 to +0.6 s. Verdict mirrors lipsync_probe's continuous-speech rule s
   PASS    corr >= 0.25 and |lag| <= 0.20 s       exit 0
   REVIEW  otherwise, unless                       exit 2
   FAIL    corr < 0.10 (mouth unrelated to audio)  exit 1
-Positive lag means the mouth LEADS the audio (the audio envelope trails the lip motion); negative means the mouth trails. Sign verified against the shifted controls, and the first deployment had this label inverted, which sent a compensation the wrong way (2026-08-26). Run with ~/portrait-aj/.venv-face/bin/python.
+Positive lag means the mouth LEADS the audio (the audio envelope trails the lip motion); negative means the mouth trails. Sign verified against the shifted controls, and the first deployment had this label inverted, which sent a compensation the wrong way (2026-08-26). Needs the face extra, `make setup-face`.
 Calibrated 2026-08-26 on a shifted control: the same clip with its audio delayed 0.4 s must read lag ~+0.4.
 """
 import json, subprocess, sys, tempfile, os

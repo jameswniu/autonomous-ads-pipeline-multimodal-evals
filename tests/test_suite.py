@@ -524,7 +524,7 @@ def test_documented_counts_match_the_tool():
         (r"(\d+) calibration scenes, (\d+) lip-sync labels", (scenes, lipsync), True),
     ]
     problems = []
-    for rel in ("README.md", "docs/EVALS.md"):
+    for rel in ("README.md", "docs/EVALS.md", "docs/TIERS.md"):
         text = open(os.path.join(ROOT, rel)).read()
         for pattern, expected, required in checks:
             found = re.findall(pattern, text)
@@ -1010,7 +1010,7 @@ def test_readme_process_cards_match_the_ledgers():
         engines[r["scene"].split("-")[0]] = r["engine"]
     rounds = ("ads3", "ads4", "ads5")
 
-    readme = open(os.path.join(ROOT, "README.md")).read()
+    readme = open(os.path.join(ROOT, "docs", "TIERS.md")).read()
     orchard = {r[0]: r[1:] for r in table(readme, "Process record, Orchard Hill Coffee")}
     assert orchard["Process record, Orchard Hill Coffee"] == [labels[engines["orchard"]], "Omni Flash"]
     assert orchard["Scene renders in the ledger across the rounds, re-rolls included"] == [
@@ -1040,7 +1040,7 @@ def test_system_map_steps_match_the_process_table():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     drawn = [step[0] for step in mod.STEPS]
-    readme = open(os.path.join(ROOT, "README.md")).read()
+    readme = open(os.path.join(ROOT, "docs", "TIERS.md")).read()
     table = readme.split("| Step | What it has to prove")[1].split("\n\n")[0].split("\n")[2:]
     written = [row.split("|")[1].strip() for row in table if row.startswith("|")]
     assert written == drawn, (written, drawn)

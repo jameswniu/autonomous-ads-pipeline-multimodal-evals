@@ -49,3 +49,4 @@ tools/pii_names.txt
 # Coverage data. The report is a CI artifact, the raw files are per-machine.
 .coverage
 .coverage.*
+.ruff_cache/
