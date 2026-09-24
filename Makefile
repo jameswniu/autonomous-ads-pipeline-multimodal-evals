@@ -119,7 +119,7 @@ dry: setup
 replay: setup
 	@mkdir -p $(OUT)
 	set -o pipefail; $(PY) -m pipeline.replay | tee $(OUT)/replay.txt
-	$(call summarize,August ledgers against the graph,$(OUT)/replay.txt,transitions)
+	$(call summarize,August ledgers against the graph,$(OUT)/replay.txt,Transitions on the record)
 
 hooks:
 	git config core.hooksPath .githooks && chmod +x .githooks/pre-commit .githooks/commit-msg

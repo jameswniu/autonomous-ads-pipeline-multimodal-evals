@@ -2301,5 +2301,22 @@ def test_a_failing_command_piped_into_tee_fails_its_make_target():
         assert line.startswith("\tset -o pipefail; "), f"a piped recipe without pipefail: {line.strip()}"
 
 
+def test_the_ci_summary_finds_each_report_it_was_promised():
+    """In CI the Makefile appends each report to the step summary and fails the target when the
+    report lacks the line it promised. Nothing sets GITHUB_STEP_SUMMARY on a laptop, so that check
+    never ran locally, and a replay header that changed case failed CI while make check was green
+    here. The two reports that are quick to produce go through the same path CI takes."""
+    make = shutil.which("make")
+    assert make, "make is not on PATH"
+    env = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")}
+    with tempfile.TemporaryDirectory() as out:
+        summary = os.path.join(out, "summary.md")
+        open(summary, "w").close()
+        for target in ("replay", "dry"):
+            r = subprocess.run([make, "-s", "-o", "setup", target, f"OUT={out}"], cwd=ROOT,
+                               env=dict(env, GITHUB_STEP_SUMMARY=summary), capture_output=True, text=True, timeout=300)
+            assert r.returncode == 0, (target, r.stdout[-800:], r.stderr[-800:])
+
+
 if __name__ == "__main__":
     sys.exit(_main())
