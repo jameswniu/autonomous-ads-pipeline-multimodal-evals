@@ -91,6 +91,20 @@ GATES = [
     ("mouth_sync_probe", "FAIL_CORR",      "mouth_corr",      FLOOR,   1.0,  True),
     ("mouth_sync_probe", "PASS_CORR",      "mouth_corr",      FLOOR,   1.0,  False),
     ("mouth_sync_probe", "PASS_LAG",       "mouth_lag_abs_s", CEILING, 1.0,  False),
+    # gates/jaw_gate.py, which refuses a closer before it enters a build. The number is the
+    # latest dated ruling in the doctrine, and no labelled pass/reject pair on the jaw axis is
+    # committed, so it counts AUTHORED until one is.
+    ("jaw_gate",         "JAW_MAX",        "jaw_rubber",      CEILING, 1.0,  True),
+]
+
+# Delivery targets rather than judgements. The build masters every spot to them, and the ship
+# gate reads the result back. No grade could move a loudness target, so these are reported
+# apart from the count above and never folded into it, which would flatter the DERIVED share
+# or the AUTHORED one depending on where they were put.
+SPECS = [
+    ("loudness_gate", "TARGET_I",    "LUFS integrated, the loudnorm target every build masters to"),
+    ("loudness_gate", "TOLERANCE_I", "LU either side of the target"),
+    ("loudness_gate", "MAX_TP",      "dBTP, the loudnorm true-peak ceiling"),
 ]
 
 # How to re-measure a labelled frame, per probe.
@@ -578,8 +592,10 @@ def main():
     authored = [r for r in gates if r["status"] == "AUTHORED"]
     refuted = [r for r in gates if r["status"] == "REFUTED"]
 
+    specs = [{"module": m, "constant": c, "value": getattr(load_module(m), c), "what": w} for m, c, w in SPECS]
+
     if as_json:
-        print(json.dumps({"gates": out, "reproduced": repro,
+        print(json.dumps({"gates": out, "reproduced": repro, "spec": specs,
                           "ledger_attested": attested,
                           "uncertified": coverage,
                           "derived": len(derived), "authored": len(authored),
@@ -644,6 +660,8 @@ def main():
         print(f"{len(refuted)} are REFUTED by their own labels.")
     print(f"{len(out) - len(gates)} further constants are scored above but kept out of "
           f"that count because they cannot refuse a clip on their own.")
+    print(f"{len(specs)} more are SPEC, delivery targets no grade could move: "
+          + ", ".join(f"{x['module']}.{x['constant']} = {x['value']:g} ({x['what']})" for x in specs) + ".")
 
     n_live = sum(1 for r in rows if r["pixels"] != "withheld")
     n_ok = sum(1 for r in repro if r.get("ok"))

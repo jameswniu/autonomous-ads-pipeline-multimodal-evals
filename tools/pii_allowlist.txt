@@ -12,11 +12,11 @@
 # Example, if the author byline in the README is intentional and reviewed:
 #   README.md|owner-identity-token
 #
-# There are deliberately NO active entries here. Every suppression is a decision
-# that something identifying is being published on purpose, so each one should
-# arrive in a diff a human read. Prefer the inline marker where you can: putting
-# the text pii-allow on the offending line suppresses only that line, where an
-# entry here suppresses that label across the whole matched path.
+# Every entry here is a decision that something identifying is being published
+# on purpose, so each one should arrive in a diff a human read. Prefer the inline
+# marker where you can: putting the text pii-allow on the offending line
+# suppresses only that line, where an entry here suppresses that label across the
+# whole matched path.
 #
 # Lines beginning with # are comments. Blank lines are ignored.
 
@@ -89,3 +89,18 @@ shoots/ads4/boards.json|presence-or-routine-prose
 # links, already reviewed and allowed above for README.md. Same content, new
 # path, so the scope is widened to that one file and nowhere else.
 docs/TIERS.md|owner-identity-token
+
+# --- reviewed 2026-09-24 ---
+
+# A ledger written by pipeline/ledger.py stamps every row with the time it was
+# written, to the millisecond, because the order and spacing of a run's steps is
+# what the ledger records. Those times show when the pipeline ran, the same kind
+# of fact the commit times on this branch already publish.
+/ledger.jsonl|timestamped-event
+/ledger.jsonl|wall-clock-time
+
+# A landing's vendor_id is the id the vendor gave that render job. Reading the job
+# back takes the account's API key, so the id alone opens nothing, and it is what
+# matches a ledger row to the vendor's own record of the spend. Identity ids, the
+# voice and the look, are never written raw: the ledger carries them as fingerprints.
+/ledger.jsonl|uuid

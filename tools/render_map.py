@@ -5,7 +5,7 @@
     python3 tools/render_map.py --check    exit 1 if the committed file differs
 
 The figure is generated rather than drawn so a hand edit cannot drift from the
-step list the README's process table carries, and every text run is measured
+step list in pipeline/steps.py, which the graph is built from, and every text run is measured
 against its card before the file is written. Text that overflows a card is the
 most common defect in a figure like this, and it is invisible until rendered.
 """
@@ -28,15 +28,12 @@ def style_of(tier):
     return TIER_STYLE[tier]
 W, H = 1200, 920
 
-STEPS = [
-    ("Board", "five mechanical checks, four eye rows", "gates/board_probe.py", "process"),
-    ("Render", "every request and landing ledgered", "shoots/<batch>/*.jsonl", "process"),
-    ("Closer", "identity pin, prop gate, jaw measured", "guards/, gates/source_gate.py", "process"),
-    ("Build", "closer placed within 40 ms", "shoots/build-ad.sh", "process"),
-    ("Ad gates", "captions say what is spoken", "gates/ad_gates.sh", ("outcome", "quality")),
-    ("Ship gate", "loudness, tail, fails closed", "guards/ship_gate.sh", "process"),
-    ("Deliver", "withdrawn and replaced on record", "shoots/<batch>/landings.jsonl", "process"),
-]
+# The steps come from pipeline/steps.py, the one declaration the graph is built from, so this
+# figure cannot name a step the running code does not have.
+sys.path.insert(0, ROOT)
+from pipeline.steps import STEPS as _STEPS  # noqa: E402
+
+STEPS = [(s.title, s.card, s.footer, s.tier) for s in _STEPS]
 TIERS = [
     ("PROCESS", "process", ["board probe, pre-spend", "identity pin, prop gate", "closer drift, ship gate"]),
     ("OUTCOME", "outcome", ["captions vs spoken words", "script vs the voice", "claims vs the live page"]),

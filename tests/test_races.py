@@ -37,6 +37,14 @@ _GIT_ENV_OVERRIDES = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_
                       "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE", "GIT_COMMON_DIR")
 
 
+def _capped_env():
+    """The environment for a child whose file size is capped on purpose. Coverage would write its
+    own data file under the same cap and leave it half written, which make check then reports as a
+    malformed database, so the capped child runs unmeasured."""
+    env = {k: v for k, v in os.environ.items() if k != "COVERAGE_PROCESS_START" and not k.startswith("COV_CORE_")}
+    return dict(env, RACE_BASELINE_PROVENANCE="")
+
+
 def _git(repo, *args, **kwargs):
     env = {key: value for key, value in os.environ.items() if key not in _GIT_ENV_OVERRIDES}
     # Never climb out of `repo` into an enclosing repository.
@@ -273,7 +281,7 @@ resource.setrlimit(resource.RLIMIT_FSIZE, (output.stat().st_size + 1234, hard))
 main(sys.argv[1:])
 """
     failed = subprocess.run([sys.executable, "-c", limited_backfill, *args],
-                            cwd=ROOT, env=env, capture_output=True, text=True)
+                            cwd=ROOT, env=_capped_env(), capture_output=True, text=True)
     assert failed.returncode == 2, failed.stdout + failed.stderr
     assert "File too large" in failed.stderr
     assert output.read_bytes() == before
@@ -324,7 +332,7 @@ resource.setrlimit(resource.RLIMIT_FSIZE, (output.stat().st_size + 1234, hard))
 main(sys.argv[1:])
 """
     killed = subprocess.run([sys.executable, "-c", killed_backfill, *args],
-                            cwd=ROOT, env=env, capture_output=True, text=True)
+                            cwd=ROOT, env=_capped_env(), capture_output=True, text=True)
     # The precondition this test exists for: the process really was killed, and
     # it really did leave a torn row behind. Without these the test is vacuous.
     assert killed.returncode == -signal.SIGXFSZ, killed.stdout + killed.stderr
@@ -494,7 +502,7 @@ raise SystemExit(0)
     addition = {"schema_version": 1, "row_type": "render", "id": "render:new"}
     attempt = subprocess.run(
         [sys.executable, "-c", limited, str(output), json.dumps(committed), json.dumps(addition)],
-        cwd=ROOT, capture_output=True, text=True, env=dict(os.environ, RACE_BASELINE_PROVENANCE=""))
+        cwd=ROOT, capture_output=True, text=True, env=_capped_env())
     assert attempt.returncode == 3, attempt.stdout + attempt.stderr
 
     assert output.read_bytes() == before

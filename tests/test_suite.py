@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -1033,67 +1034,102 @@ def test_readme_process_cards_match_the_ledgers():
         assert cells[3] == f"{version(winner[ad])} and {version(omni[ad])}", cells
 
 
-def test_system_map_steps_match_the_process_table():
-    """The map and the process table name the same seven steps in the same order."""
+def _steps():
     import importlib.util
-    spec = importlib.util.spec_from_file_location("render_map", os.path.join(ROOT, "tools", "render_map.py"))
+    spec = importlib.util.spec_from_file_location("steps", os.path.join(ROOT, "pipeline", "steps.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    drawn = [step[0] for step in mod.STEPS]
-    readme = open(os.path.join(ROOT, "docs", "TIERS.md")).read()
-    table = readme.split("| Step | What it has to prove")[1].split("\n\n")[0].split("\n")[2:]
-    written = [row.split("|")[1].strip() for row in table if row.startswith("|")]
-    assert written == drawn, (written, drawn)
+    return mod.STEPS
 
 
-
-def test_loop_graph_steps_match_the_process_table():
-    """The Mermaid loop graph names the same seven steps as the map and the process table, in order."""
-    import importlib.util
-    import re
-    spec = importlib.util.spec_from_file_location("render_map", os.path.join(ROOT, "tools", "render_map.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    drawn = [step[0] for step in mod.STEPS]
+def _figure():
+    """The README's Mermaid block, split into the figure and the text after the fence."""
     readme = open(os.path.join(ROOT, "README.md")).read()
-    graph = readme.split("```mermaid")[1].split("```")[0]
-    run = graph.split("subgraph RUN[")[1].split("\n    end")[0]
-    title_of = {m.group(1): (m.group(2) or m.group(3)).split(" \u00b7 ")[0] for m in re.finditer(r'(\w+)(?:\["([^"]+)"\]|\{\{?"([^"]+)"\}\}?)', run)}
-    # the spine is the one line that chains the steps with arrows, read its ids in order
-    spine = max(run.splitlines(), key=lambda l: l.count("-->"))
-    ids = re.findall(r'(?:^|-->)\s*(\w+)', spine.strip())
-    graphed = [title_of[i] for i in ids]
-    assert graphed == drawn, (graphed, drawn)
+    figure, after = readme.split("```mermaid")[1].split("```", 1)
+    return figure, after
 
 
+def test_step_table_says_what_each_node_enforces():
+    """The step table is pipeline/steps.py, word for word. It used to be checked only
+    against two other hand-written lists, so all three could agree while describing a
+    check the code never ran, and one did: the ship gate row claimed loudness."""
+    table = open(os.path.join(ROOT, "docs", "TIERS.md")).read()
+    rows = table.split("| Step | What it has to prove")[1].split("\n\n")[0].split("\n")[2:]
+    written = [[c.strip() for c in r.strip("|").split("|")] for r in rows if r.startswith("|")]
+    declared = [[st.title, st.proves, st.fails] for st in _steps()]
+    assert written == declared, (written, declared)
 
-def test_loop_graph_ownership_matches_the_map():
-    """Each step's stroke classes in the graph, and each row of the legend under it, name the tiers the map generator assigns."""
-    import importlib.util
+
+def test_the_figure_is_the_compiled_graph():
+    """Every edge the README draws is an edge the compiler holds, and every compiled edge
+    is drawn, except the stops, which the prose says are left out, and the one dotted
+    line that crosses into the next run. Checked in both directions, because a figure
+    that only has to be a subset can quietly drop the edges nobody likes to show."""
     import re
-    spec = importlib.util.spec_from_file_location("render_map", os.path.join(ROOT, "tools", "render_map.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    readme = open(os.path.join(ROOT, "README.md")).read()
-    graph, after = readme.split("```mermaid")[1].split("```", 1)
-    run = graph.split("subgraph RUN[")[1].split("\n    end")[0]
-    title_of = {m.group(1): (m.group(2) or m.group(3)).split(" \u00b7 ")[0] for m in re.finditer(r'(\w+)(?:\["([^"]+)"\]|\{\{?"([^"]+)"\}\}?)', run)}
+    import pytest
+    pytest.importorskip("langgraph")
+    import sys
+    sys.path.insert(0, ROOT)
+    from pipeline import graph as G
+
+    figure, _ = _figure()
+    run = figure.split("subgraph RUN[")[1].split("\n    end")[0]
+    solid, dotted = set(), set()
+    for line in run.splitlines():
+        line = line.strip()
+        if line.startswith("%%") or "~~~" in line:
+            continue
+        # a line may chain several edges, "a[...] --> b[...] --> c"; strip labels and shapes
+        bare = re.sub(r'(\[\(?|\{\{?)"[^"]*"(\)?\]|\}\}?)', "", line)
+        bare = re.sub(r'\|"[^"]*"\|', "", bare)
+        for src, arrow, dst in re.findall(r"(\w+)\s*(-->|-\.->)\s*(?=(\w+))", bare):
+            (dotted if arrow == "-.->" else solid).add((src, dst))
+        for m in re.finditer(r"(\w+)\s*(-->|-\.->)\s*(\w+)", bare):
+            (dotted if m.group(2) == "-.->" else solid).add((m.group(1), m.group(3)))
+
+    compiled = G.edges()
+    drawable = compiled - G.STOP_EDGES
+    assert solid == drawable, (
+        f"drawn but not compiled: {sorted(solid - drawable)}; "
+        f"compiled but not drawn: {sorted(drawable - solid)}")
+    assert dotted == G.CROSS_RUN_EDGES, (
+        f"the dotted lines are {sorted(dotted)}, the declared cross-run edges {sorted(G.CROSS_RUN_EDGES)}")
+    assert not (G.CROSS_RUN_EDGES & compiled), "a cross-run edge was compiled into a single run"
+
+
+def test_the_figure_spine_is_the_seven_steps_in_order():
+    """The straight line down the figure names the steps in the order steps.py declares."""
+    import re
+    figure, _ = _figure()
+    run = figure.split("subgraph RUN[")[1].split("\n    end")[0]
     spine = max(run.splitlines(), key=lambda l: l.count("-->"))
-    steps = set(re.findall(r'(?:^|-->)\s*(\w+)', spine.strip()))
+    ids = re.findall(r"(?:^|-->)\s*(\w+)", spine.strip())
+    assert ids == [st.node for st in _steps()], ids
+
+
+def test_loop_graph_ownership_matches_the_steps():
+    """Each step's stroke class in the figure, and each row of the legend under it, name
+    the tiers pipeline/steps.py assigns."""
+    import re
+    figure, after = _figure()
+    steps = _steps()
+    nodes = {st.node for st in steps}
+    title_of = {st.node: st.title for st in steps}
     owner = {}
-    for ids, tier in re.findall(r"^\s+class ([\w,]+) (process|outcome|quality)\s*$", graph, re.M):
+    for ids, tier in re.findall(r"^\s+class ([\w,]+) (process|outcome|quality)\s*$", figure, re.M):
         for node in ids.split(","):
-            if node in steps:
+            if node in nodes:
                 owner.setdefault(title_of[node], set()).add(tier)
-    tiers = {title: set(tier) if isinstance(tier, tuple) else {tier} for title, _, _, tier in mod.STEPS}
+    tiers = {st.title: set(st.tier) if isinstance(st.tier, tuple) else {st.tier} for st in steps}
     assert owner == tiers, (owner, tiers)
-    # the stroke words in the legend must be the patterns the classDefs draw
-    dash = {name: (m or "").strip() for name, m in re.findall(r"^\s+classDef (\w+) [^\n]*?(?:stroke-dasharray:([\d ]+))?,color", graph, re.M)}
-    stroke_of = {"solid": dash["process"], "dashed": dash["outcome"], "dotted": dash["quality"], "dash-dot": dash["shared"]}
+    dash = {name: (m or "").strip() for name, m in
+            re.findall(r"^\s+classDef (\w+) [^\n]*?(?:stroke-dasharray:([\d ]+))?,color", figure, re.M)}
+    stroke_of = {"solid": dash["process"], "dashed": dash["outcome"], "dotted": dash["quality"],
+                 "dash-dot": dash["shared"]}
     assert stroke_of == {"solid": "", "dashed": "6 3", "dotted": "2 3", "dash-dot": "6 3 2 3"}, stroke_of
-    # every legend row names exactly the steps its tier owns
     lines = after.strip().splitlines()
-    table = [l for l in lines[: next(i for i, l in enumerate(lines + [""]) if l and not l.startswith("|"))] if l.startswith("|")]
+    table = [l for l in lines[: next(i for i, l in enumerate(lines + [""]) if l and not l.startswith("|"))]
+             if l.startswith("|")]
     rows = [[c.strip() for c in l.strip("|").split("|")] for l in table[2:]]
     expected = {
         "1 Process": [t for t in tiers if tiers[t] == {"process"}],
@@ -1107,15 +1143,268 @@ def test_loop_graph_ownership_matches_the_map():
         seen[tier if tier[0].isdigit() else tier.lower()] = [t for t in tiers if t in owns]
     assert seen == expected, (seen, expected)
     assert [r[0].lower() for r in rows] == ["solid", "dashed", "dotted", "dash-dot"], rows
-    # the edges are the page's own state machine, so their endpoints are pinned too
-    edges = {tuple(e) for e in re.findall(r"^\s+(\w+) (?:-->|-\.->)(?:\|\"[^\"]*\"\|)? *(\w+)(?:\[.*\]|\{\{.*\}\})?\s*$", graph, re.M)}
-    for pair in [("AG", "EYE"), ("EYE", "SG"), ("D", "L")]:
-        assert pair in edges, (pair, sorted(edges))
-    # the fail paths ride on the gate labels now, so no loop edge may sneak back in and bend the spine
-    assert not {("AG", "R"), ("SG", "BU"), ("L", "B")} & edges, sorted(edges)
-    # the invisible twin of the eye exists only to keep the spine straight, it must stay unclassed and unlabeled as a step
-    assert re.search(r"^\s+class GH ghost\s*$", graph, re.M), "ghost class"
-    assert "GH" not in steps
+    assert re.search(r"^\s+class GH ghost\s*$", figure, re.M), "ghost class"
+
+
+# --- the ship gate, run whole ------------------------------------------------
+#
+# These drive guards/ship_gate.sh end to end on synthetic clips instead of lifting one block
+# out of it. The gate writes its receipt and two sidecars under /tmp by design, where other
+# tools look for them, so each run uses a copy whose /tmp paths point into the test's own
+# directory and nothing is left behind. Every other byte of the copy is the gate. The probes
+# it calls are stubs, because what is under test is what the gate does with a verdict, and
+# the replay probe's file name and verdict word are read from the gate and the probe rather
+# than typed here.
+
+SRT_ARROW = "-" * 2 + ">"   # the SRT timing arrow, built up so no prose hook reads it as a dash
+
+
+def _gate_text():
+    with open(os.path.join(ROOT, "guards", "ship_gate.sh")) as fh:
+        return fh.read()
+
+
+def _replay_probe_name(gate):
+    return re.search(r'MP="\$SKILL/([\w.]+)"', gate).group(1)
+
+
+def _replay_verdict_word(gate):
+    """The first word of the replay probe's verdict line, read from the probe's own print."""
+    with open(os.path.join(PROBES, _replay_probe_name(gate))) as fh:
+        src = fh.read()
+    return re.search(r"print\(f\"(\w+) \{out\['verdict'\]\}:", src).group(1)
+
+
+def _clip(path, source, seconds, filters=None):
+    cmd = ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source]
+    if filters:
+        cmd += ["-vf", filters]
+    cmd += ["-t", str(seconds), "-pix_fmt", "yuv420p", "-c:v", "libx264", str(path)]
+    subprocess.run(cmd, check=True, timeout=300)
+    return Path(path)
+
+
+def _png_width(path):
+    """Width from the PNG header, so no imaging library is needed to read the scan's span."""
+    head = Path(path).read_bytes()[:24]
+    assert head[:8] == b"\x89PNG\r\n\x1a\n", f"{path} is not a PNG"
+    return int.from_bytes(head[16:20], "big")  # pii-allow: a byte slice
+
+
+def _ship_gate(clip, sandbox, args=(), env=None, replay_exit=0, replay_lines=None):
+    """Run the whole gate on clip. Returns (exit code, output, receipt path)."""
+    gate = _gate_text()
+    sandbox = Path(sandbox)
+    sandbox.mkdir(parents=True, exist_ok=True)
+    copy = gate.replace('"/tmp/.', f'"{sandbox}/.')
+    # The receipt and the two sidecars move, and nothing else, or this copy has drifted from
+    # the gate it stands in for.
+    left = [ln for ln in gate.splitlines()
+            if "/tmp/" in ln.replace("${TMPDIR:-/tmp}/", "").replace('"/tmp/.', "")
+            and not ln.lstrip().startswith("#")]
+    assert gate.count('"/tmp/.') == 3 and not left, (
+        f"the gate's /tmp writes changed, so the sandbox rewrite no longer covers them: {left}")
+    script = sandbox / "ship_gate.sh"
+    script.write_text(copy)
+    probes = sandbox / "probes"
+    probes.mkdir(exist_ok=True)
+    for name, line in (("sync_probe.py", "sync stub"), ("spasm_probe.py", "SPASM REPORT: ratio 0.10"),
+                       ("coherence_probe.py", "COHERENCE: debt 0.10s")):
+        (probes / name).write_text(f"print({line!r})\n")
+    word = _replay_verdict_word(gate)
+    if replay_lines is None:
+        replay_lines = [f"{word} {'REPLAYS' if replay_exit == 1 else 'FORWARD'}: stub"]
+    body = "".join(f"print({ln!r})\n" for ln in replay_lines)
+    (probes / _replay_probe_name(gate)).write_text(f"import sys\n{body}sys.exit({replay_exit})\n")
+    srt = sandbox / "clip.srt"
+    srt.write_text(f"1\n00:00:00,500 {SRT_ARROW} 00:00:02,000\nhello there\n")  # pii-allow: subtitle timecodes
+    receipt = sandbox / f".ship-gate-{Path(clip).name}-{os.path.getsize(clip)}"
+    receipt.write_text("a receipt from a previous pass\n")
+    e = {k: v for k, v in os.environ.items() if k not in ("ARROW_WINDOW", "REPLAYOK", "RAW", "REGISTER")}
+    e.update(PIPELINE_PROBES=str(probes), TIMEOK="a test clip claims no time of day", TMPDIR=str(sandbox))
+    e.update(env or {})
+    r = subprocess.run(["bash", str(script), str(clip), str(srt), *args], env=e,
+                       capture_output=True, text=True, timeout=600)
+    return r.returncode, r.stdout + r.stderr, receipt
+
+
+def _line(out, text):
+    """True when text is a whole line of out, starting at column 0."""
+    return f"\n{text}\n" in f"\n{out}\n"
+
+
+def test_a_directional_hold_writes_the_slit_scan_it_asks_a_reader_to_read(tmp_path):
+    """The directional HOLD tells a person to read a slit-scan and rerun with --arrow-ok.
+
+    The strip's path was once spelled inside a quoted heredoc, so python got shell syntax
+    as source, died, and the scan was never written while the gate still held and still
+    asked. Then the scan went to /tmp/slit-<basename>.png, where two masters of the same
+    name overwrote each other, and the HOLD never checked the file was there. So the whole
+    gate runs on a real clip: the scan must be a fresh PNG BESIDE the clip, named on a
+    line of its own, and the receipt must be gone. A scan left by an earlier run sits in
+    the way first, so a gate that failed to write would be caught pointing at it.
+    """
+    clip = _clip(tmp_path / "clip.mp4", "testsrc=size=320x240:rate=25", 14)
+    scan = tmp_path / "clip.arrow.png"
+    scan.write_bytes(b"a scan from an earlier run")
+    rc, out, receipt = _ship_gate(clip, tmp_path / "sandbox", args=("directional",),
+                                  env={"REPLAYOK": "the stub probe reports a replay"}, replay_exit=1)
+    assert rc == 3 and "SHIP-GATE HOLD: directional scene" in out, (rc, out)
+    assert _line(out, f"slit-scan: {scan}"), f"no slit-scan line names the scan beside the clip\n{out}"
+    # A forced directional scan shows the last 11 s up to one second from the end, 3 to 13 s
+    # of this clip, 250 frames at three pixels each.
+    assert abs(_png_width(scan) - 750) <= 6, _png_width(scan)
+    assert not receipt.exists(), "the HOLD left the earlier pass receipt standing"
+    assert not list((tmp_path / "sandbox").glob(".slit.*.raw")), "the raw strip was left behind"
+
+
+def test_a_scan_that_cannot_be_written_fails_closed(tmp_path):
+    """A HOLD that asks a reader to read a scan that is not there is not a hold. When the
+    clip's directory will not take the file, or holds an earlier scan that cannot be
+    removed, the gate must say so and exit 64 without naming a scan, and drop the receipt."""
+    if os.geteuid() == 0:
+        pytest.skip("root writes through a read-only directory, so this cannot be staged")
+    shut = tmp_path / "shut"
+    shut.mkdir()
+    clip = _clip(shut / "clip.mp4", "testsrc=size=320x240:rate=25", 14)
+    stale = shut / "clip.arrow.png"
+    for with_stale, why in ((True, "could not be removed"), (False, "could not be written")):
+        if with_stale:
+            stale.write_bytes(b"a scan from an earlier run")
+        shut.chmod(0o555)
+        try:
+            rc, out, receipt = _ship_gate(clip, tmp_path / f"sandbox-{with_stale}", args=("directional",),
+                                          env={"REPLAYOK": "the stub probe reports a replay"}, replay_exit=1)
+        finally:
+            shut.chmod(0o755)
+        stale.unlink(missing_ok=True)
+        assert rc == 64 and why in out, (with_stale, rc, out)
+        assert "slit-scan:" not in out, f"a scan was named that this run did not write\n{out}"
+        assert not receipt.exists(), "the failed HOLD left the earlier pass receipt standing"
+
+
+def _side_band_clip(path, right=False):
+    """18 s of a still grey frame with a white box moving through the left side band from 1 to
+    4 s and at no other time, or through the right band when right is set."""
+    box = "overlay=x=16:y='64+mod(t*120,144)':enable='between(t,1,4)'" + (",hflip" if right else "")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0x606060:s=320x320:r=25:d=18",
+                    "-f", "lavfi", "-i", "color=c=white:s=16x16:r=25:d=18",
+                    "-filter_complex", f"[0:v][1:v]{box},format=yuv420p", "-c:v", "libx264", str(path)],
+                   check=True, timeout=300)
+    return Path(path)
+
+
+def test_arrow_window_sets_what_the_side_bands_measure_and_the_scan_shows(tmp_path):
+    """The side-band measure read 8 to 16 s whatever the clip was. On an ad master that is the
+    tail of scene b, scene c and a second of the closer, so motion in scene a was never seen.
+    ARROW_WINDOW names the window. Motion only in 1 to 4 s must flag under ARROW_WINDOW=0:5,
+    and the auto scan must show exactly 0 to 5 s. Unset, the gate must still read 8 to 16 s,
+    which is still here, and pass. The replay stub reports a replay under a declared override,
+    the one path on which a flagged clip reaches the directional HOLD.
+    """
+    over = {"REPLAYOK": "the stub probe reports a replay"}
+    left = _side_band_clip(tmp_path / "left.mp4")
+    rc, out, receipt = _ship_gate(left, tmp_path / "s-window", env=dict(over, ARROW_WINDOW="0:5"), replay_exit=1)
+    assert rc == 3 and "SHIP-GATE HOLD: directional scene" in out, (rc, out)
+    assert "0 to 5 s" in out, f"the measure does not say which window it read\n{out}"
+    scan = tmp_path / "left.arrow.png"
+    assert _line(out, f"slit-scan: {scan}"), out
+    assert abs(_png_width(scan) - 3 * 125) <= 6, f"the scan does not show 0 to 5 s: {_png_width(scan)} px"
+    assert not receipt.exists()
+
+    rc, out, receipt = _ship_gate(left, tmp_path / "s-unset", env=over, replay_exit=1)
+    assert rc == 0 and "SHIP-GATE PASS" in out, (rc, out)
+    assert "background side-band motion: 0.0 (directional threshold 0.6, 8 to 16 s)" in out, out
+
+    # The right band is the other half of the measure. It was never read: the command that
+    # measured it overwrote "-t" instead of the filter, ffmpeg refused it, and the empty
+    # reading lost to the left band inside max(). Motion only on the right must flag too.
+    right = _side_band_clip(tmp_path / "right.mp4", right=True)
+    rc, out, _ = _ship_gate(right, tmp_path / "s-right", env=dict(over, ARROW_WINDOW="0:5"), replay_exit=1)
+    assert rc == 3 and "SHIP-GATE HOLD: directional scene" in out, (rc, out)
+
+    # An ad master cuts between its scenes inside the window. Four still colours cut every
+    # 1.25 s have no background motion at all, and the cuts alone must not read as directional.
+    colours = (("red", 1.25), ("green", 1.25), ("yellow", 1.25), ("0x606060", 14.25))
+    src = ";".join(f"color=c={c}:s=320x320:r=25:d={d}[v{i}]" for i, (c, d) in enumerate(colours))
+    cuts = tmp_path / "cuts.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-filter_complex", src + ";[v0][v1][v2][v3]concat=n=4:v=1:a=0,format=yuv420p",
+                    "-c:v", "libx264", str(cuts)], check=True, timeout=300)
+    rc, out, _ = _ship_gate(cuts, tmp_path / "s-cuts", env=dict(over, ARROW_WINDOW="0:5"), replay_exit=1)
+    assert rc == 0 and "SHIP-GATE PASS" in out, (rc, out)
+    assert "background side-band motion: 0.0 (directional threshold 0.6, 0 to 5 s)" in out, out
+
+    # A window that is not one, and a window past the end of the clip, measure nothing. Both
+    # fail closed before anything reads as still.
+    for bad in ("5:1", "2:2", "-1:3", "abc", "3", "0:5:9", "20:30"):  # pii-allow: window values
+        rc, out, receipt = _ship_gate(left, tmp_path / f"s-bad-{bad.replace(':', '_')}", env={"ARROW_WINDOW": bad})
+        assert rc == 64 and "SHIP-GATE HOLD: ARROW_WINDOW" in out, (bad, rc, out)
+        assert not receipt.exists(), f"ARROW_WINDOW={bad} left the earlier pass receipt standing"
+
+
+def test_a_replay_hold_shows_the_reader_the_turn(tmp_path):
+    """The replay HOLD asks a person whether anything in frame can reveal the replay, and
+    showed them nothing. It now writes a scan centred on the vertex the probe names, five
+    seconds either side, prints the vertex on a line of its own, and keeps its own text and
+    exit code, which the caller routes on. With no vertex to read, the scan is the whole clip.
+    """
+    clip = _clip(tmp_path / "clip.mp4", "testsrc=size=320x240:rate=25", 14)
+    word = _replay_verdict_word(_gate_text())
+    scan = tmp_path / "clip.replay.png"
+    # The probe's own shape: the vertex rides on the verdict line, and on the why line when
+    # the turn is what rejected the clip.
+    says = [f"{word} REPLAYS: 14s | repeat 0.12 at P=6s (reject <0.4) | turn 0.05 at t=7.0 (reject <0.22)",
+            "  why: turned about t=7.0s at 5% of control"]
+    rc, out, receipt = _ship_gate(clip, tmp_path / "s-vertex", replay_exit=1, replay_lines=says)
+    assert rc == 3 and "SHIP-GATE HOLD: the scene replays itself" in out, (rc, out)
+    assert _line(out, "replay vertex: t=7.0s"), out
+    assert _line(out, f"slit-scan: {scan}"), out
+    assert abs(_png_width(scan) - 3 * 250) <= 6, f"the scan is not 2 to 12 s: {_png_width(scan)} px"
+    assert not receipt.exists(), "the replay HOLD left the earlier pass receipt standing"
+
+    # Only the why line carries a vertex, near the start: the window clamps at zero, 0 to 8 s.
+    rc, out, _ = _ship_gate(clip, tmp_path / "s-why", replay_exit=1,
+                            replay_lines=[f"{word} REPLAYS: 14s", "  why: turned about t=3.0s at 2% of control"])
+    assert rc == 3 and _line(out, "replay vertex: t=3.0s"), (rc, out)
+    assert abs(_png_width(scan) - 3 * 200) <= 6, _png_width(scan)
+
+    # No vertex at all, and a vertex past the end of the clip, both show the whole clip.
+    for label, lines in (("none", None), ("past the end", [f"{word} REPLAYS: 14s | turn 0.05 at t=40.0 (reject"])):
+        rc, out, _ = _ship_gate(clip, tmp_path / f"s-{label.replace(' ', '-')}", replay_exit=1, replay_lines=lines)
+        assert rc == 3 and "SHIP-GATE HOLD: the scene replays itself" in out, (label, rc, out)
+        assert abs(_png_width(scan) - 3 * 350) <= 6, (label, _png_width(scan))
+
+
+def test_letterbox_counts_dark_bars_and_not_a_dark_scene(tmp_path):
+    """The geometry check counted only BRIGHT flat rows as padding, so black bars, the most
+    common letterbox of all, passed while the step table said the frame fills its height.
+    Dark rows count now, but only flat ones that never change across the take, so a dark
+    sky with grain in it, a dark texture that holds still, or a flat dark band whose level
+    moves, is picture and not a bar. Each of those three fails a different one of the rules.
+    The exit code and the word LETTERBOX are what the caller routes on, so both are checked.
+    """
+    src = "testsrc=size=1080x608:rate=25"
+    full = "testsrc=size=1080x1080:rate=25"
+    clips = {
+        "black bars": (_clip(tmp_path / "black.mp4", src, 3, "pad=1080:1080:0:(oh-ih)/2:black"), True),
+        "white bars": (_clip(tmp_path / "white.mp4", src, 3, "pad=1080:1080:0:(oh-ih)/2:white"), True),
+        "full frame": (_clip(tmp_path / "full.mp4", full, 3), False),
+    }
+    for name, top in (("dark top with moving noise", "color=c=0x080808:s=1080x216:r=25:d=3,noise=alls=40:allf=t+u"),
+                      ("still dark textured top", "color=c=0x080808:s=1080x216:r=25:d=3,noise=alls=40:allf=u"),
+                      ("flat dark top whose level moves",
+                       "color=c=black:s=1080x216:r=25:d=3,format=yuv420p,geq=lum='16+24*abs(sin(T*1.7))':cb=128:cr=128")):
+        path = tmp_path / f"{name.split()[0]}-{len(clips)}.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"{full}:d=3", "-f", "lavfi", "-i", top,
+                        "-filter_complex", "[0:v][1:v]overlay=0:0,format=yuv420p", "-c:v", "libx264", str(path)],
+                       check=True, timeout=300)
+        clips[name] = (path, False)
+    for name, (clip, boxed) in clips.items():
+        rc, out, _ = _ship_gate(clip, tmp_path / f"s-{clip.stem}")
+        if boxed:
+            assert rc == 1 and "geometry: LETTERBOX" in out and "SHIP-GATE FAIL: letterboxed" in out, (name, rc, out)
+        else:
+            assert "geometry: FULLBLEED" in out and "LETTERBOX" not in out, (name, rc, out)
 
 
 def _seed_staged_repo(tmp, staged_text, worktree_text, extra=None):
@@ -1882,6 +2171,8 @@ def test_ship_gate_finds_the_replay_probe_and_fails_closed_without_it():
     # extraction raises and this test fails loudly, which is the correct signal.
     block = text[text.index('MP="$SKILL/mirror_probe.py"'):]
     block = block[:block.index('if [ -n "$DIRECTIONAL" ]')]
+    writer = text[text.index("slit_scan() {"):]
+    writer = writer[:writer.index("\n}\n") + 3]
 
     def run_replay(probe_exit, replayok="", says=None):
         """probe_exit None means no probe file at all.
@@ -1902,13 +2193,16 @@ def test_ship_gate_finds_the_replay_probe_and_fails_closed_without_it():
             mark = os.path.join(tmp, "receipt")
             with open(mark, "w") as fh:
                 fh.write("a receipt from a previous pass\n")
+            # The replay HOLD now writes a slit-scan of real footage before it holds, so F is a
+            # real clip and the scan writer the gate defines above this block comes along.
+            clip = _clip(os.path.join(tmp, "clip.mp4"), "testsrc=size=64x64:rate=25", 2)
             prelude = ('set -uo pipefail\n'
-                       'SKILL="$T_SKILL"\nMARK="$T_MARK"\nF="$T_MARK"\n'
-                       'ARROWOK=""\nREPLAYOK="$T_REPLAYOK"\n')
+                       'SKILL="$T_SKILL"\nMARK="$T_MARK"\nF="$T_CLIP"\n'
+                       'ARROWOK=""\nREPLAYOK="$T_REPLAYOK"\n' + writer)
             r = subprocess.run(
                 ["bash", "-c", prelude + block + "\nexit 0\n"],
-                env=dict(os.environ, T_SKILL=skill, T_MARK=mark,
-                         T_REPLAYOK=replayok),
+                env=dict(os.environ, T_SKILL=skill, T_MARK=mark, T_CLIP=str(clip),
+                         T_REPLAYOK=replayok, TMPDIR=tmp),
                 capture_output=True, text=True, timeout=60)
             return r.returncode, r.stdout + r.stderr, os.path.exists(mark)
 
@@ -1982,6 +2276,29 @@ def test_ship_gate_finds_the_replay_probe_and_fails_closed_without_it():
         "falls through and the clip ships unexamined")
     for code in ("0|1)", "exit 64 ;;"):
         assert code in text, f"the probe status handling is missing {code}"
+
+
+def test_a_failing_command_piped_into_tee_fails_its_make_target():
+    """The Make that ships with macOS is 3.81, which ignores .SHELLFLAGS, so `cmd | tee`
+    exited with tee's status there and a crashed derive, certify or replay read green in
+    `make check`. Each piped recipe now sets pipefail itself. PY is swapped for false,
+    which each of these targets runs first, and true is the control showing that the
+    harness passes when nothing fails."""
+    make = shutil.which("make")
+    assert make, "make is not on PATH"
+    drop = ("GITHUB_STEP_SUMMARY", "MAKEFLAGS", "MFLAGS", "MAKELEVEL")
+    env = {k: v for k, v in os.environ.items() if k not in drop}
+    with tempfile.TemporaryDirectory() as out:
+        for target in ("derive", "certify", "replay"):
+            for py, passes in (("false", False), ("true", True)):
+                r = subprocess.run([make, "-s", "-o", "setup", target, f"PY={py}", f"OUT={out}"],
+                                   cwd=ROOT, env=env, capture_output=True, text=True, timeout=60)
+                assert (r.returncode == 0) is passes, (target, py, r.returncode, r.stdout, r.stderr)
+    recipes = open(os.path.join(ROOT, "Makefile")).read().replace("\\\n", " ").splitlines()
+    piped = [line for line in recipes if line.startswith("\t") and "| tee" in line]
+    assert len(piped) >= 5, piped
+    for line in piped:
+        assert line.startswith("\tset -o pipefail; "), f"a piped recipe without pipefail: {line.strip()}"
 
 
 if __name__ == "__main__":

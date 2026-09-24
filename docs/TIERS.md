@@ -12,18 +12,18 @@ matching the ledger it cites.
 Process evals check how the work got made, before anyone looks at the result. The industry name is process supervision.
 
 - Every step has a contract, the contract is checked the moment the step runs, and a failed check stops the job before the next dollar is spent.
-- The source of truth is the pipeline graph, an orchestration framework such as LangGraph in most stacks and plain scripts here. This tier moves only when the scripts move.
+- The source of truth is the pipeline graph, compiled into LangGraph at [`pipeline/graph.py`](../pipeline/graph.py) from the agent loop that ran August. This tier moves only when the graph or its scripts move.
 - The exact scripts that ran are in this repository. Boards, batch drivers and ledgers in [`shoots/`](shoots/), the board probe, caption gate and closer checks in [`gates/`](gates/), the pixel probes in [`probes/`](probes/), the pre-spend guards in [`guards/`](guards/). The code map near the end says what each file is. Look generation stays out: it ran against the avatar vendor's account, with its own framing checks on the still, head and body inside the crop and shot size, and the closer path here starts from its output.
 
 | Step | What it has to prove before the next step may start | How it fails |
 |:---|:---|:---|
-| Board | Five mechanical checks, free, before a cent is spent (the product absent before the payoff, the escalation declared, the quirk never spoken by the narration, mouths closed under narration, the centre-crop clause present), then four judgment rows I score 0 to 3 by eye | The board goes back |
-| Render | Every request and every landing appended to the ledger, the vendor's own rejection text included | Recorded, re-rolled once with one variable moved |
-| Closer | Identity pin on the voice and avatar ids, prop gate on the look, jaw measured on the raw render and refused over the band | Pre-spend |
-| Build | The closer's video starts within 40 ms of where its audio was placed | Frame-exact, on the master |
-| Ad gates | Every burned cue says what is spoken, within 0.5 s before or 0.3 s after its first word. The closer's mouth is not late | Blocks delivery |
-| Ship gate | Loudness, true peak, silence tail, the standing disclosures. Exit 64 on unreadable input | Fails closed |
-| Deliver | A defective delivered cut is withdrawn, replaced, and the withdrawal ledgered with its reason | On the record |
+| Board | Five mechanical checks, free, before a cent is spent (the product absent before the payoff, the escalation declared, the quirk never spoken by the narration, mouths closed under narration, the centre-crop clause present). The four judgment rows it prints are scored when the board is written, before a run starts | The board goes back |
+| Render | Every request and every landing appended to the ledger, the vendor's own rejection text included, and every scene read by the edge probe. The narration is drawn three times and has to say the script | Recorded, each scene that failed to come back sent once more, and a request that may have been billed stops for a person |
+| Closer | Identity pin on the voice and avatar ids before anything is paid for, the voice included, then the jaw measured on the raw render and refused over 0.17 | Stops the run, a new look is needed |
+| Build | The scenes cut to the narration's sentences, the closer and its captions placed after them, and the master normalised toward -16 LUFS | Stops the run |
+| Ad gates | Every burned cue says what is spoken, within 0.5 s before or 0.3 s after its first word. The closer's video starts within 40 ms of its audio, and its mouth moves with it | A REVIEW, a lag or a prop the edge probe saw cut goes to the eye. A caption or placement fault stops for a person, and so does a mouth that does not track |
+| Ship gate | Loudness within a decibel of -16 LUFS and true peak under -1.5 dB, and the frame fills its height. A directional scene or a replay goes to the eye to read. Exit 64 on unreadable input | Fails closed and stops the run |
+| Deliver | Reached only after the ship gate passes. The delivery, and any later withdrawal with its reason, goes on the record | Reviewed after, and a withdrawal goes back to the step that fixes it |
 
 ### The redo, as a ledger reads it
 
@@ -85,7 +85,7 @@ For an ad, true means four things.
 The invented brands were the easy case, because a story can bend to whatever the engine renders well. So the same loop ran against ten real, currently shipping AI products.
 
 - All ten shot on Omni Flash at about sixty-three cents a scene, thirty scenes across two batches.
-- Each master was gated on caption timing, closer alignment and lip sync before it was allowed out.
+- The first cut of each ads7 spot was gated on caption timing, closer alignment and lip sync before it went out. The replacements after my withdrawals carry no gate readings, and the ads8 ledger records none, which [`pipeline/replay.py`](../pipeline/replay.py) prints rather than hides.
 - These are spec ads. They are not affiliated with, endorsed by, or produced for Google, OpenAI, Perplexity, Meta, xAI, Z.ai, Moonshot AI or Anthropic. None of these companies has seen them, and every tagline is written here.
 
 <table>
@@ -151,7 +151,7 @@ Quality evals are the tier everyone argues about, so I made them the most mechan
 - The source of truth is that golden set plus the market's own bar. The vendor's premium baseline sits in the race as the A0 column.
 - Change the audience and the tier is re-derived, because what good means has flipped.
 - One probe battery for everything. A category picks which rows gate and which merely report, and that pick is what defines the category. The direction of good is set per audience. A coffee ad reads gesture energy upward and a sleep ad flips the same instrument, because calm sells.
-- 10 of the 11 named gating thresholds in [`probes/`](probes/) and [`gates/`](gates/) sit between a labelled pass and a labelled reject. The other 1 were typed by hand and the tool says so. A tool re-measures the shipped pixels and refuses to stay green if the number does not come back.
+- 10 of the 12 named gating thresholds in [`probes/`](probes/) and [`gates/`](gates/) sit between a labelled pass and a labelled reject. The other two were typed by hand and the tool says so. A tool re-measures the shipped pixels and refuses to stay green if the number does not come back.
 - I stay the final judge. A language-model judge attaches a blind description and a flag to the strip as evidence and never holds the verdict.
 
 The race behind the router, with the probe readings, the winners per audience and what each engine's scenes cost, stays on the front page because the race ledger pins those tables by hash: see the README section of that name.

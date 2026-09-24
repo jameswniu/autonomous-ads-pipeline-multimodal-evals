@@ -59,6 +59,8 @@ That distinction is the finding, surfaced only by reading all four rather than c
 
 The other two have no such note. They behave identically at runtime and differ only in whether anyone chose it.
 
+A run through the graph closes the first of those holes for itself. It looks for the pin file before it asks the identity guard, and refuses to spend when there is none ([`pipeline/live.py`](../pipeline/live.py), tested in [`tests/test_live.py`](../tests/test_live.py)). The guard's own behaviour is unchanged, and so are the prop gate's gaps.
+
 The ship gate is the one exception, and only because of an incident: it once ran against paths that did not exist, and every check inside it defaulted to clean. It was rewritten to refuse. The other guards have not had their incident yet.
 
 **A guard that fails open is not a guard, it is a log line.** The dangerous property is not that it fails, it is that it looks identical to passing. A deliberate fail-open with the reasoning attached is a design. An undocumented one is the same code with nobody accountable for it.

@@ -19,12 +19,17 @@ def words(t):
     return set(re.findall(r"[a-z]{5,}", t.lower()))
 
 def main():
-    b = json.load(open(sys.argv[1]))
+    args = [a for a in sys.argv[1:] if a != "--json"]
+    as_json = "--json" in sys.argv[1:]
+    b = json.load(open(args[0]))
     spots = b.get("spots", {})
     guard = b.get("guard", "")
     # An empty board printed PASS (0 spots). Nothing inspected is not a pass.
     if not spots:
-        print("BOARD PROBE FAIL (0 spots: nothing to inspect)")
+        if as_json:
+            print(json.dumps({"verdict": "FAIL", "reason": "0 spots: nothing to inspect", "spots": {}}))
+        else:
+            print("BOARD PROBE FAIL (0 spots: nothing to inspect)")
         return 1
     fails = []
     rows = []
@@ -48,6 +53,13 @@ def main():
         bad = [k for k, v in checks.items() if not v]
         if bad: fails.append((ad, bad, sorted(shared)))
         rows.append((ad, checks, sorted(shared)))
+    # --json was advertised in this file's own usage line for weeks and never parsed, so a
+    # caller asking for it got the text report. The graph's board node reads this.
+    if as_json:
+        print(json.dumps({"verdict": "FAIL" if fails else "PASS",
+                          "spots": {ad: {"checks": checks, "quirk_words_in_narration": shared}
+                                    for ad, checks, shared in rows}}))
+        return 1 if fails else 0
     for ad, checks, shared in rows:
         state = " ".join(("+" if v else "!") + k for k, v in checks.items())
         print(f"  {ad:12s} {state}" + (f"   quirk words in narration: {', '.join(shared)}" if shared else ""))

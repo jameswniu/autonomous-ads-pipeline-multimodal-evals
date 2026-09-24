@@ -22,13 +22,13 @@
 <rect x="60" y="330" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="62.5" y1="330" x2="62.5" y2="430" stroke="#c9a86a" stroke-width="5"/>
 <text x="78" y="364" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Closer</text>
-<text x="78" y="392" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">identity pin, prop gate, jaw measured</text>
-<text x="78" y="418" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">guards/, gates/source_gate.py</text>
+<text x="78" y="392" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">identity pin, jaw under 0.17</text>
+<text x="78" y="418" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">guards/, gates/jaw_gate.py</text>
 <rect x="607" y="330" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="609.5" y1="330" x2="609.5" y2="430" stroke="#c9a86a" stroke-width="5"/>
 <text x="625" y="364" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Build</text>
-<text x="625" y="392" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">closer placed within 40 ms</text>
-<text x="625" y="418" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">shoots/build-ad.sh</text>
+<text x="625" y="392" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">cut to the words, then mastered</text>
+<text x="625" y="418" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">shoots/build-ad.sh, master.sh</text>
 <rect x="60" y="444" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="62.5" y1="444" x2="62.5" y2="544" stroke="#c9a86a" stroke-width="5" stroke-dasharray="10 4 3 4"/>
 <text x="78" y="478" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Ad gates</text>
@@ -37,7 +37,7 @@
 <rect x="607" y="444" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="609.5" y1="444" x2="609.5" y2="544" stroke="#c9a86a" stroke-width="5"/>
 <text x="625" y="478" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Ship gate</text>
-<text x="625" y="506" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">loudness, tail, fails closed</text>
+<text x="625" y="506" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">loudness, peak, fails closed</text>
 <text x="625" y="532" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">guards/ship_gate.sh</text>
 <rect x="60" y="558" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="62.5" y1="558" x2="62.5" y2="658" stroke="#c9a86a" stroke-width="5"/>

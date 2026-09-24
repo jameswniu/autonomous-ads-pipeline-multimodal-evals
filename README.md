@@ -14,7 +14,7 @@
 <img alt="spend: every render gated first" src="https://img.shields.io/badge/spend-every_render_gated_first-55595e?style=flat-square&labelColor=18181c">
 <img alt="router: a different engine wins per audience" src="https://img.shields.io/badge/router-a_different_engine_per_audience-55595e?style=flat-square&labelColor=18181c">
 <img alt="graded by hand: 78 exemplars, 42 scenes" src="https://img.shields.io/badge/graded_by_hand-78_exemplars_%C2%B7_42_scenes-55595e?style=flat-square&labelColor=18181c">
-<img alt="thresholds traced to those grades: 10 of 11, and 10 of 11 named gating thresholds derived from labelled exemplars" src="https://img.shields.io/badge/thresholds_traced_to_grades-10%2F11_derived-55595e?style=flat-square&labelColor=18181c">
+<img alt="thresholds traced to those grades: 10 of 12, and 10 of 12 named gating thresholds derived from labelled exemplars" src="https://img.shields.io/badge/thresholds_traced_to_grades-10%2F12_derived-55595e?style=flat-square&labelColor=18181c">
 <img alt="license: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-55595e?style=flat-square&labelColor=18181c">
 
 <br/><br/>
@@ -33,14 +33,14 @@ This repository is that pipeline, released in full.
 
 ## Three questions reviewers ask about this
 
-**Is any of this mechanical, or did you type the numbers?** Mechanical, and the count is printed rather than claimed. `evals/derive.py` recomputes every named threshold from the labelled exemplars in `evals/labels.csv`, holds each one inside the interval its own labels imply, and prints what it could not derive. 10 of the 11 named gating thresholds in [`probes/`](probes/) and [`gates/`](gates/) are bracketed by a labelled pass and a labelled reject. Its report is checked in CI, so a count on this page cannot go stale:
+**Is any of this mechanical, or did you type the numbers?** Mechanical, and the count is printed rather than claimed. `evals/derive.py` recomputes every named threshold from the labelled exemplars in `evals/labels.csv`, holds each one inside the interval its own labels imply, and prints what it could not derive. 10 of the 12 named gating thresholds in [`probes/`](probes/) and [`gates/`](gates/) are bracketed by a labelled pass and a labelled reject. Its report is checked in CI, so a count on this page cannot go stale:
 
 ```
-10 of 11 NAMED gating thresholds are DERIVED from a labelled pass/reject pair on the same axis
-1 are AUTHORED: typed by hand, no exemplar pair in evals/labels.csv
+10 of 12 NAMED gating thresholds are DERIVED from a labelled pass/reject pair on the same axis
+2 are AUTHORED: typed by hand, no exemplar pair in evals/labels.csv
 ```
 
-**Ten of eleven.** The other 1 were typed by hand: the correlation floor inside the lip-sync gate that actually blocks a master, which has passes on one side and no reject on the other. It stays authored and says so.
+**Ten of twelve.** The other two were typed by hand. One is the correlation floor inside the lip-sync gate that actually blocks a master, which has passes on one side and no reject on the other. The other is the closer's jaw ceiling, 0.17, the latest dated ruling, with no labelled pair behind it yet. Both stay authored and say so. The loudness numbers the ship gate reads are a delivery spec rather than a judgement, so derive.py lists them apart and counts them in neither.
 
 **Why probes and not ordinary tests?** A deterministic function has one right answer and gets a unit test. A generated video does not, since the same prompt returns different pixels every run, so the check is a measured property against a calibrated line, which is a probe. A judgement no measurement captures, whether an ad is worth watching, is an eval with human grades behind it. `docs/EVALS.md` classifies every file in `probes/` and `gates/` as one of those three or as a runner, and a test fails when a file is added and nobody says which.
 
@@ -149,21 +149,21 @@ A probe is a check, a threshold is the line it has to clear, and a gate is what 
 
 The three tiers were exercised on one autonomous production, and the full record sits in [`docs/TIERS.md`](docs/TIERS.md): the process ledger per spot, the outcome checks against each company's own page, and the quality race where four engines shot the same brief and a different one won each audience. Every number there is read back from its ledger by a test.
 
-## Nobody directed the shoot
+## An agent ran the shoot, and the graph is what it became
 
-I set the rules and watched it run. I supplied the architecture, the four-phase ad grammar, a realism guard paragraph, the rule that the most arresting beat opens the film, and the rule that every human on screen is the same presenter. The agents ran the rest: boards, prompts, engine calls, gates, re-rolls, remasters and delivery, every request and landing in an append-only ledger. The evals were calibrated before a single render was paid for.
+I set the rules and an agent ran the shoot from them. I supplied the architecture, the four-phase ad grammar, a realism guard paragraph, the rule that the most arresting beat opens the film, and the rule that every human on screen is the same presenter. The agent did the rest, the boards, prompts, engine calls, gates, re-rolls, remasters and delivery, and I reviewed every cut it delivered. The evals were calibrated before a single render was paid for. Once the runs converged, the loop was compiled into the LangGraph below, and [`docs/PIPELINE.md`](docs/PIPELINE.md) says what changed, what the August ledgers show when replayed against it, and which part is mine.
 
 ## The loop, as a map
 
-One loop, seven steps, and it ran unattended. The gates are where the system stops itself, and that is the only reason it was allowed to spend.
+One loop, seven steps. The gates are where the system stops itself, and that is the only reason it was allowed to spend.
 
 <p align="center">
   <img src="assets/system-map.svg" alt="System map: one loop of seven steps, board, render, closer, build, ad gates, ship gate, deliver, and the three tiers of evals that own the gates at each step." width="100%">
 </p>
 
-The figure is generated by `tools/render_map.py` from a declared step list. CI fails if the committed file drifts from the generator, or if the seven step names stop matching the process table above.
+The figure is generated by `tools/render_map.py` from `pipeline/steps.py`, the same step list the graph is built from. CI fails if the committed file drifts from the generator.
 
-The same loop as a graph, top to bottom, with what the figure leaves out. Each step carries the line it must clear, from the process table above, and the two gates carry their fail path, re-roll when the ad gates block delivery and remaster when the ship gate fails closed. The eye, the only human in the loop, takes a REVIEW off the ad gates, and its approval sends the cut on to the ship gate. Deliver writes the ledger, and relabel means the next board's thresholds are re-derived from it. Who owns a gate is in the stroke, and the table under the graph reads it.
+The same loop as the graph that runs it, [`pipeline/graph.py`](pipeline/graph.py), top to bottom. Every edge below is an edge the compiler holds, and a test fails if the two disagree in either direction. A person decides at two points, both LangGraph interrupts that record who answered. The eye rules before anything ships on what a gate cannot, a mouth REVIEW, a lag worth a nudge, a prop cut off at the frame edge, or footage that may run backwards or replay itself. The review comes after delivery, because delivery is reversible and that is where the August ledgers show I looked, and a withdrawal goes back to the step that fixes it. A master that clears every gate ships without anyone looking first, and the review is where a person does. Every loop has a ceiling, after which the run stops. Any stop closes the run in the ledger, which the figure leaves out to stay readable. The dotted line is a replacement cut, which in August meant a new run from the board.
 
 
 ```mermaid
@@ -171,14 +171,24 @@ The same loop as a graph, top to bottom, with what the figure leaves out. Each s
 flowchart TD
     subgraph RUN["The run · every request and landing ledgered"]
         direction TB
-        AG{{"Ad gates · captions match the speech, else re-roll"}}
+        ad_gates{{"Ad gates · captions match the speech"}}
         %% GH is an invisible twin of the eye, it balances the spine so the steps stay in one column
-        AG ~~~ GH["The eye · REVIEW in, approval out"]
-        GH ~~~ SG
-        B["Board · five checks before any spend"] --> R["Render · every request ledgered"] --> C["Closer · identity pin, jaw measured"] --> BU["Build · closer placed within 40 ms"] --> AG --> SG{{"Ship gate · loudness, fails closed to a remaster"}} --> D["Deliver · defects withdrawn on record"]
-        D --> L[("Ledger · append-only, then relabel")]
-        AG --> EYE["The eye · REVIEW in, approval out"]
-        EYE -.-> SG
+        ad_gates ~~~ GH["The eye · a person rules before anything ships"]
+        GH ~~~ ship_gate
+        board["Board · five checks before any spend"] --> render["Render · every request ledgered"] --> closer["Closer · identity pin, jaw under 0.17"] --> build["Build · cut to the words, mastered"] --> ad_gates --> ship_gate{{"Ship gate · loudness and peak, fails closed"}} --> deliver["Deliver · only after the ship gate"]
+        deliver --> review["The review · a person, after delivery"]
+        review -->|"kept"| ledger[("Ledger · append-only, shipped or stopped")]
+        render -->|"a scene broke, once"| render
+        ad_gates -->|"REVIEW, lag or edge flag"| eye["The eye · a person rules before anything ships"]
+        eye -->|"approved"| ship_gate
+        eye -->|"a scene rejected"| render
+        eye -->|"a new look"| closer
+        eye -->|"a lag nudge"| build
+        ship_gate -->|"direction or replay"| eye
+        review -->|"withdrawn, a scene"| render
+        review -->|"withdrawn, the closer"| closer
+        review -->|"withdrawn, the cut"| build
+        ledger -.->|"a replacement is a new run"| board
     end
 
     classDef run fill:#202024,stroke:#5f626a,color:#e6e6ec
@@ -187,12 +197,12 @@ flowchart TD
     classDef quality fill:#202024,stroke:#c9a86a,stroke-width:2px,stroke-dasharray:2 3,color:#e6e6ec
     classDef shared fill:#202024,stroke:#5f626a,stroke-width:2px,stroke-dasharray:6 3 2 3,color:#e6e6ec
     classDef ghost fill:none,stroke:none,color:transparent
-    class L run
-    class B,R,C,BU,SG,D process
-    class AG outcome
-    class AG quality
-    class AG shared
-    class EYE quality
+    class ledger run
+    class board,render,closer,build,ship_gate,deliver process
+    class ad_gates outcome
+    class ad_gates quality
+    class ad_gates shared
+    class eye,review quality
     class GH ghost
     style RUN fill:#f4f4f7,stroke:#5f626a,color:#18181c
 ```
@@ -201,7 +211,7 @@ flowchart TD
 |---|---|---|
 | Solid | 1 Process | Board, Render, Closer, Build, Ship gate, Deliver |
 | Dashed | 2 Outcome | Ad gates, shared with quality |
-| Dotted | 3 Quality | The probes inside Ad gates, and the eye |
+| Dotted | 3 Quality | The probes inside Ad gates, the eye and the review |
 | Dash-dot | Shared | Ad gates, outcome and quality together |
 
 ## The race behind the router
@@ -303,13 +313,13 @@ The other three winners, each redone on the engine that won it. Every one of the
 Everything below ran.
 
 - Vendor ids and Slack fields are replaced with `<id>` or dropped.
-- Home directories sit behind `$SHOOT_ROOT`, `$RENDERS`, `$GATES` and `$PORTRAIT`.
+- Home paths sit behind `$SHOOT_ROOT`, `$RENDERS`, `$GATES` and `$FACEPY`.
 - The pinned voice and avatar are read from environment variables, so the closer path needs an identity of your own before it will render.
 
 | Where | What it is |
 |:---|:---|
 | `shoots/ads2-redo/` | The race. Five briefs on three challenger engines, the baseline leg built beside them, 47 requests and 45 landings in the ledger |
-| `shoots/ads3/`, `ads4/`, `ads5/` | The redo rounds on the race winners' engines. The first two built masters that never shipped, the third shipped after up to seven rebuilds |
+| `shoots/ads3/`, `ads4/`, `ads5/` | The redo rounds on the race winners' engines. The first two rounds' cuts were delivered and then withdrawn, and the third's stood after up to seven rebuilds |
 | `shoots/ads6-omni/` | The Omni Flash leg of the redo from the boards that survived, with its panel scores and the raw probe outputs for all eight redo masters |
 | `shoots/ads7-real/`, `ads8-real/` | The ten spec ads. Every board carries its positioning and the live page it was checked against |
 | `shoots/<batch>/boards.json` | The brief per spot: audience, quirk, how the middle beat escalates, narration, closer, bed, and for the spec ads the verified positioning |

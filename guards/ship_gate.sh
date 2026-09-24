@@ -10,7 +10,8 @@
 #
 # Checks, in order:
 #   1. GEOMETRY  - content band must fill >= 90% of frame height (letterbox = FAIL;
-#                  the fix is a fit=cover re-render, never shipping borders).
+#                  the fix is a fit=cover re-render, never shipping borders). Bright bars
+#                  and dark bars both count, a dark row only when it is flat and never moves.
 #   2. SPASM     - spasm_probe FAIL (exit 2) blocks. WARN prints for the eye.
 #   3. COHERENCE - rest/lock/phase printed; FLAG prints for the eye (outdoor
 #                  confound means rest alone never hard-blocks here).
@@ -18,6 +19,13 @@
 #                  a slit-scan x-t image and EXITS 3 demanding an eye-read. Rerun
 #                  with --arrow-ok only after actually reading the slit-scan
 #                  (forward flow = one-way slope; palindrome V = ping-pong REJECT).
+#                  ARROW_WINDOW="T0:T1" (seconds) is the stretch the side-band measure
+#                  reads and the auto scan shows. Unset, both use 8 to 16 s.
+#
+# Both HOLDs that ask for an eye-read write their slit-scan BESIDE the clip, as
+# <name>.arrow.png for the directional hold and <name>.replay.png for the replay hold,
+# and name it on a line of its own: "slit-scan: <path>". A scan that could not be
+# written fails the gate with 64 rather than asking a reader to read nothing.
 #
 # On pass: writes /tmp/.ship-gate-<basename>-<bytes> marker. NOTE: the reader of
 # that marker (deliver.sh) is NOT in this repository, so here the marker is a
@@ -36,6 +44,76 @@ BYTES=$(stat -f%z "$F" 2>/dev/null || stat -c%s "$F" 2>/dev/null || echo 0)
 MARK="/tmp/.ship-gate-$(basename "$F")-$BYTES"
 SKILL="${PIPELINE_PROBES:-$(cd "$(dirname "$0")/../probes" 2>/dev/null && pwd)}"
 
+# ARROW_WINDOW="T0:T1", in seconds, is the stretch the side-band measure in step 4 reads and
+# the auto directional scan shows. Unset, both stay on 8 to 16 s, the August window, which is
+# the middle of a single take. On an ad master that window is the tail of scene b, scene c and
+# a second of the closer, so scene a was never measured or shown. pipeline/live.py passes
+# ARROW_WINDOW="0:<closer_start>", every scene and none of the closer. It is checked here,
+# before any probe spends time, because a window that is not a window measures nothing.
+AW_T0=8; AW_T1=16
+if [ -n "${ARROW_WINDOW:-}" ]; then
+  AW=$(python3 - "$ARROW_WINDOW" <<'PY'
+import math, re, sys
+num = r"([0-9]+(?:\.[0-9]*)?|\.[0-9]+)"
+m = re.fullmatch(rf"\s*{num}\s*:\s*{num}\s*", sys.argv[1])
+def secs(x):
+    return f"{x:.6f}".rstrip("0").rstrip(".") or "0"
+if m:
+    t0, t1 = float(m.group(1)), float(m.group(2))
+    if math.isfinite(t1) and t1 > t0:
+        print(secs(t0), secs(t1))
+PY
+)
+  if [ -z "$AW" ]; then
+    echo "SHIP-GATE HOLD: ARROW_WINDOW='$ARROW_WINDOW' is not a window. It takes T0:T1 in seconds,"
+    echo "two non-negative numbers with T1 after T0, for example 0:15.2."
+    rm -f "$MARK"; exit 64
+  fi
+  read -r AW_T0 AW_T1 <<<"$AW"
+fi
+
+# The slit-scan the two eye-read HOLDs hand a reader, written BESIDE the clip and named after
+# it: slit_scan <source> <from s> <to s> <arrow|replay>. It used to go to
+# /tmp/slit-<basename>.png, where two masters with the same name overwrote each other's scan,
+# and nothing checked the file existed before a HOLD asked somebody to read it. The raw strip
+# is scratch under TMPDIR and is deleted either way.
+slit_scan() {
+  local src="$1" t0="$2" t1="$3" kind="$4" stem out raw
+  stem="$(basename "$F")"; stem="${stem%.*}"
+  out="$(dirname "$F")/$stem.$kind.png"
+  raw="${TMPDIR:-/tmp}/.slit.$$.raw"
+  # A scan from an earlier run carries the same name and would pass for this run's if the
+  # write below failed, so it goes first, and one that cannot be removed stops the gate.
+  rm -f "$out" 2>/dev/null
+  if [ -e "$out" ]; then
+    echo "SHIP-GATE HOLD: an earlier slit-scan at $out could not be removed, so a fresh one"
+    echo "cannot be told apart from it. Failing closed."
+    rm -f "$MARK"; exit 64
+  fi
+  ffmpeg -y -v error -ss "$t0" -to "$t1" -i "$src" -vf "crop=2:ih*0.4:iw*0.8:ih*0.25,scale=2:200" \
+    -f rawvideo -pix_fmt gray "$raw"
+  # The raw strip's path goes to python as an argument. It used to be spelled inside the
+  # quoted heredoc, where the shell never expands it, so python got "${TMPDIR:-/tmp}..."
+  # as source text, died on a SyntaxError, and the HOLD asked a reader to read a slit-scan
+  # that was never written (found 2026-09-23).
+  python3 - "$out" "$raw" <<'PY'
+import numpy as np, sys
+from PIL import Image
+raw = np.fromfile(sys.argv[2], dtype=np.uint8)
+n = len(raw)//400
+xt = raw[:n*400].reshape(n,200,2).mean(axis=2).T
+Image.fromarray(xt.astype(np.uint8)).resize((n*3,600), Image.NEAREST).save(sys.argv[1])
+PY
+  rm -f "$raw"
+  # A regular file with bytes in it. -s alone is true of a directory.
+  if [ ! -f "$out" ] || [ ! -s "$out" ]; then
+    echo "SHIP-GATE HOLD: the slit-scan could not be written to $out, so there is nothing for"
+    echo "a reader to read. A HOLD that points at a missing picture is not a hold, so this fails closed."
+    rm -f "$MARK"; exit 64
+  fi
+  echo "slit-scan: $out"
+}
+
 # 1. geometry
 GEO=$(python3 - "$F" <<'PY'
 import subprocess, sys
@@ -47,14 +125,29 @@ w,h = (int(x) for x in p.stdout.strip().split(","))
 d = subprocess.run(["ffprobe","-v","error","-show_entries","format=duration","-of","csv=p=0",path],
                    capture_output=True,text=True)
 dur = float(d.stdout.strip() or 30)
-bad = 0
-for t in (dur*0.2, dur*0.5, dur*0.8):
+def frame(t):
     raw = subprocess.run(["ffmpeg","-v","error","-ss",str(t),"-i",path,"-frames:v","1",
                           "-f","rawvideo","-pix_fmt","gray","pipe:1"],capture_output=True).stdout
-    fr = np.frombuffer(raw[:w*h],dtype=np.uint8).reshape(h,w).astype(np.float32)
+    return np.frombuffer(raw[:w*h],dtype=np.uint8).reshape(h,w).astype(np.float32)
+# The three frames this check has always judged, and two more near the ends of the take.
+at = {f: frame(dur*f) for f in (0.1, 0.2, 0.5, 0.8, 0.9)}
+# Padding is also DARK and flat, and black bars are the commonest letterbox there is. Only
+# bright rows used to count, so a black-barred clip passed while the step table said the
+# frame fills its height. A dark row counts only when it is flat in every sampled frame AND
+# holds the same values across all five of them, because a night sky or a dim room is dark
+# and still carries grain or movement, while a bar never changes. Only a band running in from
+# the top or bottom edge can shorten the content extent measured below, so a still dark stripe
+# across the middle of a frame never reads as padding.
+stack = np.stack(list(at.values()))
+dark = ((stack.mean(axis=2) < 40) & (stack.std(axis=2) < 2.0)).all(axis=0)
+still = np.abs(stack - stack[0]).mean(axis=2).max(axis=0) < 2.0
+dark_pad = dark & still
+bad = 0
+for f in (0.2, 0.5, 0.8):
+    fr = at[f]
     # padding is BRIGHT *and* FLAT; a pale sky or sunlit sand is bright with texture,
     # so brightness alone false-alarms (fired on the morning-foam ocean scene 2026-07-26).
-    pad_row = (fr.mean(axis=1) > 235) & (fr.std(axis=1) < 2.0)
+    pad_row = ((fr.mean(axis=1) > 235) & (fr.std(axis=1) < 2.0)) | dark_pad
     rows = np.where(~pad_row)[0]
     ch = (rows.max()-rows.min()+1) if len(rows) else 0
     if ch < 0.9*h: bad += 1
@@ -246,26 +339,53 @@ fi
 # (outside the centered subject); a moving background makes the scene directional
 # whether or not anyone remembered to say so. The explicit "directional" arg only FORCES.
 if [ -z "$DIRECTIONAL" ] && [ -z "$ARROWOK" ]; then
-  BG=$(python3 - "$F" <<'PY'
+  BG=$(python3 - "$F" "$AW_T0" "$AW_T1" "${ARROW_WINDOW:+named}" <<'PY'
 import subprocess, sys
 import numpy as np
-path = sys.argv[1]
-cmd = ["ffmpeg","-v","error","-ss","8","-t","8","-i",path,"-vf",
-       "crop=iw*0.15:ih*0.5:0:ih*0.2,scale=64:128,format=gray","-f","rawvideo","pipe:1"]
-raw = subprocess.run(cmd, capture_output=True).stdout
-n = len(raw)//(64*128)
-if n < 10: print("0.0"); sys.exit()
-fr = np.frombuffer(raw[:n*64*128],dtype=np.uint8).reshape(n,128,64).astype(np.float32)
-left = np.abs(np.diff(fr,axis=0)).mean()
-cmd[5] = "crop=iw*0.15:ih*0.5:iw*0.85:ih*0.2,scale=64:128,format=gray"
-raw = subprocess.run(cmd, capture_output=True).stdout
-n = len(raw)//(64*128)
-fr = np.frombuffer(raw[:n*64*128],dtype=np.uint8).reshape(n,128,64).astype(np.float32)
-right = np.abs(np.diff(fr,axis=0)).mean()
-print(round(max(left,right),2))
+path, t0, t1 = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
+named = sys.argv[4:] == ["named"]
+def secs(x):
+    return f"{x:.6f}".rstrip("0").rstrip(".") or "0"
+def band(crop):
+    # Each band builds its own command. The right band used to reuse the left band's list by
+    # overwriting element 5, which is "-t", not the filter, so ffmpeg took the filter for an
+    # output file name and refused, the right band came back empty, and max(left, nan)
+    # returned the left. Only the left band had ever been measured.
+    cmd = ["ffmpeg","-v","error","-ss",secs(t0),"-t",secs(t1 - t0),"-i",path,"-vf",
+           crop + ",scale=64:128,format=gray","-f","rawvideo","pipe:1"]
+    raw = subprocess.run(cmd, capture_output=True).stdout
+    n = len(raw)//(64*128)
+    if n < 10:
+        return None
+    fr = np.frombuffer(raw[:n*64*128],dtype=np.uint8).reshape(n,128,64).astype(np.float32)
+    # A shot change is not background motion. An ad master cuts between its scenes inside the
+    # window, and one cut frame changes by up to a hundred levels, enough on its own to read two
+    # still scenes as directional. A frame that changes many times more than the typical frame
+    # is a cut, and is left out.
+    d = np.abs(np.diff(fr,axis=0)).mean(axis=(1,2))
+    moving = d[d <= max(20.0, 8 * float(np.median(d)))]
+    return float(moving.mean()) if moving.size else 0.0
+left = band("crop=iw*0.15:ih*0.5:0:ih*0.2")
+right = band("crop=iw*0.15:ih*0.5:iw*0.85:ih*0.2")
+if left is None or right is None:
+    # A clip shorter than the August window has always read as still, and still does. A
+    # window the caller NAMED that holds under ten frames is a mistake about the clip.
+    print("NOFRAMES" if named else "0.0")
+else:
+    print(round(max(left, right), 2))
 PY
 )
-  echo "background side-band motion: $BG (directional threshold 0.6)"
+  case "$BG" in
+    NOFRAMES)
+      echo "SHIP-GATE HOLD: ARROW_WINDOW=$ARROW_WINDOW holds under ten frames of this clip, so the side"
+      echo "bands were not measured. A window with nothing in it cannot clear a clip."
+      rm -f "$MARK"; exit 64 ;;
+    ''|*[!0-9.]*)
+      echo "SHIP-GATE HOLD: the side-band measure returned no number (got '$BG'). Unmeasured is not"
+      echo "still, so this fails closed."
+      rm -f "$MARK"; exit 64 ;;
+  esac
+  echo "background side-band motion: $BG (directional threshold 0.6, $AW_T0 to $AW_T1 s)"
   python3 -c "import sys; sys.exit(0 if float('$BG') > 0.6 else 1)" && DIRECTIONAL="auto"
 fi
 # 4b. palindrome probe (2026-07-26). The probe detects the refill MECHANICALLY (8/8 on the
@@ -327,6 +447,48 @@ if [ -z "$ARROWOK" ]; then
     if [ -n "${REPLAYOK:-}" ]; then
       echo "  REPLAY OVERRIDE (logged): $REPLAYOK"
     else
+      # Show the reader the turn, not only the verdict. This HOLD asks a person whether anything
+      # in frame can reveal the replay, and it used to show them nothing. The scan is centred on
+      # the vertex the probe names, five seconds either side, read from its verdict line or the
+      # why line under it. With no vertex to read, or one outside the clip, it shows the whole
+      # clip. It scans the footage the probe measured, so the vertex and the picture share one
+      # timeline.
+      RSRC="${RAW:-$F}"
+      RDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$RSRC")
+      RW=$(PROBE_OUT="$MPOUT" python3 - "$RDUR" <<'PY'
+import os, re, sys
+lines = os.environ.get("PROBE_OUT", "").splitlines()
+num = r"([0-9]+(?:\.[0-9]+)?)"
+at = next((i for i, ln in enumerate(lines) if re.match(r"\w+ REPLAYS:", ln)), None)
+vertex = None
+if at is not None:
+    near = lines[at:at + 4]
+    for pat in (rf"\babout t={num}s\b", rf"\bat t={num}(?![0-9.])"):
+        hit = next((m for m in (re.search(pat, ln) for ln in near) if m), None)
+        if hit:
+            vertex = hit.group(1)
+            break
+def secs(x):
+    return f"{x:.6f}".rstrip("0").rstrip(".") or "0"
+try:
+    dur = float(sys.argv[1])
+except ValueError:
+    dur = 0.0   # unreadable footage, so the scan below fails closed
+lo, hi = 0.0, dur
+if vertex is not None:
+    a, b = max(0.0, float(vertex) - 5.0), min(dur - 0.5, float(vertex) + 5.0)
+    if b > a:
+        lo, hi = a, b
+print(vertex or "-", secs(lo), secs(hi))
+PY
+)
+      read -r VERTEX RT0 RT1 <<<"$RW"
+      if [ -n "$VERTEX" ] && [ "$VERTEX" != "-" ]; then
+        echo "replay vertex: t=${VERTEX}s"
+      else
+        echo "the replay probe named no vertex, so the scan shows the whole clip"
+      fi
+      slit_scan "$RSRC" "${RT0:-0}" "${RT1:-0}" replay
       echo "SHIP-GATE HOLD: the scene replays itself (avatar_iii refill). If ANYTHING directional"
       echo "is in frame (water, drifting clouds, traffic) this is the backward-water defect: REJECT;"
       echo "go shorter, composite over a real plate, or avatar_iv with my explicit yes."
@@ -362,19 +524,22 @@ if [ -z "$ARROWOK" ]; then
   esac
 fi
 if [ -n "$DIRECTIONAL" ] && [ -z "$ARROWOK" ]; then
-  SLIT="/tmp/slit-$(basename "$F").png"
   DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$F")
-  T0=$(python3 -c "print(max(0,float('$DUR')-11))"); T1=$(python3 -c "print(float('$DUR')-1)")
-  ffmpeg -y -v error -ss "$T0" -to "$T1" -i "$F" -vf "crop=2:ih*0.4:iw*0.8:ih*0.25,scale=2:200" -f rawvideo -pix_fmt gray "${TMPDIR:-/tmp}/.slit.$$.raw"
-  python3 - "$SLIT" <<'PY'
-import numpy as np, sys
-from PIL import Image
-raw = np.fromfile(""${TMPDIR:-/tmp}/.slit.$$.raw"", dtype=np.uint8)
-n = len(raw)//400
-xt = raw[:n*400].reshape(n,200,2).mean(axis=2).T
-Image.fromarray(xt.astype(np.uint8)).resize((n*3,600), Image.NEAREST).save(sys.argv[1])
-print("slit-scan:", sys.argv[1])
-PY
+  if [ "$DIRECTIONAL" = "auto" ]; then
+    # Scan the window the side-band measure above read and flagged: ARROW_WINDOW exactly when
+    # it is set, and 8 to 16 s when it is not. It used to scan the last 11 s whatever raised the
+    # flag, which on an ad master is the closer and the brand card, so the reader was shown a
+    # window that had nothing to do with the motion that stopped the clip.
+    if [ -n "${ARROW_WINDOW:-}" ]; then
+      T0=$AW_T0; T1=$AW_T1
+    else
+      T0=8; T1=$(python3 -c "print(min(16.0, float('$DUR')-1))")
+    fi
+  else
+    T0=$(python3 -c "print(max(0,float('$DUR')-11))"); T1=$(python3 -c "print(float('$DUR')-1)")
+  fi
+  slit_scan "$F" "$T0" "$T1" arrow
+  rm -f "$MARK"   # a HOLD takes back any earlier pass receipt, like every other HOLD here
   echo "SHIP-GATE HOLD: directional scene - READ the slit-scan (one-way slope = pass;"
   echo "palindrome V = ping-pong REJECT), then rerun with --arrow-ok"
   exit 3
