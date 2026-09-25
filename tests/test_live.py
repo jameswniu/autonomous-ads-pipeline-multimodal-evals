@@ -972,6 +972,130 @@ def test_a_different_person_fails_the_scene_and_no_face_goes_to_the_eye(live, mo
     assert gates == [("zai-a", False, False), ("zai-b", False, False), ("zai-c", False, True)], gates
 
 
+def by_scene(answers):
+    """A cast gate stand-in that answers per scene, read off the take's directory. An answer of
+    None kills the process mid read-back, the way a crash between a landing and its reading would."""
+    def cast(clip):
+        answer = answers[os.path.basename(os.path.dirname(clip))]
+        if answer is None:
+            raise KeyboardInterrupt("the process died before the read-back")
+        return answer
+    return cast
+
+
+def test_a_re_entry_reuses_a_take_that_passed_after_its_checkpoint_listed_it_failed(live, monkeypatch, tmp_path):
+    """A re-entry resumes from a checkpoint, and its failed list can be older than a take that
+    landed after it. Live, scene c came back as her and the next re-entry sent it again, which
+    only a locked account refused. The ledger decides: a take that landed and passed its read-back
+    is reused, and only the scene that is still broken is paid for."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    vendor = Vendor(reject={"fal-2"})
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    first = tk.render(cast_state(state))
+    assert first["failed"] == ["b"], first
+    vendor.reject = set()
+    posts = len(vendor.posts())
+    stale = dict(cast_state(state), verdict={"render": dict(first, failed=["b", "c"])})
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(stale)
+    sent = [r["scene"] for r in tk.ledger.rows() if r["kind"] == "request" and r.get("scene")]
+    assert again["failed"] == [] and len(vendor.posts()) == posts + 1 and sent[-1] == "zai-b", (again, sent)
+    assert sent.count("zai-c") == 1, "a take that landed and passed was paid for again"
+    assert [r["scene"] for r in tk.ledger.rows() if r.get("status") == "REUSED"] == ["zai-c"]
+
+
+def test_a_re_roll_renders_again_a_take_its_read_back_failed(live, monkeypatch, tmp_path):
+    """A take that is not her fails the scene, and its re-roll is a new render, never the take the
+    read-back refused."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    answers = {"zai-a": SAME, "zai-b": SAME, "zai-c": OTHER}
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=by_scene(answers)))
+    first = tk.render(cast_state(state))
+    assert first["failed"] == ["c"], first
+    answers["zai-c"] = SAME
+    posts = len(vendor.posts())
+    again = tk.render(dict(cast_state(state), verdict={"render": first}))
+    assert again["failed"] == [] and again["fresh"] == ["c"] and len(vendor.posts()) == posts + 1, again
+    assert not [r for r in tk.ledger.rows() if r.get("status") == "REUSED"], "the take its read-back refused was reused"
+
+
+def test_a_take_with_no_face_found_goes_to_the_eye_again_and_is_not_paid_for_twice(live, monkeypatch, tmp_path):
+    """No face where she was expected is a flag for the eye, not a failure, though its reading is
+    written with passed false. A stale failed list that names the scene reuses the take and flags
+    it again rather than paying for it a second time."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    vendor = Vendor(reject={"fal-2"})
+    monkeypatch.setattr(L, "http", vendor)
+    answers = {"zai-a": SAME, "zai-b": SAME, "zai-c": NO_FACE}
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=by_scene(answers)))
+    first = tk.render(cast_state(state))
+    assert first["failed"] == ["b"] and "c" in first["flags"], first
+    vendor.reject = set()
+    posts = len(vendor.posts())
+    again = tk.render(dict(cast_state(state), verdict={"render": dict(first, failed=["b", "c"])}))
+    assert again["failed"] == [] and "c" in again["flags"] and len(vendor.posts()) == posts + 1, again
+
+
+def test_a_take_that_landed_but_was_never_read_back_is_read_now_not_sent_again(live, monkeypatch, tmp_path):
+    """The process can die between a take landing and its read-back. The failed reading of an older
+    take is not this take's, so a re-entry reuses the new take and reads it, rather than paying again."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    answers = {"zai-a": SAME, "zai-b": SAME, "zai-c": OTHER}
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=by_scene(answers)))
+    first = tk.render(cast_state(state))
+    assert first["failed"] == ["c"], first
+    answers["zai-c"] = None
+    with pytest.raises(KeyboardInterrupt):
+        tk.render(dict(cast_state(state), verdict={"render": first}))
+    answers["zai-c"] = SAME
+    posts = len(vendor.posts())
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(dict(cast_state(state), verdict={"render": first}))
+    assert again["failed"] == [] and len(vendor.posts()) == posts, "a take that landed was paid for again"
+    assert [r["scene"] for r in tk.ledger.rows() if r.get("status") == "REUSED"] == ["zai-c"]
+
+
+def test_a_take_its_read_back_failed_is_rendered_again_whatever_the_checkpoint_says(live, monkeypatch, tmp_path):
+    """A re-entry can resume from a checkpoint older than the read-back that failed a take, whose
+    failed list is empty. The ledger still says the take is not her, so it is rendered again, and
+    the scenes that passed are reused."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    answers = {"zai-a": SAME, "zai-b": SAME, "zai-c": OTHER}
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=by_scene(answers)))
+    assert tk.render(cast_state(state))["failed"] == ["c"]
+    answers["zai-c"] = SAME
+    posts = len(vendor.posts())
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(cast_state(state))
+    assert again["failed"] == [] and again["fresh"] == ["c"] and len(vendor.posts()) == posts + 1, again
+    assert [r["scene"] for r in tk.ledger.rows() if r.get("status") == "REUSED"] == ["zai-a", "zai-b"]
+
+
+def test_a_scene_a_person_sends_back_is_rendered_again_even_on_its_old_prompt(live, monkeypatch, tmp_path):
+    """The eye can send a scene back without rewriting its prompt. The take on file then landed and
+    passed, and it is still not reused, because a person asked for a new one."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    first = tk.render(cast_state(state))
+    assert first["failed"] == [], first
+    posts = len(vendor.posts())
+    again = tk.render(dict(cast_state(state), verdict={"render": first}, changes={"scene": "a", "reason": "a prop cut"}))
+    assert again["fresh"] == ["a"] and len(vendor.posts()) == posts + 1, again
+    assert not [r for r in tk.ledger.rows() if r.get("status") == "REUSED"], "the scene a person sent back was reused"
+
+
 def test_a_cast_reading_its_exit_code_contradicts_is_no_reading(live, monkeypatch):
     tk, _ = live
     monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=(0, OTHER[1])))

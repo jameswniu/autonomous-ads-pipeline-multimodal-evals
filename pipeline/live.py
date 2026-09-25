@@ -455,7 +455,17 @@ class LiveToolkit(Toolkit):
         # back with no id, or the process died before the answer was written down.
         unknown = status == "UNCONFIRMED" or (not queued and not landed)
         return {"request_id": rid, "seq": asked[-1]["seq"], "owed": bool(handle) and status in OWED,
-                "landed": status in ("OK", "REUSED"), "unconfirmed": unknown, "handle": handle}
+                "landed": status in ("OK", "REUSED"), "landed_seq": landed[-1]["seq"] if landed else None,
+                "unconfirmed": unknown, "handle": handle}
+
+    def read_back_failed(self, spot, scene, since):
+        """Whether the take that landed at row `since` was failed by its read-back: the newest cast
+        reading of the scene after that row says FAIL. No face where one was expected, or a reading
+        the gate could not make, is a flag for the eye and not a failure, so neither counts, though
+        both are written with passed false."""
+        readings = [r for r in self.rows("gate", step="render", scene=f"{spot}-{scene}", check="cast") if r["seq"] > since]
+        m = CAST_LINE.search(readings[-1].get("reading") or "") if readings else None
+        return bool(m) and m["verdict"] == "FAIL"
 
     def render(self, state):
         board, spot_def = load_spot(state["board"], state["spot"])
@@ -525,7 +535,12 @@ class LiveToolkit(Toolkit):
                 why[s] = (f"{before['request_id']} was sent and never confirmed, so it may have been billed. Look for it "
                           "in the vendor's queue before re-entering, which sends it again")
                 continue
-            if before and before["landed"] and not asked and not last.get("failed") and os.path.isfile(raw):
+            # A scene whose newest take landed is never sent again unless its read-back failed it or
+            # a person asked for a new one. The ledger decides that, not the checkpoint: a re-entry
+            # resumes from a state whose failed list can be older than a take that landed after it,
+            # or emptier than a read-back written before a crash. The checkpoint only picks the scenes.
+            held_take = before and before["landed"] and os.path.isfile(raw) and not asked
+            if held_take and not self.read_back_failed(spot, s, before["landed_seq"]):
                 # A re-entry after the spend: this run already holds this scene with this prompt.
                 self.ledger.append("landing", "render", request_id=before["request_id"], spot=spot, scene=f"{spot}-{s}",
                                    status="REUSED", file=self.rel(raw), sha256=sha256(raw))
