@@ -346,6 +346,72 @@ def test_script_match_accept_requires_a_comparison_to_have_happened(tmp_path):
     assert r.returncode != 0, f"--accept passed an unreadable input:\n{r.stdout}\n{r.stderr}"
 
 
+def _script_match(tmp_path, script, stt):
+    t = str(tmp_path)
+    open(os.path.join(t, "script.txt"), "w").write(script)
+    with open(os.path.join(t, "stt.json"), "w") as fh:
+        json.dump({"text": stt}, fh)
+    return subprocess.run(["bash", os.path.join(GATES, "script_match.sh"), os.path.join(t, "stt.json"),
+                           os.path.join(t, "script.txt")], capture_output=True, text=True, timeout=60)
+
+
+@pytest.mark.parametrize("script,stt", [
+    # The Z.ai narration and its read-back as the chained run drew them, which failed twice.
+    ("Your studio apartment is smaller than the problem you're solving. Z.ai puts frontier open models in "
+     "anyone's hands, the same weights the big labs guard, priced for builders. Build like the room was never small.",
+     "Your studio apartment is smaller than the problem you're solving. ZAI puts frontier open models in "
+     "anyone's hands. The same weights the big labs guard, priced for builders. Build like the room was never small"),
+    ("Z.ai puts frontier open models to work.", "Z AI puts frontier open models to work."),
+    ("Send it by e-mail tonight.", "Send it by email tonight."),
+    ("Send it by email tonight.", "Send it by e-mail tonight."),
+    ("It is the 3-D printer.", "It is the 3D printer."),
+    ("She said 'build tonight' twice.", "She said build tonight twice."),
+    ("Z.ai has one two three steps.", "ZAI has 1 2 3 steps."),
+    # A stray quote mark is no word, so a transcript that leaves it out still says the script.
+    ("' 12 apples for 3", "12 apples for 3"),
+    ("Try GPT-4 tonight.", "Try GPT4 tonight."),
+])
+def test_script_match_passes_a_word_split_or_joined_differently(tmp_path, script, stt):
+    """The Z.ai narration failed its read-back twice because the transcript wrote the brand as one
+    word. Its letters and digits ran the same in the same order and only punctuation had split the
+    word, which the doctrine always ruled fine as a tokenization difference."""
+    r = _script_match(tmp_path, script, stt)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.splitlines()[0] == "MATCH", r.stdout
+
+
+def test_script_match_says_where_a_split_moved(tmp_path):
+    """A pass on a split word says which words moved, so the ledger's read-back row shows why."""
+    r = _script_match(tmp_path, "Z.ai puts models to work.", "ZAI puts models to work.")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "same words, split differently: z ai / zai" in r.stdout, r.stdout
+
+
+@pytest.mark.parametrize("script,stt", [
+    ("Z.ai puts frontier open models", "ZAI put frontier open models"),
+    ("Z.ai puts frontier open models", "ZAI puts open models"),
+    ("Z.ai puts frontier open models", "ZAI puts frontier new open models"),
+    ("notice what you were actually looking for", "notice what you are actually looking for"),
+    ("press one two", "press twelve"),
+    ("press 1 2 3", "press 123"),
+    # Only punctuation may move a split. A space that comes or goes can change the words.
+    ("It is now here", "It is nowhere"),
+    ("It is nowhere", "It is now here"),
+    ("Go to room twenty-five", "Go to room25"),
+    # A point between two digits separates two numbers, and a swap of the same length is still a swap.
+    ("It costs 1.5 dollars", "It costs 15 dollars"),
+    ("The mug sits still", "The mug sets still"),
+    # An apostrophe inside a word is part of it, so a contraction read back as another word differs.
+    ("We're ready to build", "Were ready to build"),
+])
+def test_script_match_still_fails_a_real_word_change(tmp_path, script, stt):
+    """A changed word beside a split, a dropped word, an added word, the tense flip that shipped,
+    and two numbers read back as one all still stop the render."""
+    r = _script_match(tmp_path, script, stt)
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert r.stdout.splitlines()[0] == "MISMATCH", r.stdout
+
+
 @pytest.mark.parametrize("text,expected", [
     ("one thousand two hundred dollars", ["1200", "dollars"]),
     ("one two", ["1", "2"]),

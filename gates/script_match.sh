@@ -36,11 +36,19 @@ if [ "${1:-}" = "--selftest" ]; then
   printf '%s' 'She asked for $1,000 at 3:00 in the morning.'            > "$T/stt1.txt"
   printf '%s' 'notice what you were actually looking for'               > "$T/script2.txt"
   printf '%s' 'notice what you are actually looking for'                > "$T/stt2.txt"
+  # From 2026-09-25: a brand read back as one word is the same word and MUST pass, and two
+  # numbers read back as one number are not the same and MUST fail.
+  printf '%s' 'Z.ai puts frontier open models in your hands.'           > "$T/script3.txt"
+  printf '%s' 'ZAI puts frontier open models in your hands.'            > "$T/stt3.txt"
+  printf '%s' 'press one two'                                           > "$T/script4.txt"
+  printf '%s' 'press 12'                                                > "$T/stt4.txt"
   ok=0
   python3 "$NORM" "$T/stt1.txt" "$T/script1.txt" >/dev/null 2>&1 && { echo "PASS: currency+clock normalise (no false alarm)"; ok=$((ok+1)); } || echo "FAIL: false alarm on \$1,000 / 3:00"
   python3 "$NORM" "$T/stt2.txt" "$T/script2.txt" >/dev/null 2>&1 && echo "FAIL: missed the were->are flip" || { echo "PASS: caught were->are"; ok=$((ok+1)); }
+  python3 "$NORM" "$T/stt3.txt" "$T/script3.txt" >/dev/null 2>&1 && { echo "PASS: Z.ai read back as ZAI (no false alarm)"; ok=$((ok+1)); } || echo "FAIL: false alarm on Z.ai / ZAI"
+  python3 "$NORM" "$T/stt4.txt" "$T/script4.txt" >/dev/null 2>&1 && echo "FAIL: missed one two read back as 12" || { echo "PASS: caught one two / 12"; ok=$((ok+1)); }
   rm -rf "$T"
-  [ "$ok" = 2 ] && { echo "script_match selftest: all passed"; exit 0; } || { echo "script_match selftest: FAILED"; exit 1; }
+  [ "$ok" = 4 ] && { echo "script_match selftest: all passed"; exit 0; } || { echo "script_match selftest: FAILED"; exit 1; }
 fi
 
 STT="${1:?usage: script_match.sh <stt.json|txt> <script.json|txt> [--accept \"reason\"]}"
