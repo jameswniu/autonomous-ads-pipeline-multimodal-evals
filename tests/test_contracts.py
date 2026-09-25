@@ -219,3 +219,26 @@ def test_the_letterbox_failure_is_the_failure_live_routes_on(tmp_path):
            "-pix_fmt", "yuv420p", "-c:v", "libx264", str(clip))
     rc, out = ship_gate(clip, tmp_path / "sandbox")
     assert rc == 1 and live.SHIP_HOLDS["letterbox"] in out, (rc, out)
+
+
+def test_a_chain_hands_on_a_takes_true_last_frame_and_starts_from_a_stills_own_bytes(tmp_path):
+    """A chain's frames come from ffmpeg, so they are checked against it. The frame handed on is the
+    take's last, picked out by its index, and the same take hands on the same bytes twice, which is
+    what lets a kept take's hash be compared. A first frame is the first, a JPEG still is kept byte for
+    byte, another still is converted, and a file that is not there gives no frame."""
+    clip = tmp_path / "take.mp4"
+    ffmpeg("-f", "lavfi", "-i", "testsrc=size=160x90:rate=25", "-t", "1", "-pix_fmt", "yuv420p", str(clip))
+    first, last, again, true = (tmp_path / f"{n}.jpg" for n in ("first", "last", "again", "true"))
+    assert live.grab_frame(str(clip), str(first)) and live.grab_frame(str(clip), str(last), last=True)
+    assert live.grab_frame(str(clip), str(again), last=True)
+    assert last.read_bytes() == again.read_bytes(), "the same take handed on two different last frames"
+    assert first.read_bytes() != last.read_bytes(), "the first frame was handed on as the last"
+    ffmpeg("-i", str(clip), "-vf", "select=eq(n\\,24)", "-frames:v", "1", "-q:v", "2", str(true))
+    assert last.read_bytes() == true.read_bytes(), "the frame handed on is not the take's last"
+    still, kept = tmp_path / "still.jpg", tmp_path / "kept.jpg"
+    still.write_bytes(first.read_bytes())
+    assert live.grab_frame(str(still), str(kept)) and kept.read_bytes() == still.read_bytes()
+    png, converted = tmp_path / "still.png", tmp_path / "converted.jpg"
+    ffmpeg("-i", str(first), str(png))
+    assert live.grab_frame(str(png), str(converted)) and converted.stat().st_size > 0
+    assert not live.grab_frame(str(tmp_path / "nothing.mp4"), str(tmp_path / "none.jpg"))

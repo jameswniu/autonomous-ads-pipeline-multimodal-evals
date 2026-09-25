@@ -159,6 +159,39 @@ def test_board_probe_sends_back_a_narration_that_talks_about_someone(tmp_path):
         assert _register(tmp_path, f"A {word} build.") is True, word
 
 
+NO_CHAIN = object()
+
+
+def _chain_check(tmp_path, chain=NO_CHAIN, noun="student"):
+    scenes = {"a": "{character} sits at a desk.", "b": "The room grows around {character}.", "c": "A mug sits still."}
+    p = os.path.join(str(tmp_path), "b.json")
+    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.",
+            "scenes": {k: v + " Mouth closed, nobody speaks." for k, v in scenes.items()}}
+    if chain is not NO_CHAIN:
+        spot["chain"] = chain
+    if noun:
+        spot["character_noun"] = noun
+    json.dump({"guard": "Keep the subject in the middle third.", "spots": {"s": spot}}, open(p, "w"))
+    r = run([sys.executable, os.path.join(GATES, "board_probe.py"), p, "--json"])
+    return json.loads(r.stdout)["spots"]["s"]["checks"]["chain"]
+
+
+def test_board_probe_holds_a_chain_to_the_spots_own_scenes(tmp_path):
+    """A chained spot shoots its scenes in the chain's order, each from the last frame of the one
+    before, so the chain names the spot's own scenes, each once. The frame carries her face and the
+    prompt only names her, so a chained scene that writes {character} needs a noun to name her by.
+    A spot with no chain passes, and a chain may leave a scene out."""
+    assert _chain_check(tmp_path) is True
+    assert _chain_check(tmp_path, ["a", "b", "c"]) is True
+    assert _chain_check(tmp_path, ["a", "c"]) is True
+    assert _chain_check(tmp_path, ["c"], noun=None) is True, "a chain with nobody in it was asked for a noun"
+    assert _chain_check(tmp_path, ["a", "d"]) is False, "a chain naming a scene the spot lacks passed"
+    assert _chain_check(tmp_path, ["a", "b", "a"]) is False, "a scene listed twice passed"
+    assert _chain_check(tmp_path, []) is False, "an empty chain passed"
+    assert _chain_check(tmp_path, "abc") is False, "a chain that is not a list passed"
+    assert _chain_check(tmp_path, ["a", "b"], noun=None) is False, "a chained character with no noun to name her passed"
+
+
 # --------------------------------------------------------------------------------------
 # cast_gate.py
 # --------------------------------------------------------------------------------------

@@ -561,13 +561,13 @@ def dry(tmp_path, board, spot):
 
 
 def test_a_dry_run_stops_before_the_first_spend_and_prices_it(tmp_path):
-    """The Z.ai board with its student written as the story's character. It passes all seven
+    """The Z.ai board with its student written as the story's character. It passes all eight
     board checks, each scene would go to the reference path with her face, and the prompt is
     August's own line with only the person bound to that face, the guard after it verbatim."""
     out, rows = dry(tmp_path, "shoots/graph-zai-character/boards.json", "zai")
     assert out["trail"] == ["board", "render", "ledger"], out["trail"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
-    assert gate["pass"] and len(gate["checks"]) == 7 and gate["failed"] == [], gate
+    assert gate["pass"] and len(gate["checks"]) == 8 and gate["failed"] == [], gate
     assert out["outcome"] == "dry: stopped before the first spend"
     requests = [r for r in rows if r["kind"] == "request"]
     assert len(requests) == 3 and all(r["dry"] for r in requests)
@@ -579,6 +579,36 @@ def test_a_dry_run_stops_before_the_first_spend_and_prices_it(tmp_path):
         "the dry run would send something other than the August line with the character bound to her face")
     est = [r for r in rows if r["kind"] == "estimate"][0]
     assert est["est_usd"] == round(sum(r["est_usd"] for r in requests), 2)
+
+
+def test_a_dry_run_on_the_chain_board_shoots_each_scene_from_a_frame_in_order(tmp_path):
+    """The chain board is the character board with its scenes chained. It passes every board check,
+    and a live run would send each scene in the chain's order to the path that starts from a frame,
+    the first from her still and each later one from the scene before it. The prompt names her,
+    since the frame carries her face, and the price is the same per scene."""
+    out, rows = dry(tmp_path, "shoots/graph-zai-chain/boards.json", "zai")
+    assert out["outcome"] == "dry: stopped before the first spend", out["outcome"]
+    gate = [r for r in rows if r["kind"] == "gate"][0]
+    assert gate["pass"] and len(gate["checks"]) == 8 and gate["checks"]["chain"] and gate["failed"] == [], gate
+    requests = [r for r in rows if r["kind"] == "request"]
+    assert [r["scene"] for r in requests] == ["zai-a", "zai-b", "zai-c"], requests
+    assert {r["engine"] for r in requests} == {"google/gemini-omni-flash/image-to-video"}, requests
+    assert [r["start_from"] for r in requests] == ["the character's still", "the last frame of zai-a",
+                                                    "the last frame of zai-b"], requests
+    assert all("the student" in r["prompt"] and "<IMAGE_REF_0>" not in r["prompt"] and "{character}" not in r["prompt"]
+               for r in requests), requests
+    est = [r for r in rows if r["kind"] == "estimate"][0]
+    assert est["est_usd"] == round(sum(r["est_usd"] for r in requests), 2) == 1.89, est
+
+
+def test_a_chain_on_an_engine_with_no_path_from_a_frame_is_refused_in_a_dry_run(tmp_path):
+    board = json.load(open(os.path.join(ROOT, "shoots/graph-zai-chain/boards.json")))
+    board["spots"]["zai"]["engine"] = "alibaba/wan-3.0/text-to-video"
+    path = tmp_path / "board.json"
+    path.write_text(json.dumps(board))
+    out, rows = dry(tmp_path / "run", str(path), "zai")
+    assert out["outcome"].startswith("dry: refused before any spend, alibaba/wan-3.0"), out["outcome"]
+    assert "cannot be chained" in out["outcome"], out["outcome"]
 
 
 def test_a_character_scene_on_an_engine_with_no_reference_path_is_refused_in_a_dry_run(tmp_path):

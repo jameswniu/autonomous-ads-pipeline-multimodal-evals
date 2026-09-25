@@ -29,7 +29,9 @@ What a live run needs in its environment, all checked before the graph starts:
                                 and the cast gate
   CHARACTER_FROM                a take or a still of the story's character, whose face every scene
                                 that writes {character} is rendered from and every scene is read
-                                back against. A spot with a character is refused without it.
+                                back against. A spot with a character is refused without it. A
+                                chained spot starts its first scene from a whole frame of it, the
+                                take's first frame or the still itself.
   PRESENTER_STILL               an image or clip of the narrator to cut her reference from when no
                                 closer take is reused. The reference comes from the CLOSER_FROM
                                 take first, and a spot with a character is refused with neither.
@@ -54,8 +56,8 @@ import urllib.request
 import uuid
 
 from pipeline.ledger import fingerprint, new_request_id, sha256
-from pipeline.toolkit import (NARRATOR, PLACEHOLDER, PRICE_PER_SCENE, REFERENCE_ENGINE, ROOT, Toolkit, cast_ok, cast_text,
-                              engine_for, has_cast, load_spot, scene_prompt)
+from pipeline.toolkit import (CHAIN_ENGINE, NARRATOR, PLACEHOLDER, PRICE_PER_SCENE, REFERENCE_ENGINE, ROOT, Toolkit,
+                              cast_ok, cast_text, chain_of, chain_text, engine_for, has_cast, load_spot, scene_prompt)
 
 __all__ = ["LiveSetupError", "LiveToolkit", "fingerprint"]
 
@@ -68,7 +70,9 @@ ELEVEN = "https://api.elevenlabs.io"
 # centre square and cuts to the narration. An engine with no entry is refused rather than
 # sent a guessed shape.
 ENGINE_INPUT = {"google/gemini-omni-flash": {"aspect_ratio": "16:9", "duration": 5},
-                "google/gemini-omni-flash/reference-to-video": {"aspect_ratio": "16:9", "duration": 5}}
+                "google/gemini-omni-flash/reference-to-video": {"aspect_ratio": "16:9", "duration": 5},
+                # Read 2026-09-25: image_url and prompt required, 16:9 or 9:16, three to ten seconds.
+                "google/gemini-omni-flash/image-to-video": {"aspect_ratio": "16:9", "duration": 5}}
 
 # The standing reason the ship gate's time-of-day check is waived on an ad, logged on every run.
 # The source: "a morning spot delivered at 1 am is not a claim about the clock." The replay check
@@ -167,6 +171,21 @@ def held_back(code):
     """Whether a refused result fetch is one that waiting can change: a locked or unpaid account, a
     rate limit, or the vendor's own error. A 404 or a 410 means the result is gone."""
     return code in (401, 402, 403, 408, 425, 429) or 500 <= code < 600
+
+
+def grab_frame(src, out, last=False):
+    """One frame of `src` written as a JPEG at `out`, the first or the last. A still is its own frame,
+    a JPEG kept byte for byte. True when the frame was written."""
+    if not src.lower().endswith(VIDEO_EXT) and src.lower().endswith((".jpg", ".jpeg")):
+        shutil.copyfile(src, out)
+        return os.path.getsize(out) > 0
+    if last and src.lower().endswith(VIDEO_EXT):
+        # From a second before the end, every frame decoded overwrites the one file, which leaves the last.
+        args = ["-sseof", "-1", "-i", src, "-update", "1"]
+    else:
+        args = ["-i", src, "-frames:v", "1"]
+    r = subprocess.run(["ffmpeg", "-v", "error", "-y", *args, "-q:v", "2", out], capture_output=True, text=True, timeout=120)
+    return r.returncode == 0 and os.path.isfile(out) and os.path.getsize(out) > 0
 
 
 def frame_size(path):
@@ -493,13 +512,15 @@ class LiveToolkit(Toolkit):
                 return False
         return True
 
-    def earlier(self, spot, scene, prompt, face=None):
-        """This run's last request for this scene with this prompt and this face, the hash of the
-        reference it was sent or None for a scene sent without one: its id, what the vendor
-        answered, and whether it is still owed, sent and never landed or timed out. A request sent
-        with another face is not this one, since she was recast after it."""
+    def earlier(self, spot, scene, prompt, face=None, start=None):
+        """This run's last request for this scene with this prompt, this face and this start frame:
+        the hash of the reference it was sent, or None for a scene sent without one, and the hash
+        of the frame a chained scene started from, or None for a scene that is not chained. Its id,
+        what the vendor answered, and whether it is still owed, sent and never landed or timed out.
+        A request sent with another face is not this one, since she was recast after it, and one
+        sent from another frame is not this one either, since the scene before it changed."""
         asked = [r for r in self.rows("request", step="render", scene=f"{spot}-{scene}")
-                 if r.get("prompt") == prompt and r.get("reference_sha256") == face]
+                 if r.get("prompt") == prompt and r.get("reference_sha256") == face and r.get("start_sha256") == start]
         # A request the vendor refused never became a job. It is not owed, and it hides nothing
         # about the one sent before it, which may be a finished render still to collect.
         refused = {r["request_id"] for r in self.rows("landing", status="REFUSED")}
@@ -522,6 +543,17 @@ class LiveToolkit(Toolkit):
                 "landed": status in ("OK", "REUSED"), "landed_seq": landed[-1]["seq"] if landed else None,
                 "unconfirmed": unknown, "handle": handle}
 
+    def unconfirmed_since(self, spot, scene, since):
+        """A request for this scene sent after row `since` that the vendor never confirmed, whatever
+        its prompt or frame, since it may have been billed all the same. None when there is none."""
+        for r in self.rows("request", step="render", scene=f"{spot}-{scene}"):
+            if r["seq"] <= since:
+                continue
+            landed = self.rows("landing", request_id=r["request_id"])
+            if (landed and landed[-1]["status"] == "UNCONFIRMED") or (not landed and not self.rows("queued", request_id=r["request_id"])):
+                return r
+        return None
+
     def read_back_failed(self, spot, scene, since):
         """Whether the take that landed at row `since` was failed by its read-back: the newest cast
         reading of the scene after that row says FAIL. No face where one was expected, or a reading
@@ -531,12 +563,169 @@ class LiveToolkit(Toolkit):
         m = CAST_LINE.search(readings[-1].get("reading") or "") if readings else None
         return bool(m) and m["verdict"] == "FAIL"
 
+    def character_still(self, spot):
+        """The frame a chain starts from: a whole frame of the character from CHARACTER_FROM, the
+        take's first frame or the still itself, never the face crop, since a scene copies the framing
+        of the picture it starts from. Taken again whenever the source is a different file."""
+        src = os.environ.get("CHARACTER_FROM", "")
+        if not src:
+            raise LiveSetupError("a chained spot starts from a still of its character: set CHARACTER_FROM to a take "
+                                 "or a still of her")
+        if not os.path.isfile(src):
+            raise LiveSetupError("the character's take or still named in the environment is not a file")
+        out = os.path.join(self.dir(f"{spot}-character"), "still.jpg")
+        src_sha = sha256(src)
+        taken = [r for r in self.rows("landing", step="render") if r.get("note") == "the character's still"]
+        if os.path.isfile(out) and taken and taken[-1].get("source_sha256") == src_sha and taken[-1].get("sha256") == sha256(out):
+            return out
+        if not grab_frame(src, out):
+            raise LiveSetupError("no frame could be taken from the character's take or still, so the chain has nothing "
+                                 "to start from")
+        self.ledger.append("landing", "render", spot=spot, status="OK", file=self.rel(out), sha256=sha256(out),
+                           source="take" if src.lower().endswith(VIDEO_EXT) else "still", source_sha256=src_sha,
+                           note="the character's still")
+        return out
+
+    def last_frame(self, spot, s, raw):
+        """The last frame of a scene's take, which the next scene in its chain starts from. Kept beside
+        the take and named by the take's hash, so the same take always hands on the same frame and a
+        new take hands on a new one. None when no frame could be taken."""
+        take = sha256(raw)
+        out = os.path.join(self.dir(f"{spot}-{s}"), f"last-{take[:16]}.jpg")
+        if os.path.isfile(out) and os.path.getsize(out):
+            return out
+        return out if grab_frame(raw, out, last=True) else None
+
+    def send(self, spot, s, eng, prompt, body, auth, failed, reasons, unconfirmed, **row):
+        """One scene request: on the ledger before it goes, then its answer. The handle to poll when
+        the vendor took it, or None when it refused it or never said."""
+        rid = new_request_id()
+        self.ledger.append("request", "render", request_id=rid, spot=spot, scene=f"{spot}-{s}", engine=eng,
+                           prompt=prompt, params=ENGINE_INPUT[eng], est_usd=PRICE_PER_SCENE.get(eng), **row)
+        code, data = http("POST", f"{FAL}/{eng}", {**auth, "Content-Type": "application/json"}, json.dumps(body).encode())
+        j = as_json(data)
+        if code == 0 or (200 <= code < 300 and "request_id" not in j):
+            # The vendor may have taken it. Sending again could pay twice, so a person checks.
+            self.ledger.append("landing", "render", request_id=rid, status="UNCONFIRMED", http=code,
+                               error=self.clean(data.decode(errors="replace")[:600]))
+            unconfirmed.append(s)
+            reasons[s] = f"{rid} was sent and never confirmed, so it may have been billed"
+            return None
+        if not 200 <= code < 300:
+            self.ledger.append("landing", "render", request_id=rid, status="REFUSED", http=code,
+                               error=self.clean(data.decode(errors="replace")[:600]))
+            failed.append(s)
+            reasons[s] = "the queue refused the request"
+            return None
+        self.ledger.append("queued", "render", request_id=rid, vendor_id=j["request_id"],
+                           status_url=j.get("status_url"), response_url=j.get("response_url"))
+        return (rid, j["request_id"], j.get("status_url"), j.get("response_url"))
+
+    def collect(self, spot, s, handle, auth, failed, why, flags, fresh, refs, writes_her):
+        """Wait for one queued scene, bring it home and read it back. True when the scene holds a take
+        that landed and was not failed by its read-back."""
+        rid, vendor_id, status_url, response_url = handle
+        status, deadline, code = None, time.time() + WAIT_LIMIT, 0
+        while time.time() < deadline:
+            code, data = http("GET", status_url, auth, timeout=60)
+            if 200 <= code < 300:
+                status = as_json(data).get("status")
+                if status == "COMPLETED":
+                    break
+            if code in GONE:
+                if 200 <= http("GET", response_url, auth, timeout=120)[0] < 300:
+                    status = "COMPLETED"    # the status record lapsed, and the result is there
+                    break
+                if self.dropped(handle, auth):
+                    status = "GONE"
+                    break
+            time.sleep(POLL_SECONDS)
+        if status == "GONE":
+            self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="FAILED", http=code,
+                               during="status", error="the vendor no longer has this job")
+            failed.append(s)
+            why[s] = "the vendor no longer has this job"
+            return False
+        if status != "COMPLETED":
+            self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="TIMEOUT", last=status)
+            failed.append(s)
+            why[s] = f"still {status} after {WAIT_LIMIT // 60} minutes"
+            return False
+        code, data = http("GET", response_url, auth, timeout=120)
+        if code == 422:
+            # fal hands a content rejection back as COMPLETED, then a 422 on the result
+            self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="REJECTED",
+                               error=self.clean(data.decode(errors="replace")[:800]))
+            failed.append(s)
+            why[s] = "the engine rejected the output"
+            return False
+        if held_back(code):
+            # The status said COMPLETED, so the render may exist and may be billed. A result the
+            # vendor holds back for now, behind a locked account, a rate limit or its own error,
+            # is collected on the next pass. Recorded as FAILED it was sent again, paying twice.
+            # A locked account also closes a job it never ran this way, a second after the POST,
+            # and drops it later, which the next pass confirms before it sends the scene again.
+            self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="UNCOLLECTED",
+                               http=code, during="result", error=self.clean(data.decode(errors="replace")[:600]))
+            failed.append(s)
+            why[s] = "the video was held back by the vendor"
+            return False
+        if not 200 <= code < 300:
+            # Gone, a 404 or any other refusal that waiting will not change. Nothing is left to
+            # collect, so the scene is sent again rather than waited on forever.
+            self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="FAILED", http=code,
+                               during="result", error=self.clean(data.decode(errors="replace")[:600]))
+            failed.append(s)
+            why[s] = "the finished video is gone from the vendor"
+            return False
+        url = (as_json(data).get("video") or {}).get("url")
+        if not url:
+            self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="FAILED", http=code,
+                               error=self.clean(data.decode(errors="replace")[:600]))
+            failed.append(s)
+            why[s] = "no video came back"
+            return False
+        raw = os.path.join(self.dir(f"{spot}-{s}"), "raw.mp4")
+        try:
+            urllib.request.urlretrieve(url, raw)
+        except (urllib.error.URLError, OSError) as e:
+            self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="UNCOLLECTED",
+                               during="download", error=self.clean(f"{type(e).__name__}: {e}"))
+            failed.append(s)
+            why[s] = "the finished video could not be downloaded"
+            return False
+        flag = self.edge(raw)
+        if flag:
+            flags[s] = flag
+        fresh.append(s)
+        self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="OK",
+                           file=self.rel(raw), sha256=sha256(raw), bytes=os.path.getsize(raw), seconds=duration(raw),
+                           edge_clip=flag or "clean")
+        if refs.get("character") or refs.get("presenter"):
+            self.cast_check(spot, s, raw, refs, failed, why, flags, writes_her=writes_her)
+        return s not in failed
+
+    def reuse(self, spot, s, before, raw, refs, failed, flags, why, writes_her):
+        """A take this run already holds, kept as it stands and read again. True when it still passes."""
+        self.ledger.append("landing", "render", request_id=before["request_id"], spot=spot, scene=f"{spot}-{s}",
+                           status="REUSED", file=self.rel(raw), sha256=sha256(raw))
+        flag = self.edge(raw)
+        if flag:
+            flags[s] = flag
+        if refs.get("character") or refs.get("presenter"):
+            self.cast_check(spot, s, raw, refs, failed, why, flags, writes_her=writes_her)
+        return s not in failed
+
     def render(self, state):
         board, spot_def = load_spot(state["board"], state["spot"])
         spot, scenes = state["spot"], spot_def.get("scenes", {})
         engine = engine_for(board, spot_def)
         if engine not in ENGINE_INPUT:
             raise LiveSetupError(f"no request shape recorded for {engine}; add it to ENGINE_INPUT from its schema")
+        chain = chain_of(spot_def)
+        if chain and CHAIN_ENGINE.get(engine) not in ENGINE_INPUT:
+            raise LiveSetupError(f"{engine} has no path here that starts from a frame, so the chained scenes cannot "
+                                 "be shot")
         changes = state.get("changes") or {}
         last = (state.get("verdict") or {}).get("render") or {}
         asked = scene_key(spot, scenes, changes["scene"]) if changes.get("scene") else None
@@ -546,28 +735,33 @@ class LiveToolkit(Toolkit):
             todo = [s for s in last["failed"] if s in scenes]
         else:
             todo = sorted(scenes)
+        # A chain is walked whole, in its order, whenever any scene of it is due, because a new take
+        # changes the frame every later scene starts from. The ledger decides which takes still stand.
+        plain = [s for s in todo if s not in chain]
+        chained = list(chain) if any(s in chain for s in todo) else []
+        every = plain + chained
         auth = {"Authorization": f"Key {need('FAL_KEY')}"}
         failed, why, flags, pending, unconfirmed, fresh = [], {}, {}, {}, [], []
         # A person who re-enters the run after an unconfirmed request has checked the vendor and
         # chosen to send again, so only a request sent after the last re-entry holds a scene back.
         reentered = max([r["seq"] for r in self.rows("resumed")] or [0])
-        texts = {s: changes["prompt"] if asked == s and changes.get("prompt") else scenes[s] for s in todo}
+        texts = {s: changes["prompt"] if asked == s and changes.get("prompt") else scenes[s] for s in every}
         # The board gate holds the board's lines to this rule. A person's new prompt from the eye meets
         # it here, before anything is paid for, since a stranger in it would render where no cast
         # gate reads it.
         stranger = [asked] if asked and changes.get("prompt") and not cast_ok(changes["prompt"]) else []
         # A board from before the story had its own character wrote the narrator into its scenes.
         # The narrator appears only in the closer, and the placeholder would reach the engine as text.
-        stranger += [s for s in todo if s not in stranger and NARRATOR in texts[s]]
+        stranger += [s for s in every if s not in stranger and NARRATOR in texts[s]]
         if stranger:
             why = {s: (f"the scene writes the narrator in with {NARRATOR}, and she appears only in the closer"
                        if NARRATOR in texts[s] else
                        f"the prompt shows a person who is not the story's character, written {PLACEHOLDER}")
                    for s in stranger}
             return {"failed": stranger, "why": why, "flags": {}, "rendered": [], "fresh": [], "unconfirmed": []}
-        cast = {s: PLACEHOLDER in texts[s] for s in todo}
-        engines = {s: REFERENCE_ENGINE.get(engine) if cast[s] else engine for s in todo}
-        if any(cast.values()) and REFERENCE_ENGINE.get(engine) not in ENGINE_INPUT:
+        cast = {s: PLACEHOLDER in texts[s] for s in every}
+        engines = {s: REFERENCE_ENGINE.get(engine) if cast[s] else engine for s in plain}
+        if any(cast[s] for s in plain) and REFERENCE_ENGINE.get(engine) not in ENGINE_INPUT:
             raise LiveSetupError(f"{engine} has no reference path here, so a scene that shows the story's "
                                  "character cannot be held to her face")
         # Both faces are resolved before anything is paid for. The character's is sent with every
@@ -577,23 +771,26 @@ class LiveToolkit(Toolkit):
         # a scene that reads as close to the narrator as to the character fails, and the closer is
         # read back against it. A spot with no character is read back against the narrator's face
         # when the run has one, so a stranger still fails, and without one it runs with no read-back.
+        # A chain's first frame, a whole still of her, is taken before anything is paid for too.
         character = self.character_reference(spot) if has_cast(spot_def) else None
         wanted = character or os.environ.get("CLOSER_FROM") or os.environ.get("PRESENTER_STILL")
         presenter = self.presenter_reference(spot) if wanted else None
         if character and presenter:
             self.distinct(spot, character, presenter)
+        still = self.character_still(spot) if chained else None
         refs = {"character": character, "presenter": presenter}
         ref_uri = ref_sha = None
-        if any(cast.values()):
+        if any(cast[s] for s in plain):
             with open(character, "rb") as fh:
                 ref_uri = "data:image/jpeg;base64," + base64.b64encode(fh.read()).decode()
             ref_sha = sha256(character)
-        prompts = {s: scene_prompt(board, cast_text(spot_def, texts[s]) if cast[s] else texts[s]) for s in todo}
-        befores = {s: self.earlier(spot, s, prompts[s], ref_sha if cast[s] else None) for s in todo}
+        prompts = {s: scene_prompt(board, cast_text(spot_def, texts[s]) if cast[s] else texts[s]) for s in plain}
+        befores = {s: self.earlier(spot, s, prompts[s], ref_sha if cast[s] else None) for s in plain}
         # A request that may already have been billed holds every new request in the pass, and the
         # narration, until a person has looked at the vendor's queue.
-        held = any(b and b["unconfirmed"] and b["seq"] > reentered for b in befores.values())
-        for s in todo:
+        waiting = {s: self.unconfirmed_since(spot, s, reentered) for s in chained}
+        held = any(b and b["unconfirmed"] and b["seq"] > reentered for b in befores.values()) or any(waiting.values())
+        for s in plain:
             prompt, before = prompts[s], befores[s]
             raw = os.path.join(self.dir(f"{spot}-{s}"), "raw.mp4")
             if before and before["owed"]:
@@ -619,125 +816,29 @@ class LiveToolkit(Toolkit):
             held_take = before and before["landed"] and os.path.isfile(raw) and not asked
             if held_take and not self.read_back_failed(spot, s, before["landed_seq"]):
                 # A re-entry after the spend: this run already holds this scene with this prompt.
-                self.ledger.append("landing", "render", request_id=before["request_id"], spot=spot, scene=f"{spot}-{s}",
-                                   status="REUSED", file=self.rel(raw), sha256=sha256(raw))
-                flag = self.edge(raw)
-                if flag:
-                    flags[s] = flag
-                if character or presenter:
-                    self.cast_check(spot, s, raw, refs, failed, why, flags, writes_her=cast[s])
+                self.reuse(spot, s, before, raw, refs, failed, flags, why, cast[s])
                 continue
             if held or unconfirmed:
                 why[s] = "not sent, a request that may have been billed is waiting for a person"
                 continue
-            rid, eng = new_request_id(), engines[s]
-            self.ledger.append("request", "render", request_id=rid, spot=spot, scene=f"{spot}-{s}", engine=eng,
-                               prompt=prompt, params=ENGINE_INPUT[eng], est_usd=PRICE_PER_SCENE.get(eng),
+            eng = engines[s]
+            handle = self.send(spot, s, eng, prompt,
+                               {"prompt": prompt, **ENGINE_INPUT[eng], **({"image_urls": [ref_uri]} if cast[s] else {})},
+                               auth, failed, why, unconfirmed,
                                **({"reference_sha256": ref_sha} if cast[s] else {}),
                                why=changes.get("reason") if asked == s else (last.get("why") or {}).get(s),
                                prompt_reused=bool(before), asked_by_person=asked == s)
-            body = {"prompt": prompt, **ENGINE_INPUT[eng], **({"image_urls": [ref_uri]} if cast[s] else {})}
-            code, data = http("POST", f"{FAL}/{eng}", {**auth, "Content-Type": "application/json"},
-                              json.dumps(body).encode())
-            j = as_json(data)
-            if code == 0 or (200 <= code < 300 and "request_id" not in j):
-                # The vendor may have taken it. Sending again could pay twice, so a person checks.
-                self.ledger.append("landing", "render", request_id=rid, status="UNCONFIRMED", http=code,
-                                   error=self.clean(data.decode(errors="replace")[:600]))
-                unconfirmed.append(s)
-                why[s] = f"{rid} was sent and never confirmed, so it may have been billed"
-                continue
-            if not 200 <= code < 300:
-                self.ledger.append("landing", "render", request_id=rid, status="REFUSED", http=code,
-                                   error=self.clean(data.decode(errors="replace")[:600]))
-                failed.append(s)
-                why[s] = "the queue refused the request"
-                continue
-            pending[s] = (rid, j["request_id"], j.get("status_url"), j.get("response_url"))
-            self.ledger.append("queued", "render", request_id=rid, vendor_id=j["request_id"],
-                               status_url=j.get("status_url"), response_url=j.get("response_url"))
+            if handle:
+                pending[s] = handle
 
-        for s, (rid, vendor_id, status_url, response_url) in pending.items():
-            status, deadline = None, time.time() + WAIT_LIMIT
-            while time.time() < deadline:
-                code, data = http("GET", status_url, auth, timeout=60)
-                if 200 <= code < 300:
-                    status = as_json(data).get("status")
-                    if status == "COMPLETED":
-                        break
-                if code in GONE:
-                    if 200 <= http("GET", response_url, auth, timeout=120)[0] < 300:
-                        status = "COMPLETED"    # the status record lapsed, and the result is there
-                        break
-                    if self.dropped((rid, vendor_id, status_url, response_url), auth):
-                        status = "GONE"
-                        break
-                time.sleep(POLL_SECONDS)
-            if status == "GONE":
-                self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="FAILED", http=code,
-                                   during="status", error="the vendor no longer has this job")
-                failed.append(s)
-                why[s] = "the vendor no longer has this job"
-                continue
-            if status != "COMPLETED":
-                self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="TIMEOUT", last=status)
-                failed.append(s)
-                why[s] = f"still {status} after {WAIT_LIMIT // 60} minutes"
-                continue
-            code, data = http("GET", response_url, auth, timeout=120)
-            if code == 422:
-                # fal hands a content rejection back as COMPLETED, then a 422 on the result
-                self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="REJECTED",
-                                   error=self.clean(data.decode(errors="replace")[:800]))
-                failed.append(s)
-                why[s] = "the engine rejected the output"
-                continue
-            if held_back(code):
-                # The status said COMPLETED, so the render may exist and may be billed. A result the
-                # vendor holds back for now, behind a locked account, a rate limit or its own error,
-                # is collected on the next pass. Recorded as FAILED it was sent again, paying twice.
-                # A locked account also closes a job it never ran this way, a second after the POST,
-                # and drops it later, which the next pass confirms before it sends the scene again.
-                self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="UNCOLLECTED",
-                                   http=code, during="result", error=self.clean(data.decode(errors="replace")[:600]))
-                failed.append(s)
-                why[s] = "the video was held back by the vendor"
-                continue
-            if not 200 <= code < 300:
-                # Gone, a 404 or any other refusal that waiting will not change. Nothing is left to
-                # collect, so the scene is sent again rather than waited on forever.
-                self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="FAILED", http=code,
-                                   during="result", error=self.clean(data.decode(errors="replace")[:600]))
-                failed.append(s)
-                why[s] = "the finished video is gone from the vendor"
-                continue
-            url = (as_json(data).get("video") or {}).get("url")
-            if not url:
-                self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="FAILED", http=code,
-                                   error=self.clean(data.decode(errors="replace")[:600]))
-                failed.append(s)
-                why[s] = "no video came back"
-                continue
-            raw = os.path.join(self.dir(f"{spot}-{s}"), "raw.mp4")
-            try:
-                urllib.request.urlretrieve(url, raw)
-            except (urllib.error.URLError, OSError) as e:
-                self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="UNCOLLECTED",
-                                   during="download", error=self.clean(f"{type(e).__name__}: {e}"))
-                failed.append(s)
-                why[s] = "the finished video could not be downloaded"
-                continue
-            flag = self.edge(raw)
-            if flag:
-                flags[s] = flag
-            fresh.append(s)
-            self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="OK",
-                               file=self.rel(raw), sha256=sha256(raw), bytes=os.path.getsize(raw), seconds=duration(raw),
-                               edge_clip=flag or "clean")
-            if character or presenter:
-                self.cast_check(spot, s, raw, refs, failed, why, flags, writes_her=cast[s])
+        for s, handle in pending.items():
+            self.collect(spot, s, handle, auth, failed, why, flags, fresh, refs, cast[s])
 
-        verdict = {"failed": failed, "why": why, "flags": flags, "rendered": todo, "fresh": fresh,
+        rendered = list(plain)
+        if chained:
+            rendered += self.walk(board, spot_def, spot, chained, texts, cast, asked, changes, last, refs, auth,
+                                  still, waiting, held, reentered, failed, why, flags, fresh, unconfirmed)
+        verdict = {"failed": failed, "why": why, "flags": flags, "rendered": rendered, "fresh": fresh,
                    "unconfirmed": unconfirmed}
         if unconfirmed:
             return verdict      # the narration waits with the scenes
@@ -748,6 +849,70 @@ class LiveToolkit(Toolkit):
                 failed.append("narration")
                 why["narration"] = reason
         return verdict
+
+    def walk(self, board, spot_def, spot, chained, texts, cast, asked, changes, last, refs, auth, still, waiting, held,
+             reentered, failed, why, flags, fresh, unconfirmed):
+        """Shoot a chain in its order, one scene at a time. Each starts from a frame, the character's
+        still for the first and the last frame of the scene before for the rest, and is read back
+        before the next is sent, so she and the room carry through and a scene that fails is the
+        last one paid for in the pass. The scenes after it wait, and spend none of their re-rolls.
+        A take is kept only when it started from the frame its scene would start from now, so a new
+        take early in the chain renders every scene after it again. Returns the scenes it reached."""
+        eng = CHAIN_ENGINE[engine_for(board, spot_def)]
+        start, start_from, broke, reached = still, "the character's still", None, []
+        for s in chained:
+            if broke:
+                why[s] = f"waits on {spot}-{broke}, the scene it starts from"
+                continue
+            if waiting.get(s):
+                unconfirmed.append(s)
+                why[s] = (f"{waiting[s]['request_id']} was sent and never confirmed, so it may have been billed. Look "
+                          "for it in the vendor's queue before re-entering, which sends it again")
+                broke = s
+                continue
+            start_sha = sha256(start)
+            prompt = scene_prompt(board, chain_text(spot_def, texts[s]))
+            before = self.earlier(spot, s, prompt, None, start=start_sha)
+            raw = os.path.join(self.dir(f"{spot}-{s}"), "raw.mp4")
+            if before and before["owed"] and self.dropped(before["handle"], auth):
+                self.ledger.append("landing", "render", request_id=before["request_id"], vendor_id=before["handle"][1],
+                                   status="FAILED", http=404, during="status", error="the vendor no longer has this job")
+                before = None
+            if before and before["owed"]:
+                # Sent from this frame already and never collected: collected, never sent again.
+                reached.append(s)
+                good = self.collect(spot, s, before["handle"], auth, failed, why, flags, fresh, refs, cast[s])
+            elif before and before["landed"] and os.path.isfile(raw) and asked != s \
+                    and not self.read_back_failed(spot, s, before["landed_seq"]):
+                reached.append(s)
+                good = self.reuse(spot, s, before, raw, refs, failed, flags, why, cast[s])
+            elif held or unconfirmed:
+                why[s] = "not sent, a request that may have been billed is waiting for a person"
+                good = False
+            else:
+                earlier_starts = {r.get("start_sha256") for r in self.rows("request", step="render", scene=f"{spot}-{s}")
+                                  if r.get("prompt") == prompt}
+                reason = changes.get("reason") if asked == s else (
+                    (last.get("why") or {}).get(s) if s in (last.get("failed") or []) else None) or (
+                    "the frame it starts from changed" if earlier_starts - {None, start_sha} else None)
+                with open(start, "rb") as fh:
+                    frame = "data:image/jpeg;base64," + base64.b64encode(fh.read()).decode()
+                handle = self.send(spot, s, eng, prompt, {"prompt": prompt, **ENGINE_INPUT[eng], "image_url": frame},
+                                   auth, failed, why, unconfirmed, start_sha256=start_sha, start_from=start_from,
+                                   why=reason, prompt_reused=bool(before), asked_by_person=asked == s)
+                reached.append(s)
+                good = bool(handle) and self.collect(spot, s, handle, auth, failed, why, flags, fresh, refs, cast[s])
+            if not good:
+                broke = s
+                continue
+            nxt = self.last_frame(spot, s, raw)
+            if nxt is None:
+                failed.append(s)
+                why[s] = "no last frame could be taken from its take, so the chain cannot go on from it"
+                broke = s
+                continue
+            start, start_from = nxt, f"the last frame of {spot}-{s}"
+        return reached
 
     # Closer: reuse a take that exists, or render one on the pinned engine.
 

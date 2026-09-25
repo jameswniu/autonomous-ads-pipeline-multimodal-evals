@@ -28,8 +28,9 @@ DEFAULT_ENGINE = "google/gemini-omni-flash"
 # Dry runs report the spend a live run would make before anyone commits to it.
 PRICE_PER_SCENE = {
     "google/gemini-omni-flash": 0.63,
-    # fal lists the same unit price for both Omni endpoints (checked 2026-09-24).
+    # fal lists the same unit price for the Omni endpoints (checked 2026-09-24 and 2026-09-25).
     "google/gemini-omni-flash/reference-to-video": 0.63,
+    "google/gemini-omni-flash/image-to-video": 0.63,
     "alibaba/wan-3.0/text-to-video": 1.00,
     "bytedance/seedance-2.0/text-to-video": 1.00,
 }
@@ -44,6 +45,11 @@ PLACEHOLDER = "{character}"
 # appears only in the closer, so a scene carrying this is never sent.
 NARRATOR = "{presenter}"
 REFERENCE_ENGINE = {"google/gemini-omni-flash": "google/gemini-omni-flash/reference-to-video"}
+# A spot that lists its scenes as a chain shoots them in that order, each from a frame: the first
+# from a still of the character, every later one from the last frame of the scene before it. The
+# face reference kept her the same and copied its own close-up into every scene, so the room never
+# moved. A frame carries her and the room into the next scene, and the prompt moves them.
+CHAIN_ENGINE = {"google/gemini-omni-flash": "google/gemini-omni-flash/image-to-video"}
 
 # Keys whose values are identities, at any depth in an answer or a verdict. The ledger gets
 # their fingerprint, never the id.
@@ -86,6 +92,16 @@ def cast_ok(text):
 def cast_text(spot_def, text):
     """A scene line with the character bound to the first reference image the engine is sent."""
     return text.replace(PLACEHOLDER, f"the {spot_def.get('character_noun', 'person')} in <IMAGE_REF_0>")
+
+
+def chain_of(spot_def):
+    """The scenes a spot shoots as a chain, in order, or none."""
+    return [s for s in (spot_def.get("chain") or []) if s in (spot_def.get("scenes") or {})]
+
+
+def chain_text(spot_def, text):
+    """A chained scene line. The frame it starts from carries her, so she is named, not bound to an image."""
+    return text.replace(PLACEHOLDER, f"the {spot_def.get('character_noun', 'person')}")
 
 
 def scene_prompt(board, scene_text):
@@ -207,10 +223,19 @@ class DryToolkit(Toolkit):
         board, spot_def = load_spot(state["board"], state["spot"])
         engine = engine_for(board, spot_def)
         scenes = spot_def.get("scenes", {})
+        chain = chain_of(spot_def)
         total, refused = 0.0, {}
-        for key in sorted(scenes):
-            text, eng = scenes[key], engine
-            if PLACEHOLDER in text:
+        # A chain is shot in its own order, each scene from a frame, and the rest as before.
+        for i, key in enumerate(chain + [k for k in sorted(scenes) if k not in chain]):
+            text, eng, start = scenes[key], engine, {}
+            if key in chain:
+                eng = CHAIN_ENGINE.get(engine)
+                if eng is None:
+                    refused[key] = f"{engine} has no path that starts from a frame, so scene {key} cannot be chained"
+                    continue
+                text = chain_text(spot_def, text)
+                start = {"start_from": "the character's still" if i == 0 else f"the last frame of {state['spot']}-{chain[i - 1]}"}
+            elif PLACEHOLDER in text:
                 eng = REFERENCE_ENGINE.get(engine)
                 if eng is None:
                     refused[key] = f"{engine} has no reference path, so scene {key} cannot hold the character's face"
@@ -220,7 +245,7 @@ class DryToolkit(Toolkit):
             total += price or 0.0
             self.ledger.append("request", "render", dry=True, request_id=new_request_id(),
                                spot=state["spot"], scene=f"{state['spot']}-{key}", engine=eng,
-                               prompt=scene_prompt(board, text), est_usd=price)
+                               prompt=scene_prompt(board, text), est_usd=price, **start)
         self.ledger.append("estimate", "render", dry=True, spot=state["spot"],
                            scenes=len(scenes), engine=engine, est_usd=round(total, 2),
                            **({"refused": refused} if refused else {}))

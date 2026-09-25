@@ -12,6 +12,7 @@ And the gates' exits and
 machine lines become the causes the graph routes on. Several tests exist because a mutation of
 the code they name survived the suite.
 """
+import hashlib
 import importlib.util
 import json
 import os
@@ -1340,3 +1341,229 @@ def test_the_closer_is_read_back_against_the_narrators_face(live, monkeypatch, t
     monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=(64, "CAST_GATE unreadable: the reference holds no face")))
     v = tk.closer(cast_state(state))
     assert v["pass"] is False and v["unreadable"] is True, v
+
+
+# a chain: each scene shot from a frame, in order
+
+CHAIN_BOARD = os.path.join(ROOT, "shoots", "graph-zai-chain", "boards.json")
+FRAME_ENGINE = "google/gemini-omni-flash/image-to-video"
+
+
+def chain_state(state, **extra):
+    return dict(state, board=CHAIN_BOARD, **extra)
+
+
+def takes_and_frames(monkeypatch):
+    """Every download is a new take, and a take's last frame says which take it came from, so a
+    frame handed on can be traced to the take it was taken from. A still is its own frame."""
+    count = [0]
+
+    def fetch(url, path):
+        count[0] += 1
+        open(path, "wb").write(b"take %d" % count[0])
+
+    def grab(src, out, last=False):
+        data = open(src, "rb").read()
+        open(out, "wb").write(b"last frame of " + data if last else data)
+        return True
+    monkeypatch.setattr(L.urllib.request, "urlretrieve", fetch)
+    monkeypatch.setattr(L, "grab_frame", grab)
+
+
+def started_from(vendor_bodies):
+    return [L.base64.b64decode(b["image_url"].split(",", 1)[1]) for b in vendor_bodies]
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def test_a_chain_is_shot_in_order_each_scene_from_the_frame_before_it(live, monkeypatch, tmp_path):
+    """The face reference kept her the same and copied its own close-up into every scene. A chained
+    spot starts its first scene from a whole still of her and every later scene from the last frame
+    of the one before, on the path that starts from a frame. Each scene is sent only after the one
+    before it landed and was read back, the request names the frame by hash and never carries it,
+    and the prompt names her, since the frame carries her face."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    takes_and_frames(monkeypatch)
+    sent = []
+    vendor = Vendor(on_post=lambda url, body: sent.append((json.loads(body), [dict(r) for r in tk.ledger.rows()]))
+                    if "queue" in url else None)
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    v = tk.render(chain_state(state))
+    assert v["failed"] == [] and v["fresh"] == ["a", "b", "c"] and v["rendered"] == ["a", "b", "c"], v
+    assert vendor.posts() == [f"{L.FAL}/{FRAME_ENGINE}"] * 3, vendor.posts()
+    bodies = [b for b, _ in sent]
+    assert started_from(bodies) == [b"the character's still", b"last frame of take 1", b"last frame of take 2"]
+    assert all("image_urls" not in b and "the student" in b["prompt"] and "<IMAGE_REF_0>" not in b["prompt"]
+               and "{character}" not in b["prompt"] for b in bodies), bodies
+    for i, scene in ((1, "zai-a"), (2, "zai-b")):
+        before = sent[i][1]
+        assert any(r["kind"] == "landing" and r.get("status") == "OK" and r.get("file") == f"takes/{scene}/raw.mp4"
+                   for r in before), f"the scene after {scene} was sent before {scene} landed"
+        assert any(r["kind"] == "gate" and r.get("check") == "cast" and r.get("scene") == scene for r in before), \
+            f"the scene after {scene} was sent before {scene} was read back"
+    rows = tk.ledger.rows()
+    requests = [r for r in rows if r["kind"] == "request" and r.get("scene")]
+    assert [r["start_from"] for r in requests] == ["the character's still", "the last frame of zai-a",
+                                                    "the last frame of zai-b"], requests
+    assert [r["start_sha256"] for r in requests] == [sha(b"the character's still"), sha(b"last frame of take 1"),
+                                                      sha(b"last frame of take 2")], requests
+    assert all(r["engine"] == FRAME_ENGINE and "reference_sha256" not in r for r in requests), requests
+    assert "data:image" not in ledger_text(tk), "a frame itself reached the ledger"
+    still = [r for r in rows if r.get("note") == "the character's still"]
+    assert len(still) == 1 and still[0]["source"] == "still" and still[0]["file"] == "takes/zai-character/still.jpg"
+
+
+def test_a_chain_stops_at_the_first_scene_that_fails_and_the_rest_wait_without_a_re_roll(live, monkeypatch, tmp_path):
+    """A scene that fails is the last one paid for in the pass. The scenes after it would start
+    from a frame of a take that is going to be thrown away, so they are not sent, they say what
+    they wait on, and they are not counted as failed, so none of their re-rolls is spent. The
+    re-roll shoots the failed scene again and the rest of the chain after it."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    takes_and_frames(monkeypatch)
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    answers = {"zai-a": OTHER, "zai-b": SAME, "zai-c": SAME}
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=by_scene(answers)))
+    first = tk.render(chain_state(state))
+    assert first["failed"] == ["a"] and len(vendor.posts()) == 1, first
+    assert first["why"]["b"] == first["why"]["c"] == "waits on zai-a, the scene it starts from", first["why"]
+    assert first["rendered"] == ["a"], first
+    assert not [r for r in tk.ledger.rows() if r["kind"] == "request" and r.get("scene") in ("zai-b", "zai-c")]
+    answers["zai-a"] = SAME
+    again = tk.render(chain_state(state, verdict={"render": first}))
+    assert again["failed"] == [] and again["fresh"] == ["a", "b", "c"] and len(vendor.posts()) == 4, again
+
+
+def test_a_new_take_early_in_a_chain_renders_every_scene_after_it_again(live, monkeypatch, tmp_path):
+    """A chained take is kept only when it started from the frame its scene would start from now.
+    When a person sends scene a back, a comes back as a new take, so b and c start from new frames
+    and are shot again, each request saying why, and none of the old takes is reused."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    takes_and_frames(monkeypatch)
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    first = tk.render(chain_state(state))
+    assert first["failed"] == [] and len(vendor.posts()) == 3, first
+    again = tk.render(chain_state(state, verdict={"render": first},
+                                  changes={"scene": "a", "reason": "the room never expands"}))
+    assert again["failed"] == [] and again["fresh"] == ["a", "b", "c"] and len(vendor.posts()) == 6, again
+    requests = [r for r in tk.ledger.rows() if r["kind"] == "request" and r.get("scene")][3:]
+    assert [r["why"] for r in requests] == ["the room never expands", "the frame it starts from changed",
+                                            "the frame it starts from changed"], requests
+    assert [r["start_sha256"] for r in requests][1:] == [sha(b"last frame of take 4"), sha(b"last frame of take 5")]
+    assert not [r for r in tk.ledger.rows() if r.get("status") == "REUSED"], "a take from an old frame was kept"
+
+
+def test_a_re_entry_keeps_a_chain_whose_frames_still_match(live, monkeypatch, tmp_path):
+    """A re-entry walks the chain again. Every take started from the frame its scene would start from
+    now, so every one is kept and read again, and nothing is paid for twice."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    takes_and_frames(monkeypatch)
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    assert tk.render(chain_state(state))["failed"] == []
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(chain_state(state))
+    assert again["failed"] == [] and again["fresh"] == [] and len(vendor.posts()) == 3, again
+    assert [r["scene"] for r in tk.ledger.rows() if r.get("status") == "REUSED"] == ["zai-a", "zai-b", "zai-c"]
+    assert len([r for r in tk.ledger.rows() if r.get("note") == "the character's still"]) == 1, "the still was taken twice"
+
+
+def test_a_failed_read_back_early_in_a_chain_throws_away_the_takes_after_it(live, monkeypatch, tmp_path):
+    """On a re-entry, a take that is read again and now fails stops the chain there, and when it is
+    shot again the takes after it are shot again too, since their frames came from the take that
+    failed. The checkpoint never decides this, the frames do."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    takes_and_frames(monkeypatch)
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    answers = {"zai-a": SAME, "zai-b": SAME, "zai-c": SAME}
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=by_scene(answers)))
+    assert tk.render(chain_state(state))["failed"] == []
+    answers["zai-a"] = OTHER
+    stopped = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(chain_state(state))
+    assert stopped["failed"] == ["a"] and len(vendor.posts()) == 3, stopped
+    assert stopped["why"]["b"] == "waits on zai-a, the scene it starts from", stopped
+    answers["zai-a"] = SAME
+    again = tk.render(chain_state(state, verdict={"render": stopped}))
+    assert again["failed"] == [] and again["fresh"] == ["a", "b", "c"] and len(vendor.posts()) == 6, again
+
+
+def test_a_chain_with_no_character_still_stops_before_anything_is_sent(live, monkeypatch, tmp_path):
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    monkeypatch.setattr(L, "grab_frame", lambda src, out, last=False: False)
+    with pytest.raises(L.LiveSetupError, match="nothing to start from"):
+        tk.render(chain_state(state))
+    assert vendor.calls == [], "something was sent for a chain with no frame to start from"
+
+
+def test_a_chained_request_the_vendor_never_confirmed_holds_the_chain_until_a_person_re_enters(live, monkeypatch, tmp_path):
+    """A chained POST that failed on the network may still have been billed. It stops the chain for
+    a person, the scenes after it wait, the narration is not drawn, the next pass sends nothing,
+    and only a re-entry sends it once more, from the same frame, and the rest of the chain after it."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    takes_and_frames(monkeypatch)
+    vendor = Vendor(post_fail={2})
+    monkeypatch.setattr(L, "http", vendor)
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    v = tk.render(chain_state(state))
+    assert v["unconfirmed"] == ["b"] and v["failed"] == [] and len(vendor.posts()) == 2, v
+    assert v["why"]["c"] == "waits on zai-b, the scene it starts from", v["why"]
+    assert not calls_to(run, "gates/voice_take.sh"), "the narration was paid for behind an unconfirmed request"
+    again = tk.render(chain_state(state, verdict={"render": v}))
+    assert again["unconfirmed"] == ["b"] and len(vendor.posts()) == 2, "an unconfirmed chained request was sent again"
+    tk.ledger.append("resumed", "render", reason="checked the queue, nothing there", trail=[])
+    vendor.post_fail = set()
+    after = tk.render(chain_state(state, verdict={"render": v}))
+    assert after["unconfirmed"] == [] and after["failed"] == [] and len(vendor.posts()) == 4, after
+    requests = [r for r in tk.ledger.rows() if r["kind"] == "request" and r.get("scene") == "zai-b"]
+    assert len({r["start_sha256"] for r in requests}) == 1, "b was sent again from another frame"
+
+
+def test_a_chained_job_sent_before_a_crash_is_collected_on_the_re_entry_not_paid_for_again(live, monkeypatch, tmp_path):
+    """The process died while scene a was rendering. On the re-entry a is still owed from the same
+    frame, so it is collected, and the chain goes on from its last frame."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    takes_and_frames(monkeypatch)
+    vendor = Vendor(die_on_status=True)
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    with pytest.raises(KeyboardInterrupt):
+        tk.render(chain_state(state))
+    assert len(vendor.posts()) == 1
+    vendor.die_on_status = False
+    v = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(chain_state(state))
+    assert v["failed"] == [] and v["fresh"] == ["a", "b", "c"] and len(vendor.posts()) == 3, v
+
+
+def test_a_chained_job_the_vendor_dropped_is_sent_again_from_the_same_frame(live, monkeypatch, tmp_path):
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    takes_and_frames(monkeypatch)
+    vendor = Vendor(die_on_status=True)
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    with pytest.raises(KeyboardInterrupt):
+        tk.render(chain_state(state))
+    vendor.die_on_status, vendor.dropped = False, {"fal-1"}
+    v = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(chain_state(state))
+    assert v["failed"] == [] and v["fresh"] == ["a", "b", "c"] and len(vendor.posts()) == 4, v
+    a = [r for r in tk.ledger.rows() if r["kind"] == "request" and r.get("scene") == "zai-a"]
+    assert len(a) == 2 and a[0]["start_sha256"] == a[1]["start_sha256"], a
+    assert [r for r in tk.ledger.rows() if r.get("error") == "the vendor no longer has this job"], "the drop was not recorded"

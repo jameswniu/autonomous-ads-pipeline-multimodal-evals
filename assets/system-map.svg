@@ -12,7 +12,7 @@
 <rect x="60" y="216" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="62.5" y1="216" x2="62.5" y2="316" stroke="#c9a86a" stroke-width="5"/>
 <text x="78" y="250" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#e6e6ec">Board</text>
-<text x="78" y="278" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">seven mechanical checks, four eye rows</text>
+<text x="78" y="278" text-anchor="start" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="24" fill="#9a9ca3">eight mechanical checks, four eye rows</text>
 <text x="78" y="304" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="23" fill="#c9a86a">gates/board_probe.py</text>
 <rect x="607" y="216" width="533" height="100" rx="8" fill="#202024" fill-opacity="1" stroke="#5f626a"/>
 <line x1="609.5" y1="216" x2="609.5" y2="316" stroke="#c9a86a" stroke-width="5"/>

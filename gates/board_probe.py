@@ -17,6 +17,10 @@ Mechanical half only. Checks, per spot:
                    her, him or hers in it. "Your studio apartment is smaller than the problem you're
                    solving", never "Her studio apartment is smaller than the problem she's solving"
                    (the doctrine's own example, 2026-08-29).
+  chain            a spot that shoots its scenes as a chain, each from the last frame of the one
+                   before, names real scenes in its 'chain', each once, and a chained scene that
+                   writes {character} has a 'character_noun' to name her by. A spot with no chain
+                   passes.
 The four judgment rows (hook, realism, absurdity, logic) are printed as questions for the eye.
 Exit 0 all pass, 1 any fail.
 """
@@ -47,6 +51,15 @@ def cast_ok(text):
 def register_ok(narration):
     """True when the narration never talks about someone in the third person."""
     return not THIRD_PERSON.search(narration)
+
+def chain_ok(sp, scenes):
+    """True when the spot has no chain, or its chain lists its own scenes once each and can name her."""
+    chain = sp.get("chain")
+    if chain is None:
+        return True
+    if not isinstance(chain, list) or not chain or len(set(chain)) != len(chain) or any(k not in scenes for k in chain):
+        return False
+    return bool(sp.get("character_noun")) or not any(PLACEHOLDER in scenes[k] for k in chain)
 
 def main():
     args = [a for a in sys.argv[1:] if a != "--json"]
@@ -81,7 +94,8 @@ def main():
         cast = all(cast_ok(s) for s in scenes.values())
         register = register_ok(narration)
         checks = {"product_absent": product_absent, "escalation": escalation, "quirk_unspoken": quirk_unspoken,
-                  "mouths_closed": closed, "crop_clause": crop, "cast": cast, "register": register}
+                  "mouths_closed": closed, "crop_clause": crop, "cast": cast, "register": register,
+                  "chain": chain_ok(sp, scenes)}
         bad = [k for k, v in checks.items() if not v]
         if bad: fails.append((ad, bad, sorted(shared)))
         rows.append((ad, checks, sorted(shared)))
