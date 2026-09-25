@@ -111,6 +111,81 @@ def test_board_probe_refuses_an_empty_board(tmp_path):
     assert r.returncode != 0, f"an empty board passed:\n{r.stdout}"
 
 
+def _cast_check(tmp_path, scene):
+    p = os.path.join(str(tmp_path), "b.json")
+    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.",
+            "scenes": {"a": scene + " Mouth closed, nobody speaks."}}
+    json.dump({"guard": "Keep the subject in the middle third.", "spots": {"s": spot}}, open(p, "w"))
+    r = run([sys.executable, os.path.join(GATES, "board_probe.py"), p, "--json"])
+    return json.loads(r.stdout)["spots"]["s"]["checks"]["cast"]
+
+
+def test_board_probe_sends_back_a_person_who_is_not_the_presenter(tmp_path):
+    """Every person on screen is the presenter, written {presenter} where she appears. The Z.ai
+    scenes wrote "a student", and the engine drew a different woman in each of them."""
+    assert _cast_check(tmp_path, "{presenter} sits at a desk, her mug beside her.") is True
+    assert _cast_check(tmp_path, "A tiny studio where a student sits at a desk.") is False, "a student passed"
+    assert _cast_check(tmp_path, "The room grows around her desk.") is False, "a pronoun with no presenter passed"
+    assert _cast_check(tmp_path, "{presenter} hands a coffee to a customer.") is False, "a second person passed"
+    assert _cast_check(tmp_path, "A warehouse hums, screens scrolling, a mug perfectly still.") is True
+    assert _cast_check(tmp_path, "The theme of these shelves is a human touch.") is True, "words inside words read as people"
+
+
+# --------------------------------------------------------------------------------------
+# cast_gate.py
+# --------------------------------------------------------------------------------------
+
+def test_the_cast_verdict_is_on_the_mean_and_the_floor_is_inclusive():
+    cast = _gate_module("cast_gate")
+    assert cast.CAST_MIN == 0.30
+    assert cast.verdict([0.30]) == "PASS" and cast.verdict([0.299]) == "FAIL"
+    assert cast.verdict([0.9, 0.1, 0.1]) == "PASS", "one odd frame sank a scene whose faces are her"
+    assert cast.verdict([0.1, 0.1, 0.5]) == "FAIL"
+    assert cast.verdict([]) == "NOFACE"
+    assert cast.line([0.46, 0.44, 0.48]) == "CAST_GATE faces=3 sim=0.46 min=0.44 strangers=0 floor=0.30 verdict=PASS"
+    assert cast.line([]) == "CAST_GATE faces=0 sim=nan min=nan strangers=0 floor=0.30 verdict=NOFACE"
+    assert cast.verdict([0.5] * 8, strangers=1) == "PASS", "one glitched frame read as a person"
+    assert cast.verdict([0.5] * 8, strangers=2) == "FAIL", "a stranger behind her passed"
+    assert cast.line([0.5], 2) == "CAST_GATE faces=1 sim=0.50 min=0.50 strangers=2 floor=0.30 verdict=FAIL"
+
+
+def test_every_face_on_screen_is_read_not_only_the_largest():
+    """A stranger behind the presenter is still a person on screen. A second face tall enough to
+    read that is not hers counts, in two sampled frames or more. A face too small to read and a
+    single glitched frame do not, and a stranger larger than her is the main face and fails it."""
+    from types import SimpleNamespace as face
+    cast = _gate_module("cast_gate")
+    ref = face(normed_embedding=[1.0, 0.0])
+
+    def at(emb, height):
+        return face(normed_embedding=emb, bbox=[0, 0, height, height])
+    her, stranger, tiny = at([1.0, 0.0], 100), at([0.0, 1.0], 100), at([0.0, 1.0], 20)
+    alone = [([her], 720)] * 8
+    assert cast.score(alone, ref) == ([1.0] * 8, 0)
+    behind = [([her, stranger], 720)] * 2 + [([her], 720)] * 6
+    assert cast.score(behind, ref) == ([1.0] * 8, 2)
+    assert cast.verdict(*cast.score(behind, ref)) == "FAIL"
+    assert cast.score([([her, tiny], 720)] * 8, ref)[1] == 0, "a face too small to read counted as a person"
+    assert cast.score([([her, stranger], 720)] + [([her], 720)] * 7, ref)[1] == 1
+    assert cast.verdict(*cast.score([([stranger, her], 720)] * 8, ref)) == "FAIL"
+    assert cast.score([([], 720)] * 8, ref) == ([], 0)
+
+
+def test_the_cast_gate_loads_without_the_face_extra_and_says_so_when_it_needs_it(tmp_path):
+    """derive.py and CI import every gate, and neither has the face model. Asked to measure
+    without it, the gate must give no reading, never a verdict."""
+    _gate_module("cast_gate")
+    assert "insightface" not in sys.modules
+    gate = os.path.join(GATES, "cast_gate.py")
+    r = run([sys.executable, gate, str(tmp_path / "missing.jpg"), str(tmp_path / "missing.mp4")])
+    assert r.returncode == 64 and "unreadable" in r.stdout, (r.returncode, r.stdout)
+    face = tmp_path / "face.png"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=gray:s=64x64", "-frames:v", "1",
+                    str(face)], check=True, timeout=60)
+    r = run([sys.executable, gate, str(face), str(tmp_path / "missing.mp4")])
+    assert r.returncode == 64 and "CAST_GATE unreadable" in r.stdout and "verdict=" not in r.stdout, r.stdout
+
+
 # --------------------------------------------------------------------------------------
 # edge_clip_probe.py
 # --------------------------------------------------------------------------------------
@@ -345,6 +420,7 @@ def test_the_gate_numbers_are_the_numbers_the_step_table_states():
     assert (loud.TARGET_I, loud.TOLERANCE_I, loud.MAX_TP) == (-16.0, 1.0, -1.5)
     assert "within a decibel of -16 LUFS" in BY_NODE["ship_gate"].proves
     assert "true peak under -1.5 dB" in BY_NODE["ship_gate"].proves
+    assert f"refused under {_gate_module('cast_gate').CAST_MIN:g} face similarity" in BY_NODE["render"].proves
 
 
 def test_the_jaw_gate_rules_on_what_source_gate_measured(tmp_path):

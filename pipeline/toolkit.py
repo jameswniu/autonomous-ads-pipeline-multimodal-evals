@@ -8,6 +8,8 @@ path the graph takes.
 Three toolkits share this base. DryToolkit runs the free checks for real and stops before
 the first spend. LiveToolkit (pipeline/live.py) spends. The tests use a scripted one.
 """
+import functools
+import importlib.util
 import json
 import os
 import subprocess
@@ -26,9 +28,17 @@ DEFAULT_ENGINE = "google/gemini-omni-flash"
 # Dry runs report the spend a live run would make before anyone commits to it.
 PRICE_PER_SCENE = {
     "google/gemini-omni-flash": 0.63,
+    # fal lists the same unit price for both Omni endpoints (checked 2026-09-24).
+    "google/gemini-omni-flash/reference-to-video": 0.63,
     "alibaba/wan-3.0/text-to-video": 1.00,
     "bytedance/seedance-2.0/text-to-video": 1.00,
 }
+
+# Every person on screen is the presenter. A board writes {presenter} where she appears, and a
+# scene that does is rendered from her reference on the engine's reference path, because a text
+# prompt cannot hold a face: the Z.ai scenes, written "a student", came back as six different women.
+PLACEHOLDER = "{presenter}"
+REFERENCE_ENGINE = {"google/gemini-omni-flash": "google/gemini-omni-flash/reference-to-video"}
 
 # Keys whose values are identities, at any depth in an answer or a verdict. The ledger gets
 # their fingerprint, never the id.
@@ -46,6 +56,30 @@ def load_spot(board_path, spot):
 
 def engine_for(board, spot_def):
     return spot_def.get("engine") or board.get("engine") or DEFAULT_ENGINE
+
+
+def has_cast(spot_def):
+    """Whether any scene of the spot shows the presenter."""
+    return any(PLACEHOLDER in text for text in (spot_def.get("scenes") or {}).values())
+
+
+@functools.lru_cache(maxsize=1)
+def _board_rules():
+    spec = importlib.util.spec_from_file_location("board_probe", os.path.join(ROOT, "gates", "board_probe.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def cast_ok(text):
+    """The board gate's rule for one line of scene text: every person on screen is the presenter,
+    written {presenter}. A person's new prompt from the eye is held to it as the board's lines are."""
+    return _board_rules().cast_ok(text)
+
+
+def cast_text(spot_def, text):
+    """A scene line with the presenter bound to the first reference image the engine is sent."""
+    return text.replace(PLACEHOLDER, f"the {spot_def.get('presenter_noun', 'person')} in <IMAGE_REF_0>")
 
 
 def scene_prompt(board, scene_text):
@@ -139,8 +173,11 @@ class Toolkit:
         trail = state.get("trail") or []
         verdicts = state.get("verdict") or {}
         last = trail[-1] if trail else None
-        if (verdicts.get("render") or {}).get("dry"):
-            outcome = "dry: stopped before the first spend"
+        render = verdicts.get("render") or {}
+        if render.get("dry"):
+            refused = render.get("refused") or {}
+            outcome = ("dry: refused before any spend, " + next(iter(refused.values()))) if refused else \
+                "dry: stopped before the first spend"
         elif last == "review":
             v = verdicts.get("review") or {}
             if v.get("verdict") == "keep":
@@ -164,13 +201,22 @@ class DryToolkit(Toolkit):
         board, spot_def = load_spot(state["board"], state["spot"])
         engine = engine_for(board, spot_def)
         scenes = spot_def.get("scenes", {})
-        total = 0.0
+        total, refused = 0.0, {}
         for key in sorted(scenes):
-            price = PRICE_PER_SCENE.get(engine)
+            text, eng = scenes[key], engine
+            if PLACEHOLDER in text:
+                eng = REFERENCE_ENGINE.get(engine)
+                if eng is None:
+                    refused[key] = f"{engine} has no reference path, so scene {key} cannot hold the presenter's face"
+                    continue
+                text = cast_text(spot_def, text)
+            price = PRICE_PER_SCENE.get(eng)
             total += price or 0.0
             self.ledger.append("request", "render", dry=True, request_id=new_request_id(),
-                               spot=state["spot"], scene=f"{state['spot']}-{key}", engine=engine,
-                               prompt=scene_prompt(board, scenes[key]), est_usd=price)
+                               spot=state["spot"], scene=f"{state['spot']}-{key}", engine=eng,
+                               prompt=scene_prompt(board, text), est_usd=price)
         self.ledger.append("estimate", "render", dry=True, spot=state["spot"],
-                           scenes=len(scenes), engine=engine, est_usd=round(total, 2))
-        return {"dry": True, "scenes": len(scenes), "engine": engine, "est_usd": round(total, 2)}
+                           scenes=len(scenes), engine=engine, est_usd=round(total, 2),
+                           **({"refused": refused} if refused else {}))
+        v = {"dry": True, "scenes": len(scenes), "engine": engine, "est_usd": round(total, 2)}
+        return dict(v, refused=refused) if refused else v

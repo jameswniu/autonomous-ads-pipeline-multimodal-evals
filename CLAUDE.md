@@ -23,7 +23,7 @@ Nothing needs an account, a key, or a GPU.
 
 ```
 make dry                                                  # one spot, stops before any spend
-.venv/bin/python -m pipeline.run --board <boards.json> --spot <name> --mode dry
+.venv/bin/python -m pipeline.run --board shoots/graph-zai-cast/boards.json --spot zai --mode dry
 ```
 
 A dry run executes the board gate for real, records the scene requests a live run

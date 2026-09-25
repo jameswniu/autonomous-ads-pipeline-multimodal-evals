@@ -27,17 +27,20 @@ class Step:
 
 STEPS = (
     Step("board", "Board",
-         "Five mechanical checks, free, before a cent is spent (the product absent before the "
+         "Six mechanical checks, free, before a cent is spent (the product absent before the "
          "payoff, the escalation declared, the quirk never spoken by the narration, mouths closed "
-         "under narration, the centre-crop clause present). The four judgment rows it prints are "
-         "scored when the board is written, before a run starts",
+         "under narration, the centre-crop clause present, every person on screen written as the "
+         "presenter). The four judgment rows it prints are scored when the board is written, "
+         "before a run starts",
          "The board goes back",
-         "five mechanical checks, four eye rows", "gates/board_probe.py", "process"),
+         "six mechanical checks, four eye rows", "gates/board_probe.py", "process"),
     Step("render", "Render",
          "Every request and every landing appended to the ledger, the vendor's own rejection "
-         "text included, and every scene read by the edge probe. The narration is drawn three "
-         "times and has to say the script",
-         "Recorded, each scene that failed to come back sent once more, and a request that may have been billed stops for a person",
+         "text included, and every scene read by the edge probe. A scene that shows the presenter "
+         "is rendered from her face, and every scene is read back against it and refused under 0.3 "
+         "face similarity, since every person on screen is her. The narration is "
+         "drawn three times and has to say the script",
+         "Recorded, each scene that failed to come back or came back as someone else sent once more, and a request that may have been billed stops for a person",
          "every request and landing ledgered", "shoots/<batch>/*.jsonl", "process"),
     Step("closer", "Closer",
          "Identity pin on the voice and avatar ids before anything is paid for, the voice "

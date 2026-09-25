@@ -142,6 +142,11 @@ def test_the_replay_covers_every_shoot(everything):
     assert august == sorted(MOVES), august
     for shoot, res in everything.items():
         assert res.get("graph") or shoot in MOVES, f"{shoot} is neither a pinned August shoot nor a graph run"
+    # A directory the replay leaves out must hold no record at all, only a board that has not run.
+    skipped = sorted(set(os.listdir(R.SHOOTS)) - set(everything))
+    for d in skipped:
+        if os.path.isdir(os.path.join(R.SHOOTS, d)):
+            assert not any(os.path.exists(os.path.join(R.SHOOTS, d, f)) for f in R.RECORDS), d
 
 
 def test_every_run_the_graph_wrote_is_complete(everything):

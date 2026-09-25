@@ -1,0 +1,23 @@
+{
+ "doctrine": "ads8: five spec ads (grok, zai, moonshot, claude, claudecode), ads7 grammar: absurd open, plain model, visual quirk never narrated, mouths closed, centre-square composition, guard verbatim",
+ "engine": "google/gemini-omni-flash",
+ "guard": "Natural skin texture with visible pores and slight imperfections, documentary realism, no beauty smoothing, imperfect practical lighting, real micro-expressions, natural motion timing with small human hesitations. No readable on-screen text anywhere in frame, no logos, no brand marks. Keep hands either fully out of frame or large, simple and clearly articulated. NO narration, NO voiceover, NO captions, NO avatar or presenter, no music, natural ambient sound only. One single continuous live-action scene, about 5 seconds, subject centered, raw b-roll for an edit. Composed for a centered square crop: every story object stays inside the middle third of the frame and never approaches the left or right edge.",
+ "spots": {
+  "zai": {
+   "brand": "Z.ai",
+   "card": "Frontier weights, open doors.",
+   "positioning": "Zhipu's open frontier GLM models for builders, high-end coding and reasoning at cost-efficient prices (verified: z.ai, docs.z.ai, 2026-08-29 pairwise pass)",
+   "quirk": "the coffee mug never moves an inch through the whole expansion, steamless and steady",
+   "bed": "warm minimal tech pulse with soft piano, instrumental",
+   "narration": "Her studio apartment is smaller than the problem she's solving. Z.ai puts frontier open models in anyone's hands, the same weights the big labs guard, priced for builders. Build like the room was never small.",
+   "closer": "Z.ai, frontier open models priced for builders. Start building tonight. The pipeline behind this spot is public, link under the video.",
+   "look_prompt": "She sits at a minimal light-wood desk in a small bright studio apartment, facing the camera at a slight angle, wearing a relaxed sage-green shirt over a white top, hair in a low ponytail, minimal natural makeup, focused warm expression. A closed silver laptop and a ceramic mug sit at rest on the desk, morning light from a side window, a small plant on a shelf behind. She is not mid-action with any object. Nothing held, everything at rest.",
+   "scenes": {
+    "a": "A tiny studio apartment where {presenter} sits at a small desk, and the room begins to EXPAND, walls sliding back, her one desk stretching into a long row of glowing workstations filling a warehouse-sized space around her while she keeps typing. Mouth closed, nobody speaks.",
+    "b": "The vast warehouse of workstations hums around {presenter}, screens scrolling, and on her original desk a ceramic coffee mug sits perfectly still, unmoved, while everything grows around it. Mouth closed, nobody speaks.",
+    "c": "The warehouse folds back in on itself smoothly, walls returning, screens tucking away, until it is the tiny studio apartment again, {presenter} stretching, the mug exactly where it always was. Mouth closed, nobody speaks."
+   },
+   "presenter_noun": "woman"
+  }
+ }
+}

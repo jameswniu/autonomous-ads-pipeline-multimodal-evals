@@ -6,10 +6,12 @@ the ledger before it is sent. A rejection is recorded with the vendor's own text
 id or local path reaches a ledger that gets committed, whatever a script prints. Nothing is
 spent until everything a run needs is present. A run re-entered after a failure collects what
 it already paid for instead of paying again. The closer's guards run before anything is paid,
-the voice included. A reused closer must say this spot's line. And the gates' exits and
+the voice included. A reused closer must say this spot's line. A scene that shows the
+presenter is rendered from her face and read back against it. And the gates' exits and
 machine lines become the causes the graph routes on. Several tests exist because a mutation of
 the code they name survived the suite.
 """
+import importlib.util
 import json
 import os
 import subprocess
@@ -30,6 +32,22 @@ PINNED = "PINNEDAVATAR99887766"  # pii-allow: a made-up id
 GROUP = "GROUPID5566778899"
 NAME = "a-long-voice-name-v7"
 CLOSER = json.load(open(BOARD))["spots"]["zai"]["closer"]
+CAST_BOARD = os.path.join(ROOT, "shoots", "graph-zai-cast", "boards.json")
+REF_ENGINE = "google/gemini-omni-flash/reference-to-video"
+
+
+def _cast_gate():
+    spec = importlib.util.spec_from_file_location("cast_gate", os.path.join(ROOT, "gates", "cast_gate.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# The cast gate's own line format, so a stub cannot drift from what the gate prints.
+CG = _cast_gate()
+SAME = (0, CG.line([0.46, 0.44, 0.48]))
+OTHER = (1, CG.line([0.06, 0.04, 0.05]))
+NO_FACE = (3, CG.line([]))
 
 
 def done(code=0, out="", err=""):
@@ -41,9 +59,9 @@ class Vendor:
     make a result fetch reject, a status poll fail on the network or kill the process, or
     check the ledger at the moment of a POST."""
 
-    def __init__(self, reject=(), on_post=None, net_fail=0, heygen_status="completed", die_on_status=False,
+    def __init__(self, reject=(), on_post=None, net_fail=0, heygen_status="completed", die_on_status=False, locked=(), empty=(),
                  post_fail=(), post_noid=()):
-        self.calls, self.reject, self.on_post = [], set(reject), on_post
+        self.calls, self.reject, self.on_post, self.locked, self.empty = [], set(reject), on_post, set(locked), set(empty)
         self.net_fail, self.heygen_status, self.die_on_status = net_fail, heygen_status, die_on_status
         self.post_fail, self.post_noid = set(post_fail), set(post_noid)   # which queue POSTs, by count, go wrong
 
@@ -77,6 +95,10 @@ class Vendor:
                 self.net_fail -= 1
                 return 0, b"URLError: <urlopen error [Errno 8] nodename nor servname provided>"
             return 200, b'{"status": "COMPLETED"}'
+        if url.rsplit("/", 1)[-1] in self.empty:
+            return 200, b'{"video": null}'
+        if url.rsplit("/", 1)[-1] in self.locked:
+            return 403, b'{"detail": "User is locked. Reason: TOP_UP."}'
         if url.rsplit("/", 1)[-1] in self.reject:
             return 422, b'{"detail": "Output video has sensitive content"}'
         return 200, json.dumps({"video": {"url": "https://files/x.mp4"}}).encode()
@@ -87,13 +109,21 @@ class Vendor:
 
 def scripts(voice_ok=True, jaw=(0, "JAW_GATE jaw=0.11 face_cov=1.0 max=0.17 verdict=PASS"), ship=(0, "SHIP-GATE PASS"),
             loud=(0, "LOUDNESS_GATE i=-16.0 tp=-2.0 verdict=PASS"), gates=None, build=None, edge=(0, "EDGE CLEAN"),
-            match=(0, "SCRIPT-MATCH PASS")):
-    """Stand-ins for the repo scripts the toolkit runs, keyed on the script's path."""
+            match=(0, "SCRIPT-MATCH PASS"), cast=SAME, reference_ok=True):
+    """Stand-ins for the repo scripts the toolkit runs, keyed on the script's path. `cast` is
+    one (exit, line) for every clip, or a function of the clip's path returning one."""
     seen = []
 
-    def run(self, *args, env=None, drop=(), timeout=1800):
-        seen.append((args, env or {}, drop))
+    def run(self, *args, env=None, drop=(), timeout=1800, python=None):
+        seen.append((args, env or {}, drop, python))
         name = args[0]
+        if name == "gates/cast_gate.py":
+            if args[1] == "--reference":
+                if not reference_ok:
+                    return done(64, "CAST_REFERENCE none: no face in the source")
+                open(args[3], "wb").write(b"a presenter's face")
+                return done(0, "CAST_REFERENCE face=0.91")
+            return done(*(cast(args[2]) if callable(cast) else cast))
         if name == "gates/voice_take.sh":
             if not voice_ok:
                 return done(1, "draws disagreed")
@@ -139,8 +169,11 @@ def live(tmp_path, monkeypatch):
     bed.write_bytes(b"bed")
     film2 = tmp_path / "film2"
     film2.mkdir()
+    still = tmp_path / "still.jpg"
+    still.write_bytes(b"a presenter's still")
     for k, v in {"FAL_KEY": "k", "ELEVENLABS_API_KEY": "k", "ELEVENLABS_VOICE_ID": VOICE, "IDENTITY_PINS": str(pins),
-                 "BED": str(bed), "FILM2": str(film2), "HEYGEN_API_KEY": "k", "CLOSER_LOOK_ID": LOOK}.items():
+                 "BED": str(bed), "FILM2": str(film2), "HEYGEN_API_KEY": "k", "CLOSER_LOOK_ID": LOOK,
+                 "PRESENTER_STILL": str(still)}.items():
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("CLOSER_FROM", raising=False)
     monkeypatch.setattr(L.time, "sleep", lambda s: None)
@@ -207,7 +240,7 @@ def test_a_request_is_on_the_ledger_before_it_is_sent_and_its_landing_shares_its
     assert len(scene_posts) == 3 and all(r["kind"] == "request" for r in scene_posts), before
     rows = tk.ledger.rows()
     asked = {r["request_id"] for r in rows if r["kind"] == "request"}
-    landed = {r["request_id"] for r in rows if r["kind"] == "landing"}
+    landed = {r["request_id"] for r in rows if r["kind"] == "landing" and "request_id" in r}
     assert asked == landed and all(i.startswith("req_") for i in asked), (asked, landed)
     queued = [r for r in rows if r["kind"] == "queued"]
     assert len(queued) == 3 and all(r["vendor_id"].startswith("fal-") for r in queued), "a vendor id was not kept"
@@ -337,6 +370,103 @@ def test_a_timed_out_scene_is_collected_on_its_retry_not_sent_twice(live, monkey
     assert v["failed"] == [] and len(vendor.posts()) == posts, "a timed-out request was sent again"
 
 
+def test_a_finished_render_the_vendor_holds_back_is_collected_not_sent_again(live, monkeypatch):
+    """Z.ai's re-shoot ran the account dry. Two scenes finished at fal, which then refused to hand
+    over the results until a top-up. Logged as FAILED, the re-roll sent both again, and only the
+    locked account stopped the second charge. A held-back result is owed: the next pass collects
+    it, a refused re-send in between hides nothing, and nothing is sent for it twice."""
+    tk, state = live
+    vendor = Vendor(locked={"fal-2"})
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    v = tk.render(state)
+    assert v["failed"] == ["b"] and "held back" in v["why"]["b"], v
+    held = [r for r in tk.ledger.rows() if r.get("status") == "UNCOLLECTED"]
+    assert held and held[0]["http"] == 403 and held[0]["during"] == "result", held
+    posts = len(vendor.posts())
+    vendor.locked = set()
+    after = tk.render(dict(state, verdict={"render": v}))
+    assert after["failed"] == [] and len(vendor.posts()) == posts, "a finished render was paid for again"
+
+
+def test_a_result_that_is_gone_is_rendered_again_not_waited_on(live, monkeypatch):
+    """A 404 on a finished job's result means it is gone, and waiting will not bring it back. The
+    scene is sent again on the next pass. A 403 behind a locked account is the one to wait for."""
+    tk, state = live
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    real = vendor.__call__
+
+    def gone(method, url, headers, body=None, timeout=120):
+        if method == "GET" and url.rsplit("/", 1)[-1] == "fal-2":
+            vendor.calls.append((method, url))
+            return 404, b'{"detail": "Not found"}'
+        return real(method, url, headers, body, timeout)
+    monkeypatch.setattr(L, "http", gone)
+    v = tk.render(state)
+    assert v["failed"] == ["b"] and "gone" in v["why"]["b"], v
+    assert [r["status"] for r in tk.ledger.rows() if r.get("http") == 404] == ["FAILED"]
+    posts = len(vendor.posts())
+    monkeypatch.setattr(L, "http", vendor)
+    after = tk.render(dict(state, verdict={"render": v}))
+    assert after["failed"] == [] and len(vendor.posts()) == posts + 1, "a gone result was waited on instead of sent again"
+    assert [L.held_back(c) for c in (403, 402, 429, 503, 404, 410, 400)] == [True, True, True, True, False, False, False]
+
+
+def test_a_spot_with_nobody_written_in_it_and_no_face_source_runs_without_one(live, monkeypatch):
+    """No scene shows the presenter and no face source is set, so there is nothing to read back
+    against. The run goes ahead, and nothing asks for a face it never needed."""
+    tk, state = live
+    monkeypatch.delenv("PRESENTER_STILL")
+    monkeypatch.setattr(L, "http", Vendor())
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    v = tk.render(state)
+    assert v["failed"] == [], v
+    assert not calls_to(run, "gates/cast_gate.py"), "a face was asked for with nothing to hold it to"
+
+
+def test_a_render_that_came_back_with_no_video_is_sent_again(live, monkeypatch):
+    """Owed means a finished video is waiting. A result that arrived and held no video has nothing
+    to collect, so the next pass sends the scene once more."""
+    tk, state = live
+    vendor = Vendor(empty={"fal-2"})
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    v = tk.render(state)
+    assert v["failed"] == ["b"] and v["why"]["b"] == "no video came back", v
+    posts = len(vendor.posts())
+    vendor.empty = set()
+    after = tk.render(dict(state, verdict={"render": v}))
+    assert after["failed"] == [] and len(vendor.posts()) == posts + 1, "a scene with no video was waited on instead of sent"
+
+
+def test_a_held_back_render_logged_the_old_way_is_still_collected(live, monkeypatch):
+    """The re-shoot's own ledger holds the old shape. Scene b finished, its result was refused
+    with a 403 and logged as FAILED, and the re-roll's request was then refused at the queue.
+    The re-entry after a top-up has to find the finished job behind the refused one and collect
+    it, and send nothing."""
+    tk, state = live
+    board = json.load(open(BOARD))
+    prompt = L.scene_prompt(board, board["spots"]["zai"]["scenes"]["b"])
+    tk.ledger.append("request", "render", request_id="req_b1", spot="zai", scene="zai-b", engine="google/gemini-omni-flash",
+                     prompt=prompt)
+    tk.ledger.append("queued", "render", request_id="req_b1", vendor_id="fal-b1", status_url="https://queue/fal-b1/status",
+                     response_url="https://queue/fal-b1")
+    tk.ledger.append("landing", "render", request_id="req_b1", vendor_id="fal-b1", status="FAILED", http=403,
+                     error='{"detail": "User is locked. Reason: TOP_UP."}')
+    tk.ledger.append("request", "render", request_id="req_b2", spot="zai", scene="zai-b", engine="google/gemini-omni-flash",
+                     prompt=prompt)
+    tk.ledger.append("landing", "render", request_id="req_b2", status="REFUSED", http=403, error="Exhausted balance")
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    v = tk.render(dict(state, verdict={"render": {"failed": ["b"]}}))
+    assert v["failed"] == [] and vendor.posts() == [], (v, vendor.posts())
+    assert ("GET", "https://queue/fal-b1") in vendor.calls, "the finished job was not collected"
+
+
 def test_a_finished_scene_that_failed_to_download_is_collected_not_paid_for_again(live, monkeypatch):
     tk, state = live
     vendor = Vendor()
@@ -352,7 +482,7 @@ def test_a_finished_scene_that_failed_to_download_is_collected_not_paid_for_agai
     monkeypatch.setattr(L.urllib.request, "urlretrieve", flaky)
     v = tk.render(state)
     assert v["failed"] == ["a"], v
-    assert [r["status"] for r in tk.ledger.rows() if r["kind"] == "landing"][0] == "UNCOLLECTED"
+    assert [r["status"] for r in tk.ledger.rows() if r["kind"] == "landing" and "request_id" in r][0] == "UNCOLLECTED"
     posts = len(vendor.posts())
     v = tk.render(dict(state, verdict={"render": v}))
     assert v["failed"] == [] and len(vendor.posts()) == posts, "a finished scene was paid for again"
@@ -504,7 +634,7 @@ def test_a_jaw_gate_that_gave_no_verdict_is_unreadable_not_a_fail(live, monkeypa
     monkeypatch.setattr(L.LiveToolkit, "script", run)
     v = tk.closer(state)
     assert v["pass"] is False and v["unreadable"] is True, v
-    args, env, drop = calls_to(run, "gates/jaw_gate.py")[0]
+    args, env, drop, _ = calls_to(run, "gates/jaw_gate.py")[0]
     assert "SG_START" in drop and "SG_DUR" in drop, "a caller's SG_START would cut the closer the jaw gate reads"
 
 
@@ -618,11 +748,11 @@ def test_the_ship_gate_is_run_with_the_overrides_people_gave_and_no_others(live,
     run = scripts()
     monkeypatch.setattr(L.LiveToolkit, "script", run)
     tk.ship_gate(base)
-    args, env, drop = calls_to(run, "guards/ship_gate.sh")[-1]
+    args, env, drop, _ = calls_to(run, "guards/ship_gate.sh")[-1]
     assert "--arrow-ok" not in args and "REPLAYOK" not in env and "REPLAYOK" in drop, (args, env, drop)
     assert env["ARROW_WINDOW"] == "0:15.08" and env["TIMEOK"] == L.AD_FICTION, env
     tk.ship_gate(dict(base, changes={"arrow_ok": "reader", "replay_ok": "a still room, read by r"}))
-    args, env, drop = calls_to(run, "guards/ship_gate.sh")[-1]
+    args, env, drop, _ = calls_to(run, "guards/ship_gate.sh")[-1]
     assert "--arrow-ok" in args and env["REPLAYOK"] == "a still room, read by r", (args, env)
 
 
@@ -653,3 +783,166 @@ def test_a_second_delivery_says_what_it_replaces(live, monkeypatch):
         tk.deliver(dict(state, artifacts={"master": m}))
     rows = [r for r in tk.ledger.rows() if r["kind"] == "deliver"]
     assert rows[0]["supersedes"] is None and rows[1]["supersedes"] == "delivered/zai-v1.mp4", rows
+
+
+# the presenter's face
+
+def cast_state(state, board=CAST_BOARD):
+    return dict(state, board=board)
+
+
+def closer_take(tmp_path, line=CLOSER):
+    """A closer take to reuse, standing in for the one CLOSER_FROM names."""
+    src = tmp_path / "ads8-real" / "zai-av"
+    src.mkdir(parents=True, exist_ok=True)
+    for name in ("render.mp4", "upload.mp3", "stt.json"):
+        (src / name).write_bytes(b"x")
+    (src / "script.txt").write_text(line + "\n")
+    return src
+
+
+def test_a_scene_that_shows_the_presenter_is_rendered_from_her_face(live, monkeypatch, tmp_path):
+    """The Z.ai scenes named "a student" and came back as a different woman each time. A scene
+    that writes {presenter} goes to the reference path with her face, the request row names that
+    face by hash and never carries the image, and a scene with nobody in it stays on the plain
+    path. The face is read back with the face extra's interpreter, on a reused take too."""
+    tk, state = live
+    board = json.load(open(CAST_BOARD))
+    board["spots"]["zai"]["scenes"]["b"] = ("The vast warehouse of workstations hums, screens scrolling, a ceramic "
+                                            "coffee mug perfectly still. Mouth closed, nobody speaks.")
+    path = tmp_path / "board.json"
+    path.write_text(json.dumps(board))
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setenv("FACEPY", "/opt/face/bin/python")
+    bodies = []
+    vendor = Vendor(on_post=lambda url, body: bodies.append((url, json.loads(body))) if "queue" in url else None)
+    monkeypatch.setattr(L, "http", vendor)
+    # Scene b has nobody in it, so the gate finds no face there, which is what it should find.
+    run = scripts(cast=lambda clip: (3, CG.line([])) if "zai-b" in clip else SAME)
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    v = tk.render(cast_state(state, str(path)))
+    assert v["failed"] == [] and v["flags"] == {}, v
+    ref_url, plain_url = f"{L.FAL}/{REF_ENGINE}", f"{L.FAL}/google/gemini-omni-flash"
+    assert [u for u, _ in bodies] == [ref_url, plain_url, ref_url], bodies
+    face = bodies[0][1]["image_urls"][0]
+    assert face.startswith("data:image/jpeg;base64,")
+    assert L.base64.b64decode(face.split(",", 1)[1]) == b"a presenter's face", "the scene was not sent her face"
+    assert "the woman in <IMAGE_REF_0>" in bodies[0][1]["prompt"] and "the woman in <IMAGE_REF_0>" in bodies[2][1]["prompt"]
+    assert not any("{presenter}" in b["prompt"] for _, b in bodies), "the placeholder reached the engine"
+    assert "image_urls" not in bodies[1][1], "a scene with nobody in it was sent a face"
+    rows = tk.ledger.rows()
+    reference = os.path.join(tk.takes, "zai-cast", "reference.jpg")
+    requests = [r for r in rows if r["kind"] == "request" and r["step"] == "render" and r.get("scene")]
+    assert [r["engine"] for r in requests] == [REF_ENGINE, "google/gemini-omni-flash", REF_ENGINE], requests
+    assert [r.get("reference_sha256") for r in requests] == [L.sha256(reference), None, L.sha256(reference)]
+    assert "data:image" not in ledger_text(tk), "the face itself reached the ledger"
+    cut = [r for r in rows if r.get("note") == "the presenter's reference"]
+    assert cut and cut[0]["source"] == "closer take" and cut[0]["file"] == "takes/zai-cast/reference.jpg", cut
+    checks = calls_to(run, "gates/cast_gate.py")
+    assert [c[0][1] == "--reference" for c in checks] == [True, False, False, False], checks
+    assert {c[3] for c in checks} == {"/opt/face/bin/python"}, "the cast gate ran without the face extra"
+    assert [r["scene"] for r in rows if r.get("check") == "cast" and r["passed"]] == ["zai-a", "zai-c"]
+    posts = len(vendor.posts())
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(cast_state(state, str(path)))
+    assert again["failed"] == [] and len(vendor.posts()) == posts, again
+    assert len(calls_to(run, "gates/cast_gate.py")) == 7, "a reused take was not read back against her face"
+
+
+def test_no_face_to_hold_the_scenes_to_stops_before_anything_is_sent(live, monkeypatch, tmp_path):
+    tk, state = live
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    monkeypatch.delenv("PRESENTER_STILL")
+    with pytest.raises(L.LiveSetupError, match="needs her face"):
+        tk.render(cast_state(state))
+    assert vendor.calls == [], "something was sent for a scene with no face to hold it to"
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(reference_ok=False))
+    with pytest.raises(L.LiveSetupError, match="no face could be cut"):
+        tk.render(cast_state(state))
+    assert vendor.calls == []
+
+
+def test_a_different_person_fails_the_scene_and_no_face_goes_to_the_eye(live, monkeypatch, tmp_path):
+    """A different person re-rolls the scene. A scene with no face, or one the gate could not
+    read, is not a pass either, so it goes to the eye as a flag."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setattr(L, "http", Vendor())
+    answers = {"zai-a": OTHER, "zai-b": NO_FACE, "zai-c": (64, "CAST_GATE unreadable: no frame could be read")}
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=lambda clip: answers[os.path.basename(os.path.dirname(clip))]))
+    v = tk.render(cast_state(state))
+    assert v["failed"] == ["a"], v
+    assert v["why"]["a"] == "a different person from the presenter, face similarity 0.05 under the gate's 0.30", v["why"]
+    assert v["flags"]["b"] == "CAST: no face found to match against the presenter. Look before shipping.", v["flags"]
+    assert v["flags"]["c"] == "CAST: the cast gate could not read this scene, so it needs a look", v["flags"]
+    gates = [(r["scene"], r["passed"], r.get("unreadable", False)) for r in tk.ledger.rows() if r.get("check") == "cast"]
+    assert gates == [("zai-a", False, False), ("zai-b", False, False), ("zai-c", False, True)], gates
+
+
+def test_a_cast_reading_its_exit_code_contradicts_is_no_reading(live, monkeypatch):
+    tk, _ = live
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=(0, OTHER[1])))
+    verdict, said, _ = tk.cast("reference.jpg", "clip.mp4")
+    assert verdict is None and "verdict=FAIL" in said, (verdict, said)
+
+
+def test_a_new_prompt_with_a_stranger_in_it_is_not_sent(live, monkeypatch):
+    """The board gate never reads a person's replacement prompt. One that names someone else would
+    render on the plain path, where no cast gate reads it back, so it is refused before any spend."""
+    tk, state = live
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    asked = dict(cast_state(state), changes={"scene": "a", "prompt": "A woman wipes the counter. Mouth closed, nobody speaks."})
+    v = tk.render(asked)
+    assert v["failed"] == ["a"] and "{presenter}" in v["why"]["a"], v
+    assert not vendor.posts(), "a prompt with a stranger in it was paid for"
+
+
+def test_every_scene_is_read_back_and_a_stranger_fails_where_no_word_named_one(live, monkeypatch):
+    """The board gate reads words, and a barista or a crowd is not one of them. So every scene is
+    read back against the presenter, not only the ones written with her. A face that is not hers
+    fails the scene, and a scene written without her that holds no face at all is what it should be."""
+    tk, state = live
+    monkeypatch.setattr(L, "http", Vendor())
+    stranger = (1, CG.line([0.05] * 8))
+    run = scripts(cast=lambda clip: stranger if "zai-b" in clip else (3, CG.line([])) if "zai-c" in clip else SAME)
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    board = dict(state, board=BOARD)
+    v = tk.render(board)
+    assert v["failed"] == ["b"] and "not the presenter" in v["why"]["b"], v
+    assert "c" not in v["flags"], "a scene with nobody in it was sent to the eye for having nobody in it"
+    read = [c[0][2] for c in calls_to(run, "gates/cast_gate.py") if c[0][1] != "--reference"]
+    assert len(read) == 3, f"scenes read back against the presenter: {read}"
+
+
+def test_a_stranger_behind_her_fails_the_scene_and_says_so(live, monkeypatch, tmp_path):
+    """Her face matched and a second person stood behind her. The scene fails, and the reason
+    names the second person rather than a mismatch that did not happen."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setattr(L, "http", Vendor())
+    behind = (1, CG.line([0.5] * 8, strangers=3))
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=lambda clip: behind if "zai-a" in clip else SAME))
+    v = tk.render(cast_state(state))
+    assert v["failed"] == ["a"] and v["why"]["a"].startswith("a second person on screen"), v
+
+
+def test_the_closer_must_be_the_presenter_the_scenes_were_held_to(live, monkeypatch, tmp_path):
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    os.makedirs(os.path.join(tk.takes, "zai-cast"))
+    open(os.path.join(tk.takes, "zai-cast", "reference.jpg"), "wb").write(b"a presenter's face")
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=OTHER))
+    v = tk.closer(cast_state(state))
+    assert v["pass"] is False and v["why"] == "the closer is not the presenter the scenes were rendered from", v
+    assert [r["passed"] for r in tk.ledger.rows() if r.get("check") == "cast"] == [False]
+    os.remove(os.path.join(tk.takes, "zai-av", "render.mp4"))
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=SAME))
+    assert tk.closer(cast_state(state))["pass"] is True
+    os.remove(os.path.join(tk.takes, "zai-av", "render.mp4"))
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=(64, "CAST_GATE unreadable: the reference holds no face")))
+    v = tk.closer(cast_state(state))
+    assert v["pass"] is False and v["unreadable"] is True, v

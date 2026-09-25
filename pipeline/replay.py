@@ -120,8 +120,14 @@ def _classify(shoot, file, line, d):
                      "Read it and add a rule rather than skipping it.")
 
 
+RECORDS = ("ledger.jsonl", "requests.jsonl", "landings.jsonl")
+
+
 def shoots():
-    return sorted(d for d in os.listdir(SHOOTS) if os.path.isdir(os.path.join(SHOOTS, d)))
+    """Every directory under shoots/ that holds a record, a graph run's ledger or the August
+    files. A directory with only a board in it has not run, so there is nothing to replay."""
+    return sorted(d for d in os.listdir(SHOOTS) if os.path.isdir(os.path.join(SHOOTS, d))
+                  and any(os.path.exists(os.path.join(SHOOTS, d, f)) for f in RECORDS))
 
 
 def is_graph_run(shoot):

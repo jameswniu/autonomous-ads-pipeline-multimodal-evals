@@ -1,6 +1,6 @@
 """Run one spot through the graph, or resume a run that is waiting for a person.
 
-    python -m pipeline.run --board shoots/ads7-real/boards.json --spot gemini --mode dry
+    python -m pipeline.run --board shoots/graph-zai-cast/boards.json --spot zai --mode dry
     python -m pipeline.run --board <boards.json> --spot <name> --mode live --run-dir shoots/<run>
     python -m pipeline.run --resume shoots/<run> --answer '{"verdict": "keep"}'
     python -m pipeline.run --resume shoots/<run> --from build --reason "<what was fixed>"
@@ -35,7 +35,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from pipeline.graph import answer_problem, compile_graph
-from pipeline.toolkit import ROOT, DryToolkit, load_spot
+from pipeline.toolkit import PLACEHOLDER, ROOT, DryToolkit, cast_ok, load_spot
 
 WAITING = 3
 
@@ -115,6 +115,9 @@ def check(packet, answer, meta):
     key = key[len(meta["spot"]) + 1:] if key.startswith(meta["spot"] + "-") else key
     if key not in scenes:
         return f"the answer asks for scene {answer['scene']!r}; this spot's scenes are {', '.join(sorted(scenes))}"
+    if answer.get("prompt") and not cast_ok(answer["prompt"]):
+        return (f"the new prompt shows a person with no {PLACEHOLDER}, and every person on screen is the presenter, "
+                f"so write {PLACEHOLDER} where she appears")
     return None
 
 

@@ -547,18 +547,43 @@ def dry(tmp_path, board, spot):
 
 
 def test_a_dry_run_stops_before_the_first_spend_and_prices_it(tmp_path):
-    out, rows = dry(tmp_path, "shoots/ads7-real/boards.json", "gemini")
+    """The Z.ai board with its student written as the presenter. Each scene would go to the
+    reference path with her face, and the prompt is August's own line with only the person
+    bound to that face, the guard after it verbatim."""
+    out, rows = dry(tmp_path, "shoots/graph-zai-cast/boards.json", "zai")
     assert out["trail"] == ["board", "render", "ledger"], out["trail"]
     assert out["outcome"] == "dry: stopped before the first spend"
     requests = [r for r in rows if r["kind"] == "request"]
-    assert requests and all(r["dry"] for r in requests)
+    assert len(requests) == 3 and all(r["dry"] for r in requests)
     assert all(r["request_id"].startswith("req_") for r in requests), "request ids are placeholders"
-    board = json.load(open(os.path.join(ROOT, "shoots/ads7-real/boards.json")))
-    first = board["spots"]["gemini"]["scenes"]["a"]
-    assert requests[0]["prompt"] == first + "\n\n" + board["guard"], (
-        "the dry run would send a different prompt than the one the August shoots sent")
+    assert {r["engine"] for r in requests} == {"google/gemini-omni-flash/reference-to-video"}, requests
+    august = json.load(open(os.path.join(ROOT, "shoots/ads8-real/boards.json")))
+    first = august["spots"]["zai"]["scenes"]["a"].replace("a student", "the woman in <IMAGE_REF_0>")
+    assert requests[0]["prompt"] == first + "\n\n" + august["guard"], (
+        "the dry run would send something other than the August line with the presenter bound to her face")
     est = [r for r in rows if r["kind"] == "estimate"][0]
     assert est["est_usd"] == round(sum(r["est_usd"] for r in requests), 2)
+
+
+def test_a_presenter_scene_on_an_engine_with_no_reference_path_is_refused_in_a_dry_run(tmp_path):
+    board = json.load(open(os.path.join(ROOT, "shoots/graph-zai-cast/boards.json")))
+    board["spots"]["zai"]["engine"] = "alibaba/wan-3.0/text-to-video"
+    path = tmp_path / "board.json"
+    path.write_text(json.dumps(board))
+    out, rows = dry(tmp_path / "run", str(path), "zai")
+    assert out["outcome"].startswith("dry: refused before any spend, alibaba/wan-3.0"), out["outcome"]
+    assert not [r for r in rows if r["kind"] == "request"], "a scene that cannot hold her face was priced anyway"
+
+
+def test_the_board_gate_sends_back_every_august_board_that_named_a_person(tmp_path):
+    """The Z.ai scenes named "a student", and the engine drew a different woman in each. A
+    person the board does not bind to the presenter now stops the run at the board, before
+    anything is paid for. Every August board with a person in a scene fails here."""
+    for board, spot in (("shoots/ads7-real/boards.json", "gemini"), ("shoots/ads8-real/boards.json", "zai")):
+        out, rows = dry(tmp_path / spot, board, spot)
+        assert out["trail"] == ["board", "ledger"], (spot, out["trail"])
+        gate = [r for r in rows if r["kind"] == "gate"][0]
+        assert "cast" in gate["failed"], gate
 
 
 def test_the_board_gate_refuses_a_board_that_shipped_in_august(tmp_path):
@@ -639,6 +664,21 @@ def test_the_cli_will_not_start_a_run_over_another(tmp_path, monkeypatch):
     assert open(os.path.join(run_dir, "run.json")).read() == meta, "a second start rewrote the first run's id"
     with pytest.raises(SystemExit):
         R.main(["--board", "b.json", "--spot", "s", "--from", "build"])
+
+
+def test_a_new_prompt_that_shows_a_stranger_is_refused_at_the_door():
+    """Every person on screen is the presenter. A replacement prompt that names someone else, or
+    says her with no {presenter}, is refused before the answer is used, and one written with
+    {presenter} goes through."""
+    import pipeline.run as R
+    meta = {"board": "shoots/graph-zai-cast/boards.json", "spot": "zai"}
+    packet = {"kind": "eye", "asked_by": "ad_gates", "flags": {}}
+    base = {"verdict": "reject", "cause": "scene", "scene": "a", "who": "t"}
+    for prompt in ("A woman wipes the counter. Mouth closed, nobody speaks.",
+                   "She wipes the counter. Mouth closed, nobody speaks."):
+        problem = R.check(packet, dict(base, prompt=prompt), meta)
+        assert problem and "{presenter}" in problem, (prompt, problem)
+    assert R.check(packet, dict(base, prompt="{presenter} wipes the counter. Mouth closed, nobody speaks."), meta) is None
 
 
 def test_an_answer_the_cli_cannot_act_on_is_refused_before_it_is_used(tmp_path, monkeypatch):

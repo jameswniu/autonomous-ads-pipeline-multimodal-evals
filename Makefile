@@ -111,7 +111,7 @@ figures: setup
 # the requests a live run would send and what they would cost, then stops, with no keys.
 dry: setup
 	@mkdir -p $(OUT)
-	set -o pipefail; $(PY) -m pipeline.run --board shoots/ads7-real/boards.json --spot gemini --mode dry \
+	set -o pipefail; $(PY) -m pipeline.run --board shoots/graph-zai-cast/boards.json --spot zai --mode dry \
 	  --run-dir $(OUT)/dry-$$(date +%s) | tee $(OUT)/dry.txt
 	@grep -q "outcome: dry: stopped before the first spend" $(OUT)/dry.txt
 	$(call summarize,Dry run through the graph,$(OUT)/dry.txt,outcome: dry)

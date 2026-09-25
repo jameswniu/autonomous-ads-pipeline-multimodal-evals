@@ -5,7 +5,8 @@ vendor, each through the repo's own scripts where one exists. gates/voice_take.s
 narration and gates/script_match.sh checks it says the script. guards/block_unpinned_identity.sh
 and guards/prop_gate.sh vet a closer render before anything is paid for, the voice included,
 and gates/jaw_gate.py rules on it after. gates/edge_clip_probe.py looks at every scene that
-comes back. shoots/build-ad.sh cuts the master, shoots/master.sh masters it, and
+comes back, and gates/cast_gate.py checks that a scene showing the presenter shows her, since a
+scene that names her is rendered from her reference face. shoots/build-ad.sh cuts the master, shoots/master.sh masters it, and
 gates/ad_gates.sh, guards/ship_gate.sh and gates/loudness_gate.py gate it.
 
 Every vendor request goes on the ledger before it is sent, with a real request id, the
@@ -24,10 +25,16 @@ What a live run needs in its environment, all checked before the graph starts:
                                 guard passes everything, so this toolkit refuses to run without it
   FILM2, BED                    the directory holding hit.mp3 and hit2.mp3, and this spot's bed
   FACEPY                        an interpreter with the face extra, for the jaw and mouth probes
+                                and the cast gate
+  PRESENTER_STILL               an image or clip of the presenter to cut her reference from when
+                                no closer take is reused. The reference comes from the CLOSER_FROM
+                                take first. A spot that shows her is refused with neither, and
+                                with either one every scene is read back against her face.
   CLOSER_FROM                   a directory holding an existing closer take to reuse, or else
   HEYGEN_API_KEY, CLOSER_LOOK_ID to render one. The REST API bills a wallet of its own, separate
                                 from a web plan's credits.
 """
+import base64
 import json
 import os
 import re
@@ -40,7 +47,8 @@ import urllib.request
 import uuid
 
 from pipeline.ledger import fingerprint, new_request_id, sha256
-from pipeline.toolkit import PRICE_PER_SCENE, ROOT, Toolkit, engine_for, load_spot, scene_prompt
+from pipeline.toolkit import (PLACEHOLDER, PRICE_PER_SCENE, REFERENCE_ENGINE, ROOT, Toolkit, cast_ok, cast_text,
+                              engine_for, has_cast, load_spot, scene_prompt)
 
 __all__ = ["LiveSetupError", "LiveToolkit", "fingerprint"]
 
@@ -52,7 +60,8 @@ ELEVEN = "https://api.elevenlabs.io"
 # 2026-09-23. The August raws are 16:9 and five seconds long, which the build crops to a
 # centre square and cuts to the narration. An engine with no entry is refused rather than
 # sent a guessed shape.
-ENGINE_INPUT = {"google/gemini-omni-flash": {"aspect_ratio": "16:9", "duration": 5}}
+ENGINE_INPUT = {"google/gemini-omni-flash": {"aspect_ratio": "16:9", "duration": 5},
+                "google/gemini-omni-flash/reference-to-video": {"aspect_ratio": "16:9", "duration": 5}}
 
 # The standing reason the ship gate's time-of-day check is waived on an ad, logged on every run.
 # The source: "a morning spot delivered at 1 am is not a claim about the clock." The replay check
@@ -65,6 +74,9 @@ AD_FICTION = "ad fiction, a spot's time of day is staged, not a claim"
 AD_GATES_LINE = re.compile(r"AD_GATES_RESULT caption=(\w+) drift=(\w+) mouth=(\w+)")
 MOUTH_LINE = re.compile(r"MOUTH SYNC \w+: corr (-?[0-9.]+) at lag ([-+]?[0-9.]+)s")
 JAW_LINE = re.compile(r"^JAW_GATE .*verdict=(PASS|FAIL|UNMEASURED)$", re.M)
+CAST_LINE = re.compile(r"^CAST_GATE faces=(?P<faces>\d+) sim=(?P<sim>-?[0-9.]+|nan) min=(?P<min>-?[0-9.]+|nan) "
+                       r"strangers=(?P<strangers>\d+) floor=(?P<floor>[0-9.]+) verdict=(?P<verdict>PASS|FAIL|NOFACE)\s*$",
+                       re.M)
 LOUDNESS_LINE = re.compile(r"^LOUDNESS_GATE .*verdict=(PASS|FAIL)$", re.M)
 SLIT_LINE = re.compile(r"^slit-scan: (.+?)\s*$", re.M)   # the rest of the line, so a path with a space still reads
 REPLAY_VERTEX = re.compile(r"^replay vertex: t=([0-9.]+)s$", re.M)
@@ -136,6 +148,12 @@ def duration(path):
         return round(float(r.stdout.strip()), 3)
     except ValueError:
         return None
+
+
+def held_back(code):
+    """Whether a refused result fetch is one that waiting can change: a locked or unpaid account, a
+    rate limit, or the vendor's own error. A 404 or a 410 means the result is gone."""
+    return code in (401, 402, 403, 408, 425, 429) or 500 <= code < 600
 
 
 def frame_size(path):
@@ -232,11 +250,12 @@ class LiveToolkit(Toolkit):
         os.makedirs(d, exist_ok=True)
         return d
 
-    def script(self, *args, env=None, drop=(), timeout=1800):
+    def script(self, *args, env=None, drop=(), timeout=1800, python=None):
         """Run a repo script. Its own python3 calls resolve to this interpreter's environment,
         which has the probe dependencies, rather than whatever python3 is first on the PATH.
-        `drop` keeps a variable in the caller's shell from reaching a script that would read it."""
-        cmd = [sys.executable, *args] if args[0].endswith(".py") else ["bash", *args]
+        `drop` keeps a variable in the caller's shell from reaching a script that would read it.
+        `python` runs a Python script under another interpreter, the face extra's for the cast gate."""
+        cmd = [python or sys.executable, *args] if args[0].endswith(".py") else ["bash", *args]
         path = os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", "")
         base = {k: v for k, v in os.environ.items() if k not in drop}
         return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=timeout,
@@ -339,16 +358,81 @@ class LiveToolkit(Toolkit):
             return self.clean(found.group(0))
         return f"EDGE CLIP: the edge probe could not read this scene (exit {r.returncode}), so it needs a look"
 
+    def cast(self, reference, clip):
+        """The cast gate on one clip against the presenter's reference: PASS, FAIL or NOFACE, or
+        None when it gave no reading its exit code agrees with, and the line it printed."""
+        r = self.script("gates/cast_gate.py", reference, clip, python=os.environ.get("FACEPY", sys.executable),
+                        timeout=900)
+        m = CAST_LINE.search(r.stdout)
+        if not m or {"PASS": 0, "FAIL": 1, "NOFACE": 3}[m["verdict"]] != r.returncode:
+            return None, self.clean((r.stdout + r.stderr).strip()[-300:]), None
+        return m["verdict"], self.clean(m.group(0)), m
+
+    def presenter_reference(self, spot):
+        """The presenter's face for this spot's scenes, cut once per run and kept with the takes.
+        It comes from the closer take the run reuses, so the scenes are held to the face the
+        closer shows, and from PRESENTER_STILL when the closer is still to be rendered. It is
+        resolved before any scene is paid for."""
+        out = os.path.join(self.dir(f"{spot}-cast"), "reference.jpg")
+        if os.path.isfile(out):
+            return out
+        still, closer_dir = os.environ.get("PRESENTER_STILL", ""), os.environ.get("CLOSER_FROM", "")
+        if closer_dir:
+            src, source = os.path.join(closer_dir, "render.mp4"), "closer take"
+        elif still:
+            src, source = still, "still"
+        else:
+            raise LiveSetupError("a spot that shows the presenter needs her face: set PRESENTER_STILL, or CLOSER_FROM "
+                                 "to a closer take")
+        if not os.path.isfile(src):
+            raise LiveSetupError(f"the presenter's {source} named in the environment is not a file")
+        r = self.script("gates/cast_gate.py", "--reference", src, out, python=os.environ.get("FACEPY", sys.executable),
+                        timeout=900)
+        if r.returncode != 0 or not os.path.isfile(out):
+            raise LiveSetupError(f"no face could be cut from the presenter's {source}, so her scenes cannot be held to her")
+        self.ledger.append("landing", "render", spot=spot, status="OK", file=self.rel(out), sha256=sha256(out),
+                           source=source, note="the presenter's reference")
+        return out
+
+    def cast_check(self, spot, s, reference, raw, failed, why, flags, shows_presenter=True):
+        """Read one scene back against the presenter. Every scene is read, because a person the
+        board never named, a barista or a crowd, is still a person on screen. A face that is not
+        hers fails the scene, which re-rolls it once. No face is expected in a scene written
+        without her, and anywhere else goes to the eye as a flag, like a scene with no reading."""
+        verdict, reading, m = self.cast(reference, raw)
+        extra = {"unreadable": True} if verdict is None else {}
+        self.ledger.append("gate", "render", spot=spot, scene=f"{spot}-{s}", check="cast", passed=verdict == "PASS",
+                           reading=reading, **extra)
+        if verdict == "FAIL":
+            failed.append(s)
+            who = "a different person from the presenter" if shows_presenter else "a person on screen who is not the presenter"
+            if int(m["strangers"]) and float(m["sim"]) >= float(m["floor"]):
+                why[s] = f"a second person on screen who is not the presenter, in {m['strangers']} of the frames read"
+            else:
+                why[s] = f"{who}, face similarity {m['sim']} under the gate's {m['floor']}"
+        elif verdict == "NOFACE" and shows_presenter:
+            flags[s] = "CAST: no face found to match against the presenter. Look before shipping."
+        elif verdict is None:
+            flags[s] = "CAST: the cast gate could not read this scene, so it needs a look"
+
     def earlier(self, spot, scene, prompt):
         """This run's last request for this scene with this prompt: its id, what the vendor
         answered, and whether it is still owed, sent and never landed or timed out."""
         asked = [r for r in self.rows("request", step="render", scene=f"{spot}-{scene}") if r.get("prompt") == prompt]
+        # A request the vendor refused never became a job. It is not owed, and it hides nothing
+        # about the one sent before it, which may be a finished render still to collect.
+        refused = {r["request_id"] for r in self.rows("landing", status="REFUSED")}
+        asked = [r for r in asked if r["request_id"] not in refused] or asked[-1:]
         if not asked:
             return None
         rid = asked[-1]["request_id"]
         queued = self.rows("queued", request_id=rid)
         landed = self.rows("landing", request_id=rid)
         status = landed[-1]["status"] if landed else None
+        # Rows written before UNCOLLECTED covered a held-back result logged one as FAILED, with the
+        # vendor's non-2xx code beside it. That render finished too, so it is owed the same way.
+        if status == "FAILED" and queued and held_back(landed[-1].get("http") or 200):
+            status = "UNCOLLECTED"
         handle = (rid, queued[-1]["vendor_id"], queued[-1]["status_url"], queued[-1]["response_url"]) if queued else None
         # Sent, and the vendor never said whether it took it: the POST failed on the network, came
         # back with no id, or the process died before the answer was written down.
@@ -376,8 +460,31 @@ class LiveToolkit(Toolkit):
         # A person who re-enters the run after an unconfirmed request has checked the vendor and
         # chosen to send again, so only a request sent after the last re-entry holds a scene back.
         reentered = max([r["seq"] for r in self.rows("resumed")] or [0])
-        prompts = {s: scene_prompt(board, changes["prompt"] if asked == s and changes.get("prompt") else scenes[s])
-                   for s in todo}
+        texts = {s: changes["prompt"] if asked == s and changes.get("prompt") else scenes[s] for s in todo}
+        # The board gate holds the board's lines to this rule. A person's new prompt from the eye meets
+        # it here, before anything is paid for, since a stranger in it would render where no cast
+        # gate reads it.
+        stranger = [asked] if asked and changes.get("prompt") and not cast_ok(changes["prompt"]) else []
+        if stranger:
+            return {"failed": stranger, "why": {s: f"the prompt shows a person with no {PLACEHOLDER}" for s in stranger},
+                    "flags": {}, "rendered": [], "fresh": [], "unconfirmed": []}
+        cast = {s: PLACEHOLDER in texts[s] for s in todo}
+        engines = {s: REFERENCE_ENGINE.get(engine) if cast[s] else engine for s in todo}
+        if any(cast.values()) and REFERENCE_ENGINE.get(engine) not in ENGINE_INPUT:
+            raise LiveSetupError(f"{engine} has no reference path here, so a scene that shows the presenter "
+                                 "cannot be held to her face")
+        # The presenter's face is resolved before anything is paid for. It is sent with every scene
+        # that shows her, because a text prompt cannot hold a face. Whenever a face source is set,
+        # every scene is read back against it, since a person the board never named is still a
+        # person on screen. A spot with nobody written in it and no face source runs without it.
+        wanted = any(cast.values()) or os.environ.get("CLOSER_FROM") or os.environ.get("PRESENTER_STILL")
+        reference = self.presenter_reference(spot) if wanted else None
+        ref_uri = ref_sha = None
+        if any(cast.values()):
+            with open(reference, "rb") as fh:
+                ref_uri = "data:image/jpeg;base64," + base64.b64encode(fh.read()).decode()
+            ref_sha = sha256(reference)
+        prompts = {s: scene_prompt(board, cast_text(spot_def, texts[s]) if cast[s] else texts[s]) for s in todo}
         befores = {s: self.earlier(spot, s, prompts[s]) for s in todo}
         # A request that may already have been billed holds every new request in the pass, and the
         # narration, until a person has looked at the vendor's queue.
@@ -402,17 +509,21 @@ class LiveToolkit(Toolkit):
                 flag = self.edge(raw)
                 if flag:
                     flags[s] = flag
+                if reference:
+                    self.cast_check(spot, s, reference, raw, failed, why, flags, shows_presenter=cast[s])
                 continue
             if held or unconfirmed:
                 why[s] = "not sent, a request that may have been billed is waiting for a person"
                 continue
-            rid = new_request_id()
-            self.ledger.append("request", "render", request_id=rid, spot=spot, scene=f"{spot}-{s}", engine=engine,
-                               prompt=prompt, params=ENGINE_INPUT[engine], est_usd=PRICE_PER_SCENE.get(engine),
+            rid, eng = new_request_id(), engines[s]
+            self.ledger.append("request", "render", request_id=rid, spot=spot, scene=f"{spot}-{s}", engine=eng,
+                               prompt=prompt, params=ENGINE_INPUT[eng], est_usd=PRICE_PER_SCENE.get(eng),
+                               **({"reference_sha256": ref_sha} if cast[s] else {}),
                                why=changes.get("reason") if asked == s else (last.get("why") or {}).get(s),
                                prompt_reused=bool(before), asked_by_person=asked == s)
-            code, data = http("POST", f"{FAL}/{engine}", {**auth, "Content-Type": "application/json"},
-                              json.dumps({"prompt": prompt, **ENGINE_INPUT[engine]}).encode())
+            body = {"prompt": prompt, **ENGINE_INPUT[eng], **({"image_urls": [ref_uri]} if cast[s] else {})}
+            code, data = http("POST", f"{FAL}/{eng}", {**auth, "Content-Type": "application/json"},
+                              json.dumps(body).encode())
             j = as_json(data)
             if code == 0 or (200 <= code < 300 and "request_id" not in j):
                 # The vendor may have taken it. Sending again could pay twice, so a person checks.
@@ -453,8 +564,25 @@ class LiveToolkit(Toolkit):
                 failed.append(s)
                 why[s] = "the engine rejected the output"
                 continue
+            if held_back(code):
+                # The status said COMPLETED, so the render exists and is billed. A result the vendor
+                # holds back for now, behind a locked account, a rate limit or its own error, is
+                # collected on the next pass. Recorded as FAILED it was sent again, paying twice.
+                self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="UNCOLLECTED",
+                                   http=code, during="result", error=self.clean(data.decode(errors="replace")[:600]))
+                failed.append(s)
+                why[s] = "the finished video was held back by the vendor"
+                continue
+            if not 200 <= code < 300:
+                # Gone, a 404 or any other refusal that waiting will not change. Nothing is left to
+                # collect, so the scene is sent again rather than waited on forever.
+                self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="FAILED", http=code,
+                                   during="result", error=self.clean(data.decode(errors="replace")[:600]))
+                failed.append(s)
+                why[s] = "the finished video is gone from the vendor"
+                continue
             url = (as_json(data).get("video") or {}).get("url")
-            if not 200 <= code < 300 or not url:
+            if not url:
                 self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="FAILED", http=code,
                                    error=self.clean(data.decode(errors="replace")[:600]))
                 failed.append(s)
@@ -476,6 +604,8 @@ class LiveToolkit(Toolkit):
             self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="OK",
                                file=self.rel(raw), sha256=sha256(raw), bytes=os.path.getsize(raw), seconds=duration(raw),
                                edge_clip=flag or "clean")
+            if reference:
+                self.cast_check(spot, s, reference, raw, failed, why, flags, shows_presenter=cast[s])
 
         verdict = {"failed": failed, "why": why, "flags": flags, "rendered": todo, "fresh": fresh,
                    "unconfirmed": unconfirmed}
@@ -540,6 +670,16 @@ class LiveToolkit(Toolkit):
         v = {"pass": passed, "jaw": reading, "artifacts": {"closer": render, "closer_inputs": inputs}}
         if unreadable:
             v["unreadable"] = True
+        reference = os.path.join(self.takes, f"{spot}-cast", "reference.jpg")
+        if has_cast(spot_def) and os.path.isfile(reference):
+            # The scenes were held to this face, so the closer must be the same person.
+            verdict, said, _ = self.cast(reference, render)
+            self.ledger.append("gate", "closer", spot=spot, check="cast", passed=verdict == "PASS", reading=said,
+                               source=source, **({"unreadable": True} if verdict is None else {}))
+            if verdict is None:
+                v.update(unreadable=True, **{"pass": False})
+            elif verdict != "PASS":
+                v.update(why="the closer is not the presenter the scenes were rendered from", **{"pass": False})
         return v
 
     def owed_closer(self, spot, look, engine):
