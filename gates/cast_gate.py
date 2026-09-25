@@ -5,10 +5,10 @@
     cast_gate.py --reference <closer.mp4 | image> <out.jpg>  cut the presenter's reference
 
 Every human on screen is the same presenter. A text prompt cannot hold a face. The Z.ai spot's
-three scenes, shot from one board in August and again through the graph, show six different women
-and none of them is the presenter, because each scene named only "a student" and the engine drew a
-new one every time. So a scene that shows the presenter is rendered from her reference, and this
-gate reads the result back before anything is built from it.
+three scenes were shot from one board in August and again through the graph, and none of the six
+students is the presenter, because each scene named only "a student" and the engine drew its own.
+So a scene that shows the presenter is rendered from her reference, and this gate reads the result
+back before anything is built from it.
 
 The face in each of FRAMES frames is the largest one insightface (buffalo_l) finds, and the verdict
 is on the mean cosine similarity of those faces to the reference face. Every other face in the frame
@@ -16,10 +16,12 @@ is read too, since a stranger behind her is still a person on screen. One at lea
 frame's height that falls under the floor in STRANGER_FRAMES frames or more fails the scene. The two
 bounds keep a poster, a reflection or one glitched frame from reading as a person.
 
-CAST_MIN is AUTHORED, from a measurement rather than a labelled pair (2026-09-24, against a single
-reference still cut from the Z.ai closer). The six scene students averaged 0.16 at the most. Her
-own closers from ten other spots averaged 0.44 at the least, and a scene rendered from her
-reference averaged 0.46. The floor sits halfway across that gap.
+CAST_MIN is AUTHORED, from a measurement rather than a labelled pair. It was set on 2026-09-24
+halfway across a gap measured against an earlier crop of the Z.ai closer, where the six students
+averaged 0.16 at the most, her own closers from ten other spots 0.44 at the least, and a scene
+rendered from her reference 0.46. Against the reference this gate cuts from the same closer, the
+students average 0.12 at the most, her closers 0.42 at the least, and two scenes rendered from it
+0.42 and 0.53, so the floor sits inside the gap, nearer her side.
 
 Exit 0 PASS, 1 FAIL, 3 NOFACE when no sampled frame holds a face, 64 when the reference holds no
 face or a file cannot be read. The machine line is always the last line printed.

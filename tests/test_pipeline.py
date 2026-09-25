@@ -535,6 +535,20 @@ def test_the_ledger_refuses_a_field_that_would_overwrite_its_own(tmp_path):
     assert ledger.rows() == [], "a refused row was written"
 
 
+def test_every_kind_a_committed_graph_run_wrote_is_in_the_schema():
+    """pipeline/SCHEMA.md says what every row is. A kind on a committed graph run's ledger that
+    its Kinds table does not list is a row nobody can read, a correction by hand included."""
+    import glob
+    import re
+    schema = open(os.path.join(ROOT, "pipeline", "SCHEMA.md")).read()
+    documented = set(re.findall(r"^\| `([a-z_]+)` \|", schema.split("## Kinds", 1)[1].split("### ", 1)[0], re.M))
+    ledgers = glob.glob(os.path.join(ROOT, "shoots", "*", "ledger.jsonl"))
+    assert ledgers, "no committed graph run to read"
+    for path in ledgers:
+        written = {json.loads(line)["kind"] for line in open(path) if line.strip()}
+        assert written <= documented, (os.path.relpath(path, ROOT), sorted(written - documented))
+
+
 # dry runs on the committed boards
 
 def dry(tmp_path, board, spot):
@@ -576,7 +590,7 @@ def test_a_presenter_scene_on_an_engine_with_no_reference_path_is_refused_in_a_d
 
 
 def test_the_board_gate_sends_back_every_august_board_that_named_a_person(tmp_path):
-    """The Z.ai scenes named "a student", and the engine drew a different woman in each. A
+    """The Z.ai scenes named "a student", and the engine never drew her. A
     person the board does not bind to the presenter now stops the run at the board, before
     anything is paid for. Every August board with a person in a scene fails here."""
     for board, spot in (("shoots/ads7-real/boards.json", "gemini"), ("shoots/ads8-real/boards.json", "zai")):

@@ -20,6 +20,14 @@ Z.ai, from the ads8 board, shot live with three Omni scenes, a fresh narration d
 
 A review of the code then found two things the run had got past. The ship gate had waived a replay it found at 20 seconds with nobody reading it, and the render had never shown anyone the two scenes its edge probe flagged. Both now go to the eye, and the run was re-entered for them at no cost, since every scene, the narration and the closer were already held. It is waiting at the eye for a person to look at those two scenes. After that the ship gate runs on the rebuilt master, and a replay it finds there goes to the eye as well.
 
+## The presenter in every scene
+
+When I watched that cut, the student in its three scenes was not the presenter who closes the spot, and the August run of the same spot had done the same. Every scene named "a student", and a text prompt cannot hold a face, so the engine drew its own student. Read against a reference the gate cuts from her closer, the six students from the two runs average 0.12 at the most, and her closers from ten other spots average 0.42 at the least.
+
+The rule now is that every person on screen is her. A board writes `{presenter}` where she appears, and [`gates/board_probe.py`](../gates/board_probe.py) sends back a scene that names anyone else. A scene that shows her is rendered on Omni's reference path from that reference, at the same price per scene. Whenever the run has her face, and a spot that shows her always does, [`gates/cast_gate.py`](../gates/cast_gate.py) reads every scene back against it. It refuses a scene under 0.30, or one with a second person in it who is not her, and it checks the closer the same way. A prompt rewritten at the eye meets the board's check before anything is rendered from it.
+
+The re-shoot is [`shoots/graph-zai-cast`](../shoots/graph-zai-cast/ledger.jsonl). Its first scene came back as her, at 0.53. The fal account ran out of credit as the scenes went out. The third was refused, the second rendered and was held back, then dropped by the vendor, and later re-sends were refused or closed within a second on the lock without rendering. The ledger records each, and a job the vendor has dropped is confirmed gone twice before its scene is sent again. It is waiting on a top-up for the last two scenes. The first run stays where it stopped, at the eye, as the cut that showed the problem.
+
 ## What is mine and what the agent did
 
 I wrote the doctrine, chose every gate and probe and the threshold each one enforces, and graded the exemplars those thresholds are derived from. The agent ran the August shoots from that doctrine, drafted the boards and prompts, and kept the ledgers. The code here was written with Claude Code, under my direction and my review, and each change went through an adversarial review before it landed.

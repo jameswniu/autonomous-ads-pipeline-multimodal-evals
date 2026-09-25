@@ -56,7 +56,7 @@ A ledger the graph wrote, shoots/<run>/ledger.jsonl, is read by what it says of 
 close, waiting and crashed row carries the trail the run had taken, and each step to the next
 in each of those trails is a move, so every stint of a resumed run is checked. A close or a
 crash is a stop. A resumed row is a person re-entering the run by hand, which the graph does
-not do, so it is listed as a re-entry and its trail is not read. A redacted row is a note. A
+not do, so it is listed as a re-entry and its trail is not read. A redacted or corrected row is a note. A
 delivery with no ship-gate pass before it, a local path, and an identity id where its sha256:
 fingerprint belongs are divergences.
 
@@ -153,7 +153,7 @@ def replay_graph_run(shoot, edges=None):
     step to the next in each of those trails is a move, so a run that stopped and was resumed
     is checked on every stint and not only its last. A close or a crash is a stop. A resumed
     row is a person re-entering the run by hand, which the graph does not do, so it is listed
-    as a re-entry and its trail is not read as moves. A redacted row is a note. What the run
+    as a re-entry and its trail is not read as moves. A redacted or corrected row is a note. What the run
     never recorded is checked against what pipeline/SCHEMA.md says every run writes, over
     every step any of its trails reached.
     """
@@ -209,7 +209,8 @@ def replay_graph_run(shoot, edges=None):
     last = ends[-1] if ends else {}
     return {"rows": len(rows), "kinds": collections.Counter(r["kind"] for r in rows), "moves": moves,
             "unmapped": [m for m in moves if (m[0], m[1]) not in allowed], "divergences": divergences,
-            "over_bound": [], "notes": [f"seq {r['seq']}: {r.get('what')}" for r in rows if r["kind"] == "redacted"],
+            "over_bound": [], "notes": [f"seq {r['seq']}: {r.get('what')}" for r in rows
+                                        if r["kind"] in ("redacted", "corrected")],
             "never": never, "graph": True, "stops": sum(1 for r in rows if r["kind"] in ("close", "crashed")),
             "reentries": reentries, "trail": last.get("trail") or [], "end": last.get("kind"),
             "waiting": last["step"] if last.get("kind") == "waiting" else None,

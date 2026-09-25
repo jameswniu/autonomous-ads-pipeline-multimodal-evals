@@ -601,13 +601,15 @@ class LiveToolkit(Toolkit):
                 why[s] = "the engine rejected the output"
                 continue
             if held_back(code):
-                # The status said COMPLETED, so the render exists and is billed. A result the vendor
-                # holds back for now, behind a locked account, a rate limit or its own error, is
-                # collected on the next pass. Recorded as FAILED it was sent again, paying twice.
+                # The status said COMPLETED, so the render may exist and may be billed. A result the
+                # vendor holds back for now, behind a locked account, a rate limit or its own error,
+                # is collected on the next pass. Recorded as FAILED it was sent again, paying twice.
+                # A locked account also closes a job it never ran this way, a second after the POST,
+                # and drops it later, which the next pass confirms before it sends the scene again.
                 self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="UNCOLLECTED",
                                    http=code, during="result", error=self.clean(data.decode(errors="replace")[:600]))
                 failed.append(s)
-                why[s] = "the finished video was held back by the vendor"
+                why[s] = "the video was held back by the vendor"
                 continue
             if not 200 <= code < 300:
                 # Gone, a 404 or any other refusal that waiting will not change. Nothing is left to

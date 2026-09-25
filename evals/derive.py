@@ -96,7 +96,7 @@ GATES = [
     # committed, so it counts AUTHORED until one is.
     ("jaw_gate",         "JAW_MAX",        "jaw_rubber",      CEILING, 1.0,  True),
     # gates/cast_gate.py, which refuses a scene whose person is not the presenter. The floor
-    # sits halfway across a measured gap between strangers and her own takes, and no labelled
+    # sits inside a measured gap between strangers and her own takes, and no labelled
     # pair on the face axis is committed, so it counts AUTHORED until one is.
     ("cast_gate",        "CAST_MIN",       "face_similarity", FLOOR,   1.0,  True),
 ]

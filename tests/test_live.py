@@ -893,7 +893,7 @@ def closer_take(tmp_path, line=CLOSER):
 
 
 def test_a_scene_that_shows_the_presenter_is_rendered_from_her_face(live, monkeypatch, tmp_path):
-    """The Z.ai scenes named "a student" and came back as a different woman each time. A scene
+    """The Z.ai scenes named "a student" and never came back as her. A scene
     that writes {presenter} goes to the reference path with her face, the request row names that
     face by hash and never carries the image, and a scene with nobody in it stays on the plain
     path. The face is read back with the face extra's interpreter, on a reused take too."""

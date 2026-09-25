@@ -36,7 +36,7 @@ PRICE_PER_SCENE = {
 
 # Every person on screen is the presenter. A board writes {presenter} where she appears, and a
 # scene that does is rendered from her reference on the engine's reference path, because a text
-# prompt cannot hold a face: the Z.ai scenes, written "a student", came back as six different women.
+# prompt cannot hold a face: the Z.ai scenes, written "a student", never came back as her.
 PLACEHOLDER = "{presenter}"
 REFERENCE_ENGINE = {"google/gemini-omni-flash": "google/gemini-omni-flash/reference-to-video"}
 

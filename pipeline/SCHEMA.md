@@ -36,6 +36,7 @@ The August ledgers under `shoots/<batch>/` were written by hand by the agent tha
 | `crashed` | The run command, when a step raises instead of returning | `error` and `trail`, ending at the step that raised, or `?` when no next step was known |
 | `close` | Ledger | `spot`, `outcome`, `trail`, `because` (the verdict that ended the run) and `artifacts` |
 | `redacted` | A person, by hand, never the graph | `seqs`, the seq numbers of the rows that changed, `what`, one sentence saying what was replaced with what, and `by`, who did it |
+| `corrected` | A person, by hand, never the graph | `seqs`, the seq numbers of the rows it corrects, which stay as written, `what`, one sentence saying what they got wrong and what is true, and `by`, who did it |
 
 ### Landing statuses
 
@@ -48,11 +49,13 @@ The August ledgers under `shoots/<batch>/` were written by hand by the agent tha
 | `FAILED` | A voice draw produced no take, a read-back or an audio upload came back with a non-2xx status, a render came back with no video, its finished result was gone at the vendor, or the vendor no longer had the job at all (`during: status`), a closer render was explicitly reported failed, or a build script or its mastering pass failed |
 | `TIMEOUT` | Polling a render or a closer render never reached a finished state before the wait limit. The request is still owed, so the next pass polls it again instead of sending another |
 | `UNCONFIRMED` | A scene or closer render was sent and the vendor never confirmed taking it, the POST failed on the network or came back with no id. It may have been billed, so it is never sent again on its own, the run stops, and a request with no queued row and no landing counts the same way. A person who re-enters the run after it has chosen to send again |
-| `UNCOLLECTED` | A render or a closer render finished at the vendor and its file could not be fetched or downloaded for now, behind a locked account, a rate limit or the vendor's own error. Owed the same way, collected on the next pass and never paid for twice. A render row written before this covered held-back results says FAILED with one of those codes beside it, and is owed the same way |
+| `UNCOLLECTED` | A render or a closer render the vendor called finished, whose file could not be fetched or downloaded for now, behind a locked account, a rate limit or the vendor's own error. A locked account closes a job it never ran the same way, a second after it was sent, so the render may not exist. Owed the same way, collected on the next pass, and never sent again while the vendor still has the job. A render row written before this covered held-back results says FAILED with one of those codes beside it, and is owed the same way |
 
 The eye and the review nest the person's whole answer under `answer`, scrubbed like everything else, because a key inside it, `spot` or `step` among them, could otherwise collide with the row's own fields. `preset` is true on both when the answer came from a preset rather than a person typing one in.
 
 No written row is ever changed in place, with one sanctioned exception. A person may correct what an earlier row exposed, and records the correction as a `redacted` row of its own, appended like every other row, never an edit to the row it corrects. It was used once, in `shoots/graph-zai/ledger.jsonl`, to remove local paths a few rows had captured before that ledger's first commit.
+
+A row that says something false is left as written, and a person appends a `corrected` row naming it and saying what is true. It was used once, in `shoots/graph-zai-cast/ledger.jsonl`, for a re-entry that said the vendor account had been topped up when it had not.
 
 No identity id is ever written. A value under the keys `look`, `avatar`, `avatar_id`, `voice` or `voice_id`, at any depth in an answer or a verdict, is written as its fingerprint instead, `sha256:` plus twelve hex characters (`fingerprint` in `pipeline/ledger.py`). A fingerprint hides the id itself but still shows when two rows used the same one, which is fine because an id is useless without the account key it belongs to.
 

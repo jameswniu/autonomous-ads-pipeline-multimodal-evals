@@ -122,7 +122,7 @@ def _cast_check(tmp_path, scene):
 
 def test_board_probe_sends_back_a_person_who_is_not_the_presenter(tmp_path):
     """Every person on screen is the presenter, written {presenter} where she appears. The Z.ai
-    scenes wrote "a student", and the engine drew a different woman in each of them."""
+    scenes wrote "a student", and none of the six students the engine drew was her."""
     assert _cast_check(tmp_path, "{presenter} sits at a desk, her mug beside her.") is True
     assert _cast_check(tmp_path, "A tiny studio where a student sits at a desk.") is False, "a student passed"
     assert _cast_check(tmp_path, "The room grows around her desk.") is False, "a pronoun with no presenter passed"

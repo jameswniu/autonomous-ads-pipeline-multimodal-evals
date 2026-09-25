@@ -253,6 +253,20 @@ def test_a_resumed_row_is_a_reentry_by_hand(tmp_path, monkeypatch):
     assert {m[2] for m in res["moves"]} == {f"shoots/doctored/ledger.jsonl:{seq}" for seq in (1, 3, 5, 7)}
 
 
+def test_a_redacted_or_corrected_row_is_a_note_and_never_a_move(tmp_path, monkeypatch):
+    """A person's hand edit and a person's correction of a false row are both printed with the
+    replay, so the record of what was wrong is never silent, and neither is read as a move."""
+    res = _graph_run(tmp_path, monkeypatch, [
+        {"kind": "resumed", "step": "render", "reason": "the account was topped up", "trail": ["board"]},
+        {"kind": "redacted", "step": "ledger", "seqs": [1], "what": "a path was replaced", "by": "the author"},
+        {"kind": "corrected", "step": "ledger", "seqs": [1], "what": "row 1 was wrong, the account was locked",
+         "by": "the author"},
+        {"kind": "close", "step": "ledger", "trail": ["board", "render", "ledger"]},
+    ])
+    assert res["notes"] == ["seq 2: a path was replaced", "seq 3: row 1 was wrong, the account was locked"]
+    assert {m[2] for m in res["moves"]} == {"shoots/doctored/ledger.jsonl:4"}
+
+
 def test_every_recorded_transition_is_a_graph_edge(results):
     unmapped = [m for res in results.values() for m in res["unmapped"]]
     assert not unmapped, unmapped
