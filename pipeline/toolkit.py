@@ -34,10 +34,15 @@ PRICE_PER_SCENE = {
     "bytedance/seedance-2.0/text-to-video": 1.00,
 }
 
-# Every person on screen is the presenter. A board writes {presenter} where she appears, and a
-# scene that does is rendered from her reference on the engine's reference path, because a text
-# prompt cannot hold a face: the Z.ai scenes, written "a student", never came back as her.
-PLACEHOLDER = "{presenter}"
+# A story has one character, and every scene holds her to the same face. A board writes
+# {character} where she appears, and a scene that does is rendered from her reference on the
+# engine's reference path, because a text prompt cannot hold a face: the Z.ai scenes, written
+# "a student", came back as a different girl from one scene to the next. The narrator is never
+# in a scene, only in the closer.
+PLACEHOLDER = "{character}"
+# How a board wrote the narrator into a scene before the story had its own character. The narrator
+# appears only in the closer, so a scene carrying this is never sent.
+NARRATOR = "{presenter}"
 REFERENCE_ENGINE = {"google/gemini-omni-flash": "google/gemini-omni-flash/reference-to-video"}
 
 # Keys whose values are identities, at any depth in an answer or a verdict. The ledger gets
@@ -59,7 +64,7 @@ def engine_for(board, spot_def):
 
 
 def has_cast(spot_def):
-    """Whether any scene of the spot shows the presenter."""
+    """Whether any scene of the spot shows the story's character."""
     return any(PLACEHOLDER in text for text in (spot_def.get("scenes") or {}).values())
 
 
@@ -72,14 +77,15 @@ def _board_rules():
 
 
 def cast_ok(text):
-    """The board gate's rule for one line of scene text: every person on screen is the presenter,
-    written {presenter}. A person's new prompt from the eye is held to it as the board's lines are."""
+    """The board gate's rule for one line of scene text: every person in a scene is the story's
+    character, written {character}, and never the narrator. A person's new prompt from the eye is
+    held to it as the board's lines are."""
     return _board_rules().cast_ok(text)
 
 
 def cast_text(spot_def, text):
-    """A scene line with the presenter bound to the first reference image the engine is sent."""
-    return text.replace(PLACEHOLDER, f"the {spot_def.get('presenter_noun', 'person')} in <IMAGE_REF_0>")
+    """A scene line with the character bound to the first reference image the engine is sent."""
+    return text.replace(PLACEHOLDER, f"the {spot_def.get('character_noun', 'person')} in <IMAGE_REF_0>")
 
 
 def scene_prompt(board, scene_text):
@@ -207,7 +213,7 @@ class DryToolkit(Toolkit):
             if PLACEHOLDER in text:
                 eng = REFERENCE_ENGINE.get(engine)
                 if eng is None:
-                    refused[key] = f"{engine} has no reference path, so scene {key} cannot hold the presenter's face"
+                    refused[key] = f"{engine} has no reference path, so scene {key} cannot hold the character's face"
                     continue
                 text = cast_text(spot_def, text)
             price = PRICE_PER_SCENE.get(eng)

@@ -1,30 +1,42 @@
 #!/usr/bin/env python3
-"""cast_gate.py: is the person in a scene the presenter?
+"""cast_gate.py: is the person in a scene the story's character?
 
-    cast_gate.py <reference image> <scene.mp4>             one verdict line for the scene
-    cast_gate.py --reference <closer.mp4 | image> <out.jpg>  cut the presenter's reference
+    cast_gate.py <reference image> <scene.mp4 | image> [--not <other reference>]   one verdict line
+    cast_gate.py --reference <clip | image> <out.jpg>                             cut a reference
 
-Every human on screen is the same presenter. A text prompt cannot hold a face. The Z.ai spot's
-three scenes were shot from one board in August and again through the graph, and none of the six
-students is the presenter, because each scene named only "a student" and the engine drew its own.
-So a scene that shows the presenter is rendered from her reference, and this gate reads the result
-back before anything is built from it.
+A story has one character, and she stays the same girl in every scene. She is never the narrator,
+who appears only in the closer. A text prompt cannot hold a face. The Z.ai spot's three scenes,
+shot from one board in August and again through the graph, named only "a student", so the engine
+drew its own student each time and the girl changed between scenes. A scene that shows the
+character is rendered from her reference, and this gate reads the result back before anything is
+built from it.
 
 The face in each of FRAMES frames is the largest one insightface (buffalo_l) finds, and the verdict
 is on the mean cosine similarity of those faces to the reference face. Every other face in the frame
 is read too, since a stranger behind her is still a person on screen. One at least MIN_FACE of the
 frame's height that falls under the floor in STRANGER_FRAMES frames or more fails the scene. The two
-bounds keep a poster, a reflection or one glitched frame from reading as a person.
+bounds keep a poster, a reflection or one glitched frame from reading as a person. With --not, the
+main faces are also read against a second reference, the narrator's, and a scene that reads at least
+as close to her as to the character fails, whatever the floor says.
 
-CAST_MIN is AUTHORED, from a measurement rather than a labelled pair. It was set on 2026-09-24
-halfway across a gap measured against an earlier crop of the Z.ai closer, where the six students
-averaged 0.16 at the most, her own closers from ten other spots 0.44 at the least, and a scene
-rendered from her reference 0.46. Against the reference this gate cuts from the same closer, the
-students average 0.12 at the most, her closers 0.42 at the least, and two scenes rendered from it
-0.42 and 0.53, so the floor sits inside the gap, nearer her side.
+CAST_MIN is AUTHORED, from measurements rather than a labelled pair. It was set on 2026-09-24, when
+this gate held every scene to the narrator, halfway across a gap measured against an earlier crop of
+her closer, where the six scene students averaged 0.16 at the most, her own closers from ten other
+spots 0.44 at the least, and a scene rendered from her reference 0.46. Against the reference this
+gate cuts from the same closer, the students read 0.12 at the most, her closers 0.42 at the least,
+and two scenes rendered from it 0.42 and 0.53.
 
-Exit 0 PASS, 1 FAIL, 3 NOFACE when no sampled frame holds a face, 64 when the reference holds no
-face or a file cannot be read. The machine line is always the last line printed.
+Read against the story's character, a reference cut from the August Z.ai scene a, the floor does
+less. Her own scene reads 0.89, a visibly different girl 0.27 and the narrator's closer 0.15, and
+both of those fail. The other students the engine drew from the same prompt read 0.50 to 0.66, and
+the narrator rendered into one of her scenes 0.40, all above the floor. That narrator scene read
+0.53 against the narrator's own reference, which is what --not catches. Her reference read against
+the narrator's reads 0.12, which is how the two are held apart before a scene is paid for. Telling
+two girls drawn from one prompt apart is beyond this gate, which is why every scene of hers is
+rendered from her face and never left to a prompt, and why the eye sees the readings.
+
+Exit 0 PASS, 1 FAIL, 3 NOFACE when no sampled frame holds a face, 64 when a reference holds no face
+or a file cannot be read. The machine line is always the last line printed.
 """
 import os
 import subprocess
@@ -38,23 +50,30 @@ STRANGER_FRAMES = 2      # a background stranger has to be there in this many sa
 _APP = None
 
 
-def verdict(sims, strangers=0):
-    """PASS, FAIL or NOFACE for the similarities of a scene's main faces to the reference face,
-    and the number of frames that held a second face that is not hers."""
+def verdict(sims, strangers=0, others=None):
+    """PASS, FAIL or NOFACE for the similarities of a scene's main faces to the reference face, the
+    number of frames that held a second face that is not hers, and, when a second reference was
+    read, the main faces' similarities to it. A scene that reads at least as close to the second
+    reference as to the first is the wrong person, however far over the floor it sits."""
     if not sims:
         return "NOFACE"
     if strangers >= STRANGER_FRAMES:
         return "FAIL"
-    return "PASS" if sum(sims) / len(sims) >= CAST_MIN else "FAIL"
+    mean = sum(sims) / len(sims)
+    if others and sum(others) / len(others) >= mean:
+        return "FAIL"
+    return "PASS" if mean >= CAST_MIN else "FAIL"
 
 
-def line(sims, strangers=0):
-    """The machine line pipeline/live.py reads, for a scene's similarities."""
+def line(sims, strangers=0, others=None):
+    """The machine line pipeline/live.py reads, for a scene's similarities. `not` is the mean
+    similarity to the second reference, - when none was read and nan when no face was found."""
+    other = "-" if others is None else (f"{sum(others) / len(others):.2f}" if others else "nan")
     if not sims:
-        return f"CAST_GATE faces=0 sim=nan min=nan strangers=0 floor={CAST_MIN:.2f} verdict=NOFACE"
+        return f"CAST_GATE faces=0 sim=nan min=nan strangers=0 not={other} floor={CAST_MIN:.2f} verdict=NOFACE"
     mean = sum(sims) / len(sims)
     return (f"CAST_GATE faces={len(sims)} sim={mean:.2f} min={min(sims):.2f} strangers={strangers} "
-            f"floor={CAST_MIN:.2f} verdict={verdict(sims, strangers)}")
+            f"not={other} floor={CAST_MIN:.2f} verdict={verdict(sims, strangers, others)}")
 
 
 def app():
@@ -66,22 +85,28 @@ def app():
     return _APP
 
 
+def _sim(face, ref):
+    return float(sum(a * b for a, b in zip(face.normed_embedding, ref.normed_embedding, strict=True)))
+
+
 def score(frame_faces, ref):
     """The main face's similarity to the reference in each frame, and how many frames hold a
     second face, tall enough to read, that is not hers. frame_faces is (faces largest first,
     frame height) per frame, and ref is the reference face."""
-    def sim(face):
-        return float(sum(a * b for a, b in zip(face.normed_embedding, ref.normed_embedding, strict=True)))
-
     sims, strangers = [], 0
     for faces, height in frame_faces:
         if not faces:
             continue
-        sims.append(sim(faces[0]))
+        sims.append(_sim(faces[0], ref))
         tall = [f for f in faces[1:] if (f.bbox[3] - f.bbox[1]) >= MIN_FACE * height]
-        if any(sim(f) < CAST_MIN for f in tall):
+        if any(_sim(f, ref) < CAST_MIN for f in tall):
             strangers += 1
     return sims, strangers
+
+
+def against(frame_faces, other):
+    """The main face's similarity to a second reference, in each frame that holds a face."""
+    return [_sim(faces[0], other) for faces, _height in frame_faces if faces]
 
 
 def faces_in(img):
@@ -126,8 +151,8 @@ def is_video(path):
 
 
 def cut_reference(src, out):
-    """The presenter's reference: her most confidently detected face in the source, cropped square
-    with room for hair and shoulders. A whole frame would hand the engine the closer's room too."""
+    """A reference face: the most confidently detected face in the source, cropped square with room
+    for hair and shoulders. A whole frame would hand the engine the source's room too."""
     import cv2
     best = None
     for img in (frames(src) if is_video(src) else [read_image(src)]):
@@ -162,6 +187,9 @@ def main(argv):
 def run(argv):
     if len(argv) == 3 and argv[0] == "--reference":
         return cut_reference(argv[1], argv[2])
+    other_path = None
+    if len(argv) == 4 and argv[2] == "--not":
+        argv, other_path = argv[:2], argv[3]
     if len(argv) != 2:
         print(__doc__.split("\n\n")[1])
         return 64
@@ -170,13 +198,23 @@ def run(argv):
     if ref is None:
         print("CAST_GATE unreadable: the reference holds no face")
         return 64
-    imgs = frames(scene)
+    other = None
+    if other_path is not None:
+        other = largest(read_image(other_path))
+        if other is None:
+            print("CAST_GATE unreadable: the second reference holds no face")
+            return 64
+    # A still is read as one frame, which is how the character's reference is held apart from
+    # the narrator's before any scene is paid for.
+    imgs = frames(scene) if is_video(scene) else [img for img in [read_image(scene)] if img is not None]
     if not imgs:
         print("CAST_GATE unreadable: no frame could be read from the scene")
         return 64
-    sims, strangers = score([(faces_in(img), img.shape[0]) for img in imgs], ref)
-    print(line(sims, strangers))
-    return {"PASS": 0, "FAIL": 1, "NOFACE": 3}[verdict(sims, strangers)]
+    frame_faces = [(faces_in(img), img.shape[0]) for img in imgs]
+    sims, strangers = score(frame_faces, ref)
+    others = against(frame_faces, other) if other is not None else None
+    print(line(sims, strangers, others))
+    return {"PASS": 0, "FAIL": 1, "NOFACE": 3}[verdict(sims, strangers, others)]
 
 
 if __name__ == "__main__":

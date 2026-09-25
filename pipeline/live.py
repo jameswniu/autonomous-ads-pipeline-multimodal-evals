@@ -5,9 +5,10 @@ vendor, each through the repo's own scripts where one exists. gates/voice_take.s
 narration and gates/script_match.sh checks it says the script. guards/block_unpinned_identity.sh
 and guards/prop_gate.sh vet a closer render before anything is paid for, the voice included,
 and gates/jaw_gate.py rules on it after. gates/edge_clip_probe.py looks at every scene that
-comes back, and gates/cast_gate.py checks that a scene showing the presenter shows her, since a
-scene that names her is rendered from her reference face. shoots/build-ad.sh cuts the master, shoots/master.sh masters it, and
-gates/ad_gates.sh, guards/ship_gate.sh and gates/loudness_gate.py gate it.
+comes back, and gates/cast_gate.py checks that every scene shows the story's character and not
+the narrator, since a scene that names her is rendered from her reference face.
+shoots/build-ad.sh cuts the master, shoots/master.sh masters it, and gates/ad_gates.sh,
+guards/ship_gate.sh and gates/loudness_gate.py gate it.
 
 Every vendor request goes on the ledger before it is sent, with a real request id, the
 vendor's own id as soon as it answers, and its landing after, with the vendor's own text on a
@@ -26,10 +27,16 @@ What a live run needs in its environment, all checked before the graph starts:
   FILM2, BED                    the directory holding hit.mp3 and hit2.mp3, and this spot's bed
   FACEPY                        an interpreter with the face extra, for the jaw and mouth probes
                                 and the cast gate
-  PRESENTER_STILL               an image or clip of the presenter to cut her reference from when
-                                no closer take is reused. The reference comes from the CLOSER_FROM
-                                take first. A spot that shows her is refused with neither, and
-                                with either one every scene is read back against her face.
+  CHARACTER_FROM                a take or a still of the story's character, whose face every scene
+                                that writes {character} is rendered from and every scene is read
+                                back against. A spot with a character is refused without it.
+  PRESENTER_STILL               an image or clip of the narrator to cut her reference from when no
+                                closer take is reused. The reference comes from the CLOSER_FROM
+                                take first, and a spot with a character is refused with neither.
+                                The character is held apart from the narrator, a scene that reads
+                                as close to the narrator as to the character fails, and the closer
+                                is read back against the narrator. Each face is cut again when its
+                                source changes.
   CLOSER_FROM                   a directory holding an existing closer take to reuse, or else
   HEYGEN_API_KEY, CLOSER_LOOK_ID to render one. The REST API bills a wallet of its own, separate
                                 from a web plan's credits.
@@ -47,7 +54,7 @@ import urllib.request
 import uuid
 
 from pipeline.ledger import fingerprint, new_request_id, sha256
-from pipeline.toolkit import (PLACEHOLDER, PRICE_PER_SCENE, REFERENCE_ENGINE, ROOT, Toolkit, cast_ok, cast_text,
+from pipeline.toolkit import (NARRATOR, PLACEHOLDER, PRICE_PER_SCENE, REFERENCE_ENGINE, ROOT, Toolkit, cast_ok, cast_text,
                               engine_for, has_cast, load_spot, scene_prompt)
 
 __all__ = ["LiveSetupError", "LiveToolkit", "fingerprint"]
@@ -74,9 +81,12 @@ AD_FICTION = "ad fiction, a spot's time of day is staged, not a claim"
 AD_GATES_LINE = re.compile(r"AD_GATES_RESULT caption=(\w+) drift=(\w+) mouth=(\w+)")
 MOUTH_LINE = re.compile(r"MOUTH SYNC \w+: corr (-?[0-9.]+) at lag ([-+]?[0-9.]+)s")
 JAW_LINE = re.compile(r"^JAW_GATE .*verdict=(PASS|FAIL|UNMEASURED)$", re.M)
+# `not` is the reading against a second face, the narrator's. Readings written before the gate read
+# one carry no `not`, and they still parse.
 CAST_LINE = re.compile(r"^CAST_GATE faces=(?P<faces>\d+) sim=(?P<sim>-?[0-9.]+|nan) min=(?P<min>-?[0-9.]+|nan) "
-                       r"strangers=(?P<strangers>\d+) floor=(?P<floor>[0-9.]+) verdict=(?P<verdict>PASS|FAIL|NOFACE)\s*$",
-                       re.M)
+                       r"strangers=(?P<strangers>\d+)(?: not=(?P<other>-?[0-9.]+|nan|-))? floor=(?P<floor>[0-9.]+) "
+                       r"verdict=(?P<verdict>PASS|FAIL|NOFACE)\s*$", re.M)
+VIDEO_EXT = (".mp4", ".mov", ".m4v", ".webm")
 LOUDNESS_LINE = re.compile(r"^LOUDNESS_GATE .*verdict=(PASS|FAIL)$", re.M)
 SLIT_LINE = re.compile(r"^slit-scan: (.+?)\s*$", re.M)   # the rest of the line, so a path with a space still reads
 REPLAY_VERTEX = re.compile(r"^replay vertex: t=([0-9.]+)s$", re.M)
@@ -361,60 +371,111 @@ class LiveToolkit(Toolkit):
             return self.clean(found.group(0))
         return f"EDGE CLIP: the edge probe could not read this scene (exit {r.returncode}), so it needs a look"
 
-    def cast(self, reference, clip):
-        """The cast gate on one clip against the presenter's reference: PASS, FAIL or NOFACE, or
-        None when it gave no reading its exit code agrees with, and the line it printed."""
-        r = self.script("gates/cast_gate.py", reference, clip, python=os.environ.get("FACEPY", sys.executable),
-                        timeout=900)
+    def cast(self, reference, clip, other=None):
+        """The cast gate on one clip against a reference face, and against a second one when `other`
+        is given: PASS, FAIL or NOFACE, or None when it gave no reading its exit code agrees with,
+        or skipped the second face it was asked to read, and the line it printed."""
+        args = (reference, clip) + (("--not", other) if other else ())
+        r = self.script("gates/cast_gate.py", *args, python=os.environ.get("FACEPY", sys.executable), timeout=900)
         m = CAST_LINE.search(r.stdout)
-        if not m or {"PASS": 0, "FAIL": 1, "NOFACE": 3}[m["verdict"]] != r.returncode:
+        if not m or {"PASS": 0, "FAIL": 1, "NOFACE": 3}[m["verdict"]] != r.returncode \
+                or (other and m["other"] in (None, "-")):
             return None, self.clean((r.stdout + r.stderr).strip()[-300:]), None
         return m["verdict"], self.clean(m.group(0)), m
 
-    def presenter_reference(self, spot):
-        """The presenter's face for this spot's scenes, cut once per run and kept with the takes.
-        It comes from the closer take the run reuses, so the scenes are held to the face the
-        closer shows, and from PRESENTER_STILL when the closer is still to be rendered. It is
-        resolved before any scene is paid for."""
-        out = os.path.join(self.dir(f"{spot}-cast"), "reference.jpg")
-        if os.path.isfile(out):
-            return out
-        still, closer_dir = os.environ.get("PRESENTER_STILL", ""), os.environ.get("CLOSER_FROM", "")
-        if closer_dir:
-            src, source = os.path.join(closer_dir, "render.mp4"), "closer take"
-        elif still:
-            src, source = still, "still"
-        else:
-            raise LiveSetupError("a spot that shows the presenter needs her face: set PRESENTER_STILL, or CLOSER_FROM "
-                                 "to a closer take")
+    def reference(self, spot, name, src, source, note):
+        """A face cut from `src` by the cast gate and kept with the takes, before any scene is paid
+        for. It is cut again whenever the source is a different file from the one it was cut from,
+        so a re-entry after someone recasts her never renders the old face. The ledger names the
+        source in a word and by its hash, never by its path."""
+        out = os.path.join(self.dir(f"{spot}-{name}"), "reference.jpg")
         if not os.path.isfile(src):
-            raise LiveSetupError(f"the presenter's {source} named in the environment is not a file")
+            raise LiveSetupError(f"the {note}'s {source} named in the environment is not a file")
+        src_sha = sha256(src)
+        cut = [r for r in self.rows("landing", step="render") if r.get("note") == f"the {note}'s reference"]
+        if os.path.isfile(out) and cut and cut[-1].get("source_sha256") == src_sha and cut[-1].get("sha256") == sha256(out):
+            return out
         r = self.script("gates/cast_gate.py", "--reference", src, out, python=os.environ.get("FACEPY", sys.executable),
                         timeout=900)
         if r.returncode != 0 or not os.path.isfile(out):
-            raise LiveSetupError(f"no face could be cut from the presenter's {source}, so her scenes cannot be held to her")
+            raise LiveSetupError(f"no face could be cut from the {note}'s {source}, so the scenes cannot be held to it")
         self.ledger.append("landing", "render", spot=spot, status="OK", file=self.rel(out), sha256=sha256(out),
-                           source=source, note="the presenter's reference")
+                           source=source, source_sha256=src_sha, note=f"the {note}'s reference")
         return out
 
-    def cast_check(self, spot, s, reference, raw, failed, why, flags, shows_presenter=True):
-        """Read one scene back against the presenter. Every scene is read, because a person the
-        board never named, a barista or a crowd, is still a person on screen. A face that is not
-        hers fails the scene, which re-rolls it once. No face is expected in a scene written
-        without her, and anywhere else goes to the eye as a flag, like a scene with no reading."""
-        verdict, reading, m = self.cast(reference, raw)
+    def character_reference(self, spot):
+        """The story's character's face, from CHARACTER_FROM, a take or a still of her. Every scene
+        that writes {character} is sent it, and every scene is read back against it."""
+        src = os.environ.get("CHARACTER_FROM", "")
+        if not src:
+            raise LiveSetupError("a spot with a story character needs her face: set CHARACTER_FROM to a take or a "
+                                 "still of her")
+        return self.reference(spot, "character", src, "take" if src.lower().endswith(VIDEO_EXT) else "still",
+                              "character")
+
+    def presenter_reference(self, spot):
+        """The narrator's face, from the closer take the run reuses, so it is the face the closer
+        shows, or from PRESENTER_STILL when the closer is still to be rendered. It holds the story's
+        character apart from the narrator and reads the closer back."""
+        still, closer_dir = os.environ.get("PRESENTER_STILL", ""), os.environ.get("CLOSER_FROM", "")
+        if closer_dir:
+            return self.reference(spot, "presenter", os.path.join(closer_dir, "render.mp4"), "closer take", "presenter")
+        if still:
+            return self.reference(spot, "presenter", still, "still", "presenter")
+        raise LiveSetupError("the narrator's face is needed to hold the story's character apart from her: set "
+                             "PRESENTER_STILL, or CLOSER_FROM to a closer take")
+
+    def distinct(self, spot, character, presenter):
+        """Hold the story's character apart from the narrator before any scene is paid for. Her
+        reference, read against the narrator's, has to fall under the cast gate's floor, or a scene
+        of hers could not be told from the closer. Read once per run for a pair of faces, and
+        recorded whichever way it goes."""
+        pair = {"character_sha256": sha256(character), "presenter_sha256": sha256(presenter)}
+        if any(r.get("passed") and all(r.get(k) == v for k, v in pair.items())
+               for r in self.rows("gate", step="render", check="distinct")):
+            return
+        verdict, reading, m = self.cast(presenter, character)
+        passed = verdict == "FAIL" and float(m["sim"]) < float(m["floor"])
+        self.ledger.append("gate", "render", spot=spot, check="distinct", passed=passed, reading=reading, **pair)
+        if not passed:
+            said = ("no reading the gate could make" if m is None else "no face the gate could find in her reference"
+                    if verdict == "NOFACE" else f"face similarity {m['sim']} to the narrator")
+            raise LiveSetupError(f"the story's character reads as the narrator ({said}), so her scenes could not be "
+                                 "told from the closer. Cast someone else in CHARACTER_FROM")
+
+    def cast_check(self, spot, s, raw, refs, failed, why, flags, writes_her=True):
+        """Read one scene back. With a story character, against her face, and against the
+        narrator's when the run has it: a stranger, the narrator, or anyone under the floor fails
+        the scene, which re-rolls it once. Every scene is read, because a person the board never
+        named, a barista or a crowd, is still a person on screen. With no character, a scene is
+        read against the narrator's face, so a stranger in it still fails. No face where she is
+        written goes to the eye as a flag, like a scene with no reading."""
+        character, presenter = refs.get("character"), refs.get("presenter")
+        other = presenter if character else None
+        verdict, reading, m = self.cast(character or presenter, raw, other=other)
         extra = {"unreadable": True} if verdict is None else {}
         self.ledger.append("gate", "render", spot=spot, scene=f"{spot}-{s}", check="cast", passed=verdict == "PASS",
-                           reading=reading, **extra)
+                           against="character" if character else "presenter", reading=reading, **extra)
         if verdict == "FAIL":
             failed.append(s)
-            who = "a different person from the presenter" if shows_presenter else "a person on screen who is not the presenter"
-            if int(m["strangers"]) and float(m["sim"]) >= float(m["floor"]):
-                why[s] = f"a second person on screen who is not the presenter, in {m['strangers']} of the frames read"
-            else:
+            sim, floor = float(m["sim"]), float(m["floor"])
+            near = other and m["other"] not in (None, "-", "nan") and float(m["other"]) >= max(sim, floor)
+            if near:
+                # It reads as the narrator by the gate's own floor, and no closer to the character.
+                why[s] = (f"the narrator, not the story's character, face similarity {m['other']} to the narrator "
+                          f"against {m['sim']} to her")
+            elif int(m["strangers"]) and sim >= floor:
+                who = "a second person on screen who is not the story's character" if character else \
+                    "a person on screen the board never named"
+                why[s] = f"{who}, in {m['strangers']} of the frames read"
+            elif character:
+                who = "a different person from the story's character" if writes_her else \
+                    "a person on screen who is not the story's character"
                 why[s] = f"{who}, face similarity {m['sim']} under the gate's {m['floor']}"
-        elif verdict == "NOFACE" and shows_presenter:
-            flags[s] = "CAST: no face found to match against the presenter. Look before shipping."
+            else:
+                why[s] = f"a person on screen the board never named, face similarity {m['sim']} under the gate's {m['floor']}"
+        elif verdict == "NOFACE" and writes_her:
+            flags[s] = "CAST: no face found to match against the story's character. Look before shipping."
         elif verdict is None:
             flags[s] = "CAST: the cast gate could not read this scene, so it needs a look"
 
@@ -432,10 +493,13 @@ class LiveToolkit(Toolkit):
                 return False
         return True
 
-    def earlier(self, spot, scene, prompt):
-        """This run's last request for this scene with this prompt: its id, what the vendor
-        answered, and whether it is still owed, sent and never landed or timed out."""
-        asked = [r for r in self.rows("request", step="render", scene=f"{spot}-{scene}") if r.get("prompt") == prompt]
+    def earlier(self, spot, scene, prompt, face=None):
+        """This run's last request for this scene with this prompt and this face, the hash of the
+        reference it was sent or None for a scene sent without one: its id, what the vendor
+        answered, and whether it is still owed, sent and never landed or timed out. A request sent
+        with another face is not this one, since she was recast after it."""
+        asked = [r for r in self.rows("request", step="render", scene=f"{spot}-{scene}")
+                 if r.get("prompt") == prompt and r.get("reference_sha256") == face]
         # A request the vendor refused never became a job. It is not owed, and it hides nothing
         # about the one sent before it, which may be a finished render still to collect.
         refused = {r["request_id"] for r in self.rows("landing", status="REFUSED")}
@@ -492,27 +556,40 @@ class LiveToolkit(Toolkit):
         # it here, before anything is paid for, since a stranger in it would render where no cast
         # gate reads it.
         stranger = [asked] if asked and changes.get("prompt") and not cast_ok(changes["prompt"]) else []
+        # A board from before the story had its own character wrote the narrator into its scenes.
+        # The narrator appears only in the closer, and the placeholder would reach the engine as text.
+        stranger += [s for s in todo if s not in stranger and NARRATOR in texts[s]]
         if stranger:
-            return {"failed": stranger, "why": {s: f"the prompt shows a person with no {PLACEHOLDER}" for s in stranger},
-                    "flags": {}, "rendered": [], "fresh": [], "unconfirmed": []}
+            why = {s: (f"the scene writes the narrator in with {NARRATOR}, and she appears only in the closer"
+                       if NARRATOR in texts[s] else
+                       f"the prompt shows a person who is not the story's character, written {PLACEHOLDER}")
+                   for s in stranger}
+            return {"failed": stranger, "why": why, "flags": {}, "rendered": [], "fresh": [], "unconfirmed": []}
         cast = {s: PLACEHOLDER in texts[s] for s in todo}
         engines = {s: REFERENCE_ENGINE.get(engine) if cast[s] else engine for s in todo}
         if any(cast.values()) and REFERENCE_ENGINE.get(engine) not in ENGINE_INPUT:
-            raise LiveSetupError(f"{engine} has no reference path here, so a scene that shows the presenter "
-                                 "cannot be held to her face")
-        # The presenter's face is resolved before anything is paid for. It is sent with every scene
-        # that shows her, because a text prompt cannot hold a face. Whenever a face source is set,
-        # every scene is read back against it, since a person the board never named is still a
-        # person on screen. A spot with nobody written in it and no face source runs without it.
-        wanted = any(cast.values()) or os.environ.get("CLOSER_FROM") or os.environ.get("PRESENTER_STILL")
-        reference = self.presenter_reference(spot) if wanted else None
+            raise LiveSetupError(f"{engine} has no reference path here, so a scene that shows the story's "
+                                 "character cannot be held to her face")
+        # Both faces are resolved before anything is paid for. The character's is sent with every
+        # scene that shows her, because a text prompt cannot hold a face, and every scene of the spot
+        # is read back against it, since a person the board never named is still a person on screen.
+        # The narrator's is needed too for a spot with a character. It is held apart from hers first,
+        # a scene that reads as close to the narrator as to the character fails, and the closer is
+        # read back against it. A spot with no character is read back against the narrator's face
+        # when the run has one, so a stranger still fails, and without one it runs with no read-back.
+        character = self.character_reference(spot) if has_cast(spot_def) else None
+        wanted = character or os.environ.get("CLOSER_FROM") or os.environ.get("PRESENTER_STILL")
+        presenter = self.presenter_reference(spot) if wanted else None
+        if character and presenter:
+            self.distinct(spot, character, presenter)
+        refs = {"character": character, "presenter": presenter}
         ref_uri = ref_sha = None
         if any(cast.values()):
-            with open(reference, "rb") as fh:
+            with open(character, "rb") as fh:
                 ref_uri = "data:image/jpeg;base64," + base64.b64encode(fh.read()).decode()
-            ref_sha = sha256(reference)
+            ref_sha = sha256(character)
         prompts = {s: scene_prompt(board, cast_text(spot_def, texts[s]) if cast[s] else texts[s]) for s in todo}
-        befores = {s: self.earlier(spot, s, prompts[s]) for s in todo}
+        befores = {s: self.earlier(spot, s, prompts[s], ref_sha if cast[s] else None) for s in todo}
         # A request that may already have been billed holds every new request in the pass, and the
         # narration, until a person has looked at the vendor's queue.
         held = any(b and b["unconfirmed"] and b["seq"] > reentered for b in befores.values())
@@ -547,8 +624,8 @@ class LiveToolkit(Toolkit):
                 flag = self.edge(raw)
                 if flag:
                     flags[s] = flag
-                if reference:
-                    self.cast_check(spot, s, reference, raw, failed, why, flags, shows_presenter=cast[s])
+                if character or presenter:
+                    self.cast_check(spot, s, raw, refs, failed, why, flags, writes_her=cast[s])
                 continue
             if held or unconfirmed:
                 why[s] = "not sent, a request that may have been billed is waiting for a person"
@@ -657,8 +734,8 @@ class LiveToolkit(Toolkit):
             self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="OK",
                                file=self.rel(raw), sha256=sha256(raw), bytes=os.path.getsize(raw), seconds=duration(raw),
                                edge_clip=flag or "clean")
-            if reference:
-                self.cast_check(spot, s, reference, raw, failed, why, flags, shows_presenter=cast[s])
+            if character or presenter:
+                self.cast_check(spot, s, raw, refs, failed, why, flags, writes_her=cast[s])
 
         verdict = {"failed": failed, "why": why, "flags": flags, "rendered": todo, "fresh": fresh,
                    "unconfirmed": unconfirmed}
@@ -723,16 +800,16 @@ class LiveToolkit(Toolkit):
         v = {"pass": passed, "jaw": reading, "artifacts": {"closer": render, "closer_inputs": inputs}}
         if unreadable:
             v["unreadable"] = True
-        reference = os.path.join(self.takes, f"{spot}-cast", "reference.jpg")
-        if has_cast(spot_def) and os.path.isfile(reference):
-            # The scenes were held to this face, so the closer must be the same person.
+        reference = os.path.join(self.takes, f"{spot}-presenter", "reference.jpg")
+        if os.path.isfile(reference):
+            # The closer is the narrator, so it is read back against the face the run holds for her.
             verdict, said, _ = self.cast(reference, render)
             self.ledger.append("gate", "closer", spot=spot, check="cast", passed=verdict == "PASS", reading=said,
                                source=source, **({"unreadable": True} if verdict is None else {}))
             if verdict is None:
                 v.update(unreadable=True, **{"pass": False})
             elif verdict != "PASS":
-                v.update(why="the closer is not the presenter the scenes were rendered from", **{"pass": False})
+                v.update(why="the closer is not the narrator whose face the run holds", **{"pass": False})
         return v
 
     def owed_closer(self, spot, look, engine):

@@ -1,6 +1,6 @@
 """Run one spot through the graph, or resume a run that is waiting for a person.
 
-    python -m pipeline.run --board shoots/graph-zai-cast/boards.json --spot zai --mode dry
+    python -m pipeline.run --board shoots/graph-zai-character/boards.json --spot zai --mode dry
     python -m pipeline.run --board <boards.json> --spot <name> --mode live --run-dir shoots/<run>
     python -m pipeline.run --resume shoots/<run> --answer '{"verdict": "keep"}'
     python -m pipeline.run --resume shoots/<run> --from build --reason "<what was fixed>"
@@ -116,8 +116,8 @@ def check(packet, answer, meta):
     if key not in scenes:
         return f"the answer asks for scene {answer['scene']!r}; this spot's scenes are {', '.join(sorted(scenes))}"
     if answer.get("prompt") and not cast_ok(answer["prompt"]):
-        return (f"the new prompt shows a person with no {PLACEHOLDER}, and every person on screen is the presenter, "
-                f"so write {PLACEHOLDER} where she appears")
+        return (f"the new prompt shows a person who is not the story's character, so write {PLACEHOLDER} where "
+                "she appears and leave the narrator to the closer")
     return None
 
 

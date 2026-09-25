@@ -6,8 +6,9 @@ the ledger before it is sent. A rejection is recorded with the vendor's own text
 id or local path reaches a ledger that gets committed, whatever a script prints. Nothing is
 spent until everything a run needs is present. A run re-entered after a failure collects what
 it already paid for instead of paying again. The closer's guards run before anything is paid,
-the voice included. A reused closer must say this spot's line. A scene that shows the
-presenter is rendered from her face and read back against it. And the gates' exits and
+the voice included. A reused closer must say this spot's line. A scene that shows the story's
+character is rendered from her face and read back against it, and never passes as the narrator.
+And the gates' exits and
 machine lines become the causes the graph routes on. Several tests exist because a mutation of
 the code they name survived the suite.
 """
@@ -32,7 +33,7 @@ PINNED = "PINNEDAVATAR99887766"  # pii-allow: a made-up id
 GROUP = "GROUPID5566778899"
 NAME = "a-long-voice-name-v7"
 CLOSER = json.load(open(BOARD))["spots"]["zai"]["closer"]
-CAST_BOARD = os.path.join(ROOT, "shoots", "graph-zai-cast", "boards.json")
+CAST_BOARD = os.path.join(ROOT, "shoots", "graph-zai-character", "boards.json")
 REF_ENGINE = "google/gemini-omni-flash/reference-to-video"
 
 
@@ -48,6 +49,8 @@ CG = _cast_gate()
 SAME = (0, CG.line([0.46, 0.44, 0.48]))
 OTHER = (1, CG.line([0.06, 0.04, 0.05]))
 NO_FACE = (3, CG.line([]))
+# The character's reference read against the narrator's: someone else, as the Z.ai girl is (0.15).
+APART = (1, CG.line([0.15]))
 
 
 def done(code=0, out="", err=""):
@@ -115,9 +118,11 @@ class Vendor:
 
 def scripts(voice_ok=True, jaw=(0, "JAW_GATE jaw=0.11 face_cov=1.0 max=0.17 verdict=PASS"), ship=(0, "SHIP-GATE PASS"),
             loud=(0, "LOUDNESS_GATE i=-16.0 tp=-2.0 verdict=PASS"), gates=None, build=None, edge=(0, "EDGE CLEAN"),
-            match=(0, "SCRIPT-MATCH PASS"), cast=SAME, reference_ok=True):
+            match=(0, "SCRIPT-MATCH PASS"), cast=SAME, reference_ok=True, distinct=APART):
     """Stand-ins for the repo scripts the toolkit runs, keyed on the script's path. `cast` is
-    one (exit, line) for every clip, or a function of the clip's path returning one."""
+    one (exit, line) for every clip, or a function of the clip's path returning one. `distinct`
+    answers the read of the character's reference against the narrator's. A read asked for a
+    second face gets one, the narrator somewhere else (0.10), unless the answer already names it."""
     seen = []
 
     def run(self, *args, env=None, drop=(), timeout=1800, python=None):
@@ -127,9 +132,18 @@ def scripts(voice_ok=True, jaw=(0, "JAW_GATE jaw=0.11 face_cov=1.0 max=0.17 verd
             if args[1] == "--reference":
                 if not reference_ok:
                     return done(64, "CAST_REFERENCE none: no face in the source")
-                open(args[3], "wb").write(b"a presenter's face")
+                face = b"a presenter's face"
+                if "character" in args[3]:
+                    face = b"the character's face" + (b"" if os.path.basename(args[2]) == "character.jpg"
+                                                      else b" from " + os.path.basename(args[2]).encode())
+                open(args[3], "wb").write(face)
                 return done(0, "CAST_REFERENCE face=0.91")
-            return done(*(cast(args[2]) if callable(cast) else cast))
+            if args[2].endswith(os.path.join("-character", "reference.jpg")) and "--not" not in args:
+                return done(*distinct)
+            code, out = cast(args[2]) if callable(cast) else cast
+            if "--not" in args and " not=-" in out:
+                out = out.replace(" not=-", " not=nan" if "faces=0 " in out else " not=0.10")
+            return done(code, out)
         if name == "gates/voice_take.sh":
             if not voice_ok:
                 return done(1, "draws disagreed")
@@ -177,9 +191,11 @@ def live(tmp_path, monkeypatch):
     film2.mkdir()
     still = tmp_path / "still.jpg"
     still.write_bytes(b"a presenter's still")
+    her = tmp_path / "character.jpg"
+    her.write_bytes(b"the character's still")
     for k, v in {"FAL_KEY": "k", "ELEVENLABS_API_KEY": "k", "ELEVENLABS_VOICE_ID": VOICE, "IDENTITY_PINS": str(pins),
                  "BED": str(bed), "FILM2": str(film2), "HEYGEN_API_KEY": "k", "CLOSER_LOOK_ID": LOOK,
-                 "PRESENTER_STILL": str(still)}.items():
+                 "PRESENTER_STILL": str(still), "CHARACTER_FROM": str(her)}.items():
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("CLOSER_FROM", raising=False)
     monkeypatch.setattr(L.time, "sleep", lambda s: None)
@@ -421,7 +437,7 @@ def test_a_result_that_is_gone_is_rendered_again_not_waited_on(live, monkeypatch
 
 
 def test_a_spot_with_nobody_written_in_it_and_no_face_source_runs_without_one(live, monkeypatch):
-    """No scene shows the presenter and no face source is set, so there is nothing to read back
+    """No scene shows a character and no face source is set, so there is nothing to read back
     against. The run goes ahead, and nothing asks for a face it never needed."""
     tk, state = live
     monkeypatch.delenv("PRESENTER_STILL")
@@ -876,7 +892,7 @@ def test_a_second_delivery_says_what_it_replaces(live, monkeypatch):
     assert rows[0]["supersedes"] is None and rows[1]["supersedes"] == "delivered/zai-v1.mp4", rows
 
 
-# the presenter's face
+# the story's character's face
 
 def cast_state(state, board=CAST_BOARD):
     return dict(state, board=board)
@@ -892,11 +908,12 @@ def closer_take(tmp_path, line=CLOSER):
     return src
 
 
-def test_a_scene_that_shows_the_presenter_is_rendered_from_her_face(live, monkeypatch, tmp_path):
-    """The Z.ai scenes named "a student" and never came back as her. A scene
-    that writes {presenter} goes to the reference path with her face, the request row names that
-    face by hash and never carries the image, and a scene with nobody in it stays on the plain
-    path. The face is read back with the face extra's interpreter, on a reused take too."""
+def test_a_scene_that_shows_the_character_is_rendered_from_her_face(live, monkeypatch, tmp_path):
+    """The Z.ai scenes named "a student", and the girl changed from one scene to the next. A scene
+    that writes {character} goes to the reference path with her face, the request row names that
+    face by hash and never carries the image, and a scene with nobody in it stays on the plain path.
+    Her face is held apart from the narrator's before anything is sent, and every scene is read back
+    against hers and the narrator's with the face extra's interpreter, on a reused take too."""
     tk, state = live
     board = json.load(open(CAST_BOARD))
     board["spots"]["zai"]["scenes"]["b"] = ("The vast warehouse of workstations hums, screens scrolling, a ceramic "
@@ -917,42 +934,192 @@ def test_a_scene_that_shows_the_presenter_is_rendered_from_her_face(live, monkey
     assert [u for u, _ in bodies] == [ref_url, plain_url, ref_url], bodies
     face = bodies[0][1]["image_urls"][0]
     assert face.startswith("data:image/jpeg;base64,")
-    assert L.base64.b64decode(face.split(",", 1)[1]) == b"a presenter's face", "the scene was not sent her face"
-    assert "the woman in <IMAGE_REF_0>" in bodies[0][1]["prompt"] and "the woman in <IMAGE_REF_0>" in bodies[2][1]["prompt"]
-    assert not any("{presenter}" in b["prompt"] for _, b in bodies), "the placeholder reached the engine"
+    assert L.base64.b64decode(face.split(",", 1)[1]) == b"the character's face", "the scene was not sent her face"
+    assert "the student in <IMAGE_REF_0>" in bodies[0][1]["prompt"] and "the student in <IMAGE_REF_0>" in bodies[2][1]["prompt"]
+    assert not any("{character}" in b["prompt"] for _, b in bodies), "the placeholder reached the engine"
     assert "image_urls" not in bodies[1][1], "a scene with nobody in it was sent a face"
     rows = tk.ledger.rows()
-    reference = os.path.join(tk.takes, "zai-cast", "reference.jpg")
+    her = os.path.join(tk.takes, "zai-character", "reference.jpg")
+    narrator = os.path.join(tk.takes, "zai-presenter", "reference.jpg")
     requests = [r for r in rows if r["kind"] == "request" and r["step"] == "render" and r.get("scene")]
     assert [r["engine"] for r in requests] == [REF_ENGINE, "google/gemini-omni-flash", REF_ENGINE], requests
-    assert [r.get("reference_sha256") for r in requests] == [L.sha256(reference), None, L.sha256(reference)]
+    assert [r.get("reference_sha256") for r in requests] == [L.sha256(her), None, L.sha256(her)]
     assert "data:image" not in ledger_text(tk), "the face itself reached the ledger"
-    cut = [r for r in rows if r.get("note") == "the presenter's reference"]
-    assert cut and cut[0]["source"] == "closer take" and cut[0]["file"] == "takes/zai-cast/reference.jpg", cut
+    cuts = {r["note"]: r for r in rows if str(r.get("note", "")).endswith("reference")}
+    assert (cuts["the character's reference"]["source"], cuts["the character's reference"]["file"]) == \
+        ("still", "takes/zai-character/reference.jpg"), cuts
+    assert (cuts["the presenter's reference"]["source"], cuts["the presenter's reference"]["file"]) == \
+        ("closer take", "takes/zai-presenter/reference.jpg"), cuts
+    assert [r["passed"] for r in rows if r.get("check") == "distinct"] == [True]
     checks = calls_to(run, "gates/cast_gate.py")
-    assert [c[0][1] == "--reference" for c in checks] == [True, False, False, False], checks
+    assert [c[0][1] for c in checks[:2]] == ["--reference", "--reference"], checks
+    reads = [c[0] for c in checks[2:]]
+    assert reads[0][1:] == ("gates/cast_gate.py", narrator, her)[1:], "the character was not held apart from the narrator first"
+    assert len(reads) == 4 and all(c[1] == her and c[3:] == ("--not", narrator) for c in reads[1:]), reads
     assert {c[3] for c in checks} == {"/opt/face/bin/python"}, "the cast gate ran without the face extra"
     assert [r["scene"] for r in rows if r.get("check") == "cast" and r["passed"]] == ["zai-a", "zai-c"]
+    assert {r["against"] for r in rows if r.get("check") == "cast"} == {"character"}
     posts = len(vendor.posts())
     again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(cast_state(state, str(path)))
     assert again["failed"] == [] and len(vendor.posts()) == posts, again
-    assert len(calls_to(run, "gates/cast_gate.py")) == 7, "a reused take was not read back against her face"
+    # Three more reads of the reused takes, and the pair that already passed is not read again.
+    assert len(calls_to(run, "gates/cast_gate.py")) == 9, "a reused take was not read back, or the pair was read twice"
 
 
-def test_no_face_to_hold_the_scenes_to_stops_before_anything_is_sent(live, monkeypatch, tmp_path):
+def test_no_face_to_hold_the_character_to_stops_before_anything_is_sent(live, monkeypatch, tmp_path):
     tk, state = live
     vendor = Vendor()
     monkeypatch.setattr(L, "http", vendor)
     monkeypatch.setattr(L.LiveToolkit, "script", scripts())
-    monkeypatch.delenv("PRESENTER_STILL")
+    monkeypatch.delenv("CHARACTER_FROM")
     with pytest.raises(L.LiveSetupError, match="needs her face"):
         tk.render(cast_state(state))
-    assert vendor.calls == [], "something was sent for a scene with no face to hold it to"
-    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setenv("CHARACTER_FROM", str(tmp_path / "nowhere.jpg"))
+    with pytest.raises(L.LiveSetupError, match="is not a file"):
+        tk.render(cast_state(state))
+    monkeypatch.setenv("CHARACTER_FROM", str(tmp_path / "character.jpg"))
     monkeypatch.setattr(L.LiveToolkit, "script", scripts(reference_ok=False))
     with pytest.raises(L.LiveSetupError, match="no face could be cut"):
         tk.render(cast_state(state))
-    assert vendor.calls == []
+    assert vendor.calls == [], "something was sent for a scene with no face to hold it to"
+
+
+def test_a_character_who_reads_as_the_narrator_stops_before_anything_is_sent(live, monkeypatch, tmp_path):
+    """The story's girl is someone other than the narrator. Her reference is read against the
+    narrator's before any scene is paid for. One that reads as the narrator stops the run, and so
+    does one the gate finds no face in, or one over the floor that failed only on a stranger. A
+    pair that passed is not read again."""
+    tk, state = live
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    for answer, said in (((0, CG.line([0.46])), r"reads as the narrator \(face similarity 0.46"),
+                         (NO_FACE, "no face the gate could find"),
+                         ((1, CG.line([0.50], strangers=2)), r"reads as the narrator \(face similarity 0.50"),
+                         ((64, "CAST_GATE unreadable: the reference holds no face"), "no reading the gate could make")):
+        monkeypatch.setattr(L.LiveToolkit, "script", scripts(distinct=answer))
+        with pytest.raises(L.LiveSetupError, match=said):
+            tk.render(cast_state(state))
+    assert vendor.calls == [], "a scene was paid for before the character was held apart from the narrator"
+    assert [r["passed"] for r in tk.ledger.rows() if r.get("check") == "distinct"] == [False] * 4
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert tk.render(cast_state(state))["failed"] == []
+    assert tk.render(cast_state(state))["failed"] == []
+    pairs = [c for c in calls_to(run, "gates/cast_gate.py") if c[0][1] != "--reference" and "--not" not in c[0]]
+    assert len(pairs) == 1, "a pair of faces that passed was read again"
+    # A new face for her is a new pair, and it is read before anything else happens.
+    os.remove(os.path.join(tk.takes, "zai-character", "reference.jpg"))
+    other = tmp_path / "another-girl.jpg"
+    other.write_bytes(b"another girl")
+    monkeypatch.setenv("CHARACTER_FROM", str(other))
+    tk.render(cast_state(state))
+    pairs = [c for c in calls_to(run, "gates/cast_gate.py") if c[0][1] != "--reference" and "--not" not in c[0]]
+    assert len(pairs) == 2, "a new face for the character was never held apart from the narrator"
+
+
+def test_a_scene_that_reads_closer_to_the_narrator_fails_whatever_the_floor_says(live, monkeypatch):
+    """The narrator rendered into one of the girl's scenes read 0.40 against the girl, over the
+    floor, and 0.53 against the narrator. A scene that reads at least as close to the narrator as
+    to the character is the narrator, so it fails and says so."""
+    tk, state = live
+    monkeypatch.setattr(L, "http", Vendor())
+    narrator = (1, CG.line([0.40] * 8, 0, [0.53] * 8))
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=lambda clip: narrator if "zai-a" in clip else SAME))
+    v = tk.render(cast_state(state))
+    assert v["failed"] == ["a"], v
+    assert v["why"]["a"] == ("the narrator, not the story's character, face similarity 0.53 to the narrator "
+                             "against 0.40 to her"), v["why"]
+
+
+def test_a_re_roll_of_a_scene_without_her_is_still_read_against_her(live, monkeypatch, tmp_path):
+    """A spot with a character reads every scene against her face, including a re-roll of a scene
+    she is not written into, where a stranger or the narrator would otherwise pass unread."""
+    tk, state = live
+    board = json.load(open(CAST_BOARD))
+    board["spots"]["zai"]["scenes"]["b"] = ("The vast warehouse of workstations hums, screens scrolling, a ceramic "
+                                            "coffee mug perfectly still. Mouth closed, nobody speaks.")
+    path = tmp_path / "board.json"
+    path.write_text(json.dumps(board))
+    vendor = Vendor(reject={"fal-2"})
+    monkeypatch.setattr(L, "http", vendor)
+    run = scripts(cast=lambda clip: (3, CG.line([])) if "zai-b" in clip else SAME)
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    first = tk.render(cast_state(state, str(path)))
+    assert first["failed"] == ["b"], first
+    vendor.reject = set()
+    seen = len(run.seen)
+    again = tk.render(dict(cast_state(state, str(path)), verdict={"render": first}))
+    assert again["failed"] == [] and again["fresh"] == ["b"], again
+    reads = [c[0] for c in run.seen[seen:] if c[0][0] == "gates/cast_gate.py"]
+    her = os.path.join(tk.takes, "zai-character", "reference.jpg")
+    assert [c[1] for c in reads] == [her] and "--not" in reads[0], reads
+
+
+def test_a_character_spot_with_no_narrator_face_stops_before_anything_is_sent(live, monkeypatch):
+    """A closer rendered fresh leaves the run no face for the narrator until after the scenes are
+    paid for, and then nothing could hold the character apart from her or read the closer back.
+    A spot with a character needs the narrator's face before anything is sent."""
+    tk, state = live
+    monkeypatch.delenv("PRESENTER_STILL")
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    with pytest.raises(L.LiveSetupError, match="the narrator's face is needed"):
+        tk.render(cast_state(state))
+    assert vendor.calls == [], "a scene was paid for with no narrator to hold the character apart from"
+
+
+def test_recasting_her_on_a_re_entry_cuts_her_face_again_and_renders_the_scenes_again(live, monkeypatch, tmp_path):
+    """A re-entry after someone points CHARACTER_FROM at another girl renders every scene of hers
+    from the new face. The old reference is cut again, and the takes sent with the old face are
+    never reused, since a request sent with another face is not this one."""
+    tk, state = live
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    assert tk.render(cast_state(state))["failed"] == []
+    her = os.path.join(tk.takes, "zai-character", "reference.jpg")
+    first_face = L.sha256(her)
+    other = tmp_path / "another-girl.jpg"
+    other.write_bytes(b"another girl")
+    monkeypatch.setenv("CHARACTER_FROM", str(other))
+    posts = len(vendor.posts())
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(cast_state(state))
+    assert again["failed"] == [] and sorted(again["fresh"]) == ["a", "b", "c"], again
+    assert L.sha256(her) != first_face, "the old face was kept after she was recast"
+    assert len(vendor.posts()) == posts + 3, "a scene rendered from the old face was reused"
+    rows = tk.ledger.rows()
+    assert not [r for r in rows if r.get("status") == "REUSED"]
+    requests = [r for r in rows if r["kind"] == "request" and r.get("scene")]
+    assert {r["reference_sha256"] for r in requests[-3:]} == {L.sha256(her)}
+    cuts = [r for r in rows if r.get("note") == "the character's reference"]
+    assert len(cuts) == 2 and cuts[0]["source_sha256"] != cuts[1]["source_sha256"], cuts
+    # The same source again is not a recast, so nothing is cut or sent.
+    posts = len(vendor.posts())
+    tk.render(cast_state(state))
+    assert len(vendor.posts()) == posts and len([r for r in tk.ledger.rows() if r.get("note") == "the character's reference"]) == 2
+    # A reference file changed by hand is not the face the ledger recorded, so it is cut again from
+    # the source rather than sent.
+    kept = open(her, "rb").read()
+    open(her, "wb").write(b"a face nobody recorded")
+    tk.render(cast_state(state))
+    assert open(her, "rb").read() == kept, "a reference changed by hand was sent to the engine"
+    assert len([r for r in tk.ledger.rows() if r.get("note") == "the character's reference"]) == 3
+
+
+def test_a_scene_that_writes_the_narrator_in_is_never_sent(live, monkeypatch, tmp_path):
+    """Boards from before the story had its own character wrote the narrator into their scenes as
+    {presenter}. The narrator appears only in the closer, and the placeholder would otherwise reach
+    the engine as text, so a re-entry on such a board refuses the scene before anything is sent."""
+    tk, state = live
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    old = os.path.join(ROOT, "shoots", "graph-zai-cast", "boards.json")
+    v = tk.render(dict(state, board=old))
+    assert v["failed"] == ["a", "b", "c"], v
+    assert v["why"]["a"] == "the scene writes the narrator in with {presenter}, and she appears only in the closer", v
+    assert vendor.calls == [], "a scene that writes the narrator in was sent"
 
 
 def test_a_different_person_fails_the_scene_and_no_face_goes_to_the_eye(live, monkeypatch, tmp_path):
@@ -965,8 +1132,10 @@ def test_a_different_person_fails_the_scene_and_no_face_goes_to_the_eye(live, mo
     monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=lambda clip: answers[os.path.basename(os.path.dirname(clip))]))
     v = tk.render(cast_state(state))
     assert v["failed"] == ["a"], v
-    assert v["why"]["a"] == "a different person from the presenter, face similarity 0.05 under the gate's 0.30", v["why"]
-    assert v["flags"]["b"] == "CAST: no face found to match against the presenter. Look before shipping.", v["flags"]
+    assert v["why"]["a"] == "a different person from the story's character, face similarity 0.05 under the gate's 0.30", \
+        v["why"]
+    assert v["flags"]["b"] == "CAST: no face found to match against the story's character. Look before shipping.", \
+        v["flags"]
     assert v["flags"]["c"] == "CAST: the cast gate could not read this scene, so it needs a look", v["flags"]
     gates = [(r["scene"], r["passed"], r.get("unreadable", False)) for r in tk.ledger.rows() if r.get("check") == "cast"]
     assert gates == [("zai-a", False, False), ("zai-b", False, False), ("zai-c", False, True)], gates
@@ -1101,6 +1270,14 @@ def test_a_cast_reading_its_exit_code_contradicts_is_no_reading(live, monkeypatc
     monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=(0, OTHER[1])))
     verdict, said, _ = tk.cast("reference.jpg", "clip.mp4")
     assert verdict is None and "verdict=FAIL" in said, (verdict, said)
+    # A reading from before the gate read a second face still parses, and one that skipped the
+    # narrator it was asked to read is no reading.
+    older = (0, "CAST_GATE faces=3 sim=0.46 min=0.44 strangers=0 floor=0.30 verdict=PASS")
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=older))
+    assert tk.cast("reference.jpg", "clip.mp4")[0] == "PASS"
+    assert tk.cast("reference.jpg", "clip.mp4", other="narrator.jpg")[0] is None
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=SAME))
+    assert tk.cast("reference.jpg", "clip.mp4", other="narrator.jpg")[2]["other"] == "0.10"
 
 
 def test_a_new_prompt_with_a_stranger_in_it_is_not_sent(live, monkeypatch):
@@ -1112,14 +1289,16 @@ def test_a_new_prompt_with_a_stranger_in_it_is_not_sent(live, monkeypatch):
     monkeypatch.setattr(L.LiveToolkit, "script", scripts())
     asked = dict(cast_state(state), changes={"scene": "a", "prompt": "A woman wipes the counter. Mouth closed, nobody speaks."})
     v = tk.render(asked)
-    assert v["failed"] == ["a"] and "{presenter}" in v["why"]["a"], v
+    assert v["failed"] == ["a"] and "{character}" in v["why"]["a"], v
+    narrator = dict(cast_state(state), changes={"scene": "a", "prompt": "{presenter} sits at the desk. Mouth closed."})
+    assert tk.render(narrator)["failed"] == ["a"], "the narrator was written into a story scene"
     assert not vendor.posts(), "a prompt with a stranger in it was paid for"
 
 
 def test_every_scene_is_read_back_and_a_stranger_fails_where_no_word_named_one(live, monkeypatch):
     """The board gate reads words, and a barista or a crowd is not one of them. So every scene is
-    read back against the presenter, not only the ones written with her. A face that is not hers
-    fails the scene, and a scene written without her that holds no face at all is what it should be."""
+    read back, and with no character in the spot it is read against the narrator's face. A face
+    that is not hers fails the scene, and a scene that holds no face at all is what it should be."""
     tk, state = live
     monkeypatch.setattr(L, "http", Vendor())
     stranger = (1, CG.line([0.05] * 8))
@@ -1127,10 +1306,10 @@ def test_every_scene_is_read_back_and_a_stranger_fails_where_no_word_named_one(l
     monkeypatch.setattr(L.LiveToolkit, "script", run)
     board = dict(state, board=BOARD)
     v = tk.render(board)
-    assert v["failed"] == ["b"] and "not the presenter" in v["why"]["b"], v
+    assert v["failed"] == ["b"] and "the board never named" in v["why"]["b"], v
     assert "c" not in v["flags"], "a scene with nobody in it was sent to the eye for having nobody in it"
     read = [c[0][2] for c in calls_to(run, "gates/cast_gate.py") if c[0][1] != "--reference"]
-    assert len(read) == 3, f"scenes read back against the presenter: {read}"
+    assert len(read) == 3, f"scenes read back against the narrator: {read}"
 
 
 def test_a_stranger_behind_her_fails_the_scene_and_says_so(live, monkeypatch, tmp_path):
@@ -1145,14 +1324,14 @@ def test_a_stranger_behind_her_fails_the_scene_and_says_so(live, monkeypatch, tm
     assert v["failed"] == ["a"] and v["why"]["a"].startswith("a second person on screen"), v
 
 
-def test_the_closer_must_be_the_presenter_the_scenes_were_held_to(live, monkeypatch, tmp_path):
+def test_the_closer_is_read_back_against_the_narrators_face(live, monkeypatch, tmp_path):
     tk, state = live
     monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
-    os.makedirs(os.path.join(tk.takes, "zai-cast"))
-    open(os.path.join(tk.takes, "zai-cast", "reference.jpg"), "wb").write(b"a presenter's face")
+    os.makedirs(os.path.join(tk.takes, "zai-presenter"))
+    open(os.path.join(tk.takes, "zai-presenter", "reference.jpg"), "wb").write(b"a presenter's face")
     monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=OTHER))
     v = tk.closer(cast_state(state))
-    assert v["pass"] is False and v["why"] == "the closer is not the presenter the scenes were rendered from", v
+    assert v["pass"] is False and v["why"] == "the closer is not the narrator whose face the run holds", v
     assert [r["passed"] for r in tk.ledger.rows() if r.get("check") == "cast"] == [False]
     os.remove(os.path.join(tk.takes, "zai-av", "render.mp4"))
     monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=SAME))

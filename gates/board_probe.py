@@ -8,9 +8,15 @@ Mechanical half only. Checks, per spot:
   quirk_unspoken   no distinctive word from the declared quirk appears in the narration
   mouths_closed    every scene pins mouths closed / nobody speaks
   crop_clause      the guard carries the middle-third composition clause
-  cast             every person in a scene is the presenter, written {presenter} where she appears,
-                   so the render can hold her face. A person named any other way ("a student",
-                   or "her" with no {presenter} in the scene) is drawn fresh by the engine each time.
+  cast             every person in a scene is the story's character, written {character} where she
+                   appears, so the render can hold her face from scene to scene. A person named any
+                   other way ("a student", or "her" with no {character} in the scene) is drawn fresh
+                   by the engine each time, and {presenter} never appears in a scene, since the
+                   narrator is only in the closer.
+  register         the narration talks to the viewer, never about the character: no he, she, his,
+                   her, him or hers in it. "Your studio apartment is smaller than the problem you're
+                   solving", never "Her studio apartment is smaller than the problem she's solving"
+                   (the doctrine's own example, 2026-08-29).
 The four judgment rows (hook, realism, absurdity, logic) are printed as questions for the eye.
 Exit 0 all pass, 1 any fail.
 """
@@ -18,21 +24,29 @@ import json, re, sys
 
 RESOLVERS = ("solves", "fixes", "resolved", "explains", "reveals the product", "everything is fine")
 
-PLACEHOLDER = "{presenter}"
+PLACEHOLDER = "{character}"
+NARRATOR = "{presenter}"
 HUMAN_NOUNS = re.compile(r"\b(woman|women|man|men|girls?|boys?|students?|persons?|people|someone|somebody|"
                          r"child|children|kids?|customers?|friends?|workers?|guys?|lady|ladies|mothers?|"
                          r"fathers?|moms?|dads?)\b")
 PRONOUNS = re.compile(r"\b(she|her|hers|he|him|his)\b")
+THIRD_PERSON = re.compile(r"\b(she|her|hers|he|him|his)\b", re.IGNORECASE)
 
 def words(t):
     return set(re.findall(r"[a-z]{5,}", t.lower()))
 
 def cast_ok(text):
-    """True when the only person in a scene is the presenter, named by the placeholder."""
+    """True when the only person in a scene is the story's character, named by the placeholder."""
+    if NARRATOR in text:
+        return False
     rest = text.replace(PLACEHOLDER, " ").lower()
     if HUMAN_NOUNS.search(rest):
         return False
     return PLACEHOLDER in text or not PRONOUNS.search(rest)
+
+def register_ok(narration):
+    """True when the narration never talks about someone in the third person."""
+    return not THIRD_PERSON.search(narration)
 
 def main():
     args = [a for a in sys.argv[1:] if a != "--json"]
@@ -65,8 +79,9 @@ def main():
         closed = all(("mouth" in s.lower() and "closed" in s.lower()) or "nobody speaks" in s.lower() for s in scenes.values())
         crop = "middle third" in guard.lower()
         cast = all(cast_ok(s) for s in scenes.values())
+        register = register_ok(narration)
         checks = {"product_absent": product_absent, "escalation": escalation, "quirk_unspoken": quirk_unspoken,
-                  "mouths_closed": closed, "crop_clause": crop, "cast": cast}
+                  "mouths_closed": closed, "crop_clause": crop, "cast": cast, "register": register}
         bad = [k for k, v in checks.items() if not v]
         if bad: fails.append((ad, bad, sorted(shared)))
         rows.append((ad, checks, sorted(shared)))

@@ -50,7 +50,7 @@ Every executable in `probes/` and `gates/` is classified here, and `tests/test_s
 | `gates/caption_gate.py` | unit | Every burned caption says what is spoken, when it is spoken |
 | `gates/edge_clip_probe.py` | probe | A story prop amputated by a frame edge the engine never saw |
 | `gates/jaw_gate.py` | probe | Refuses a closer whose jaw swings past what its lips explain, over 0.17 |
-| `gates/cast_gate.py` | probe | Refuses a scene whose person is not the presenter, under 0.30 face similarity to her reference |
+| `gates/cast_gate.py` | probe | Refuses a scene whose person is not the story's character, under 0.30 face similarity to her reference or at least as close to the narrator's |
 | `gates/loudness_gate.py` | unit | Integrated loudness and true peak on the master against the delivery target |
 | `gates/mouth_sync_probe.py` | probe | The lip-sync check that actually blocks a master |
 | `gates/script_match.sh` | unit | The spoken read-back against the written script |

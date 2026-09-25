@@ -111,24 +111,52 @@ def test_board_probe_refuses_an_empty_board(tmp_path):
     assert r.returncode != 0, f"an empty board passed:\n{r.stdout}"
 
 
-def _cast_check(tmp_path, scene):
+def _board_checks(tmp_path, scene, narration="It works."):
     p = os.path.join(str(tmp_path), "b.json")
-    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.",
+    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": narration,
             "scenes": {"a": scene + " Mouth closed, nobody speaks."}}
     json.dump({"guard": "Keep the subject in the middle third.", "spots": {"s": spot}}, open(p, "w"))
     r = run([sys.executable, os.path.join(GATES, "board_probe.py"), p, "--json"])
-    return json.loads(r.stdout)["spots"]["s"]["checks"]["cast"]
+    return json.loads(r.stdout)["spots"]["s"]["checks"]
 
 
-def test_board_probe_sends_back_a_person_who_is_not_the_presenter(tmp_path):
-    """Every person on screen is the presenter, written {presenter} where she appears. The Z.ai
-    scenes wrote "a student", and none of the six students the engine drew was her."""
-    assert _cast_check(tmp_path, "{presenter} sits at a desk, her mug beside her.") is True
+def _cast_check(tmp_path, scene):
+    return _board_checks(tmp_path, scene)["cast"]
+
+
+def _register(tmp_path, narration):
+    return _board_checks(tmp_path, "A warehouse hums.", narration)["register"]
+
+
+def test_board_probe_sends_back_a_person_who_is_not_the_story_character(tmp_path):
+    """Every person in a scene is the story's character, written {character} where she appears.
+    The Z.ai scenes wrote "a student", and the girl changed from one scene to the next. The
+    narrator appears only in the closer, so {presenter} in a scene fails too."""
+    assert _cast_check(tmp_path, "{character} sits at a desk, her mug beside her.") is True
     assert _cast_check(tmp_path, "A tiny studio where a student sits at a desk.") is False, "a student passed"
-    assert _cast_check(tmp_path, "The room grows around her desk.") is False, "a pronoun with no presenter passed"
-    assert _cast_check(tmp_path, "{presenter} hands a coffee to a customer.") is False, "a second person passed"
+    assert _cast_check(tmp_path, "The room grows around her desk.") is False, "a pronoun with no character passed"
+    assert _cast_check(tmp_path, "{character} hands a coffee to a customer.") is False, "a second person passed"
+    assert _cast_check(tmp_path, "{presenter} sits at a desk.") is False, "the narrator was written into a scene"
+    assert _cast_check(tmp_path, "{character} and {presenter} share a desk.") is False, "the narrator passed beside her"
     assert _cast_check(tmp_path, "A warehouse hums, screens scrolling, a mug perfectly still.") is True
     assert _cast_check(tmp_path, "The theme of these shelves is a human touch.") is True, "words inside words read as people"
+
+
+def test_board_probe_sends_back_a_narration_that_talks_about_someone(tmp_path):
+    """The voice talks to the viewer, never about the character (the doctrine, 2026-08-29), and the
+    doctrine's own example is the Z.ai line. A narration with he, she, his, her, him or hers fails,
+    whatever its case, and a word that only contains one of them does not."""
+    zai = json.load(open(os.path.join(ROOT, "shoots", "graph-zai-cast", "boards.json")))["spots"]["zai"]["narration"]
+    fixed = json.load(open(os.path.join(ROOT, "shoots", "graph-zai-character", "boards.json")))["spots"]["zai"]["narration"]
+    old, new = "Her studio apartment is smaller than the problem she's solving.", \
+        "Your studio apartment is smaller than the problem you're solving."
+    assert zai.startswith(old) and fixed == new + zai[len(old):], "the new board changed more than the first sentence"
+    assert _register(tmp_path, zai) is False, "the doctrine's own banned line passed"
+    assert _register(tmp_path, fixed) is True
+    for word in ("He", "she", "HIS", "her", "him", "Hers"):
+        assert _register(tmp_path, f"Then {word} builds.") is False, word
+    for word in ("sheer", "theme", "history", "himalayan", "ethics", "shell"):
+        assert _register(tmp_path, f"A {word} build.") is True, word
 
 
 # --------------------------------------------------------------------------------------
@@ -142,11 +170,56 @@ def test_the_cast_verdict_is_on_the_mean_and_the_floor_is_inclusive():
     assert cast.verdict([0.9, 0.1, 0.1]) == "PASS", "one odd frame sank a scene whose faces are her"
     assert cast.verdict([0.1, 0.1, 0.5]) == "FAIL"
     assert cast.verdict([]) == "NOFACE"
-    assert cast.line([0.46, 0.44, 0.48]) == "CAST_GATE faces=3 sim=0.46 min=0.44 strangers=0 floor=0.30 verdict=PASS"
-    assert cast.line([]) == "CAST_GATE faces=0 sim=nan min=nan strangers=0 floor=0.30 verdict=NOFACE"
+    assert cast.line([0.46, 0.44, 0.48]) == "CAST_GATE faces=3 sim=0.46 min=0.44 strangers=0 not=- floor=0.30 verdict=PASS"
+    assert cast.line([]) == "CAST_GATE faces=0 sim=nan min=nan strangers=0 not=- floor=0.30 verdict=NOFACE"
     assert cast.verdict([0.5] * 8, strangers=1) == "PASS", "one glitched frame read as a person"
     assert cast.verdict([0.5] * 8, strangers=2) == "FAIL", "a stranger behind her passed"
-    assert cast.line([0.5], 2) == "CAST_GATE faces=1 sim=0.50 min=0.50 strangers=2 floor=0.30 verdict=FAIL"
+    assert cast.line([0.5], 2) == "CAST_GATE faces=1 sim=0.50 min=0.50 strangers=2 not=- floor=0.30 verdict=FAIL"
+
+
+def test_a_scene_that_reads_as_close_to_the_narrator_as_to_her_fails():
+    """The narrator rendered into the girl's scene read 0.40 against the girl, over the floor, and
+    0.53 against the narrator. With a second reference read, a scene at least as close to it as to
+    the first fails, on the means and a tie included, and it never lifts a scene under the floor."""
+    cast = _gate_module("cast_gate")
+    assert cast.verdict([0.40] * 8, 0, [0.53] * 8) == "FAIL"
+    assert cast.verdict([0.40] * 8, 0, [0.40] * 8) == "FAIL", "a tie went to the character"
+    assert cast.verdict([0.40] * 8, 0, [0.39] * 8) == "PASS"
+    assert cast.verdict([0.5, 0.3], 0, [0.6, 0.1]) == "PASS", "one frame decided instead of the means"
+    assert cast.verdict([0.29] * 8, 0, [0.10] * 8) == "FAIL", "a scene under the floor passed"
+    assert cast.verdict([0.65] * 8, 0, []) == "PASS"
+    assert cast.line([0.40] * 8, 0, [0.53] * 8) == \
+        "CAST_GATE faces=8 sim=0.40 min=0.40 strangers=0 not=0.53 floor=0.30 verdict=FAIL"
+    assert cast.line([], 0, []) == "CAST_GATE faces=0 sim=nan min=nan strangers=0 not=nan floor=0.30 verdict=NOFACE"
+
+
+def test_the_cast_gate_reads_a_second_face_and_a_still(monkeypatch, capsys):
+    """--not reads the main faces against a second reference, the narrator's. A still is read as
+    one frame, which is how the character's reference is held apart from the narrator's."""
+    import math
+    from types import SimpleNamespace as face
+    cast = _gate_module("cast_gate")
+    her, narrator = [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]
+    mixed = [0.40, 0.53, math.sqrt(1 - 0.40 ** 2 - 0.53 ** 2)]
+
+    def img(*embs):
+        return face(shape=(720, 1280, 3), faces=[face(normed_embedding=e, bbox=[0, 0, 300, 300]) for e in embs])
+    files = {"her.jpg": img(her), "narrator.jpg": img(narrator), "scene.mp4": img(mixed), "empty.jpg": img()}
+    monkeypatch.setattr(cast, "read_image", lambda p: files.get(os.path.basename(p)))
+    monkeypatch.setattr(cast, "frames", lambda p: [files[os.path.basename(p)]] * 8)
+    monkeypatch.setattr(cast, "faces_in", lambda i: list(i.faces) if i is not None else [])
+    assert cast.run(["her.jpg", "scene.mp4", "--not", "narrator.jpg"]) == 1
+    assert capsys.readouterr().out.strip() == \
+        "CAST_GATE faces=8 sim=0.40 min=0.40 strangers=0 not=0.53 floor=0.30 verdict=FAIL"
+    assert cast.run(["her.jpg", "scene.mp4"]) == 0, "without a second face the floor alone decides"
+    assert " not=- " in capsys.readouterr().out
+    assert cast.run(["narrator.jpg", "her.jpg"]) == 1
+    assert capsys.readouterr().out.strip() == "CAST_GATE faces=1 sim=0.00 min=0.00 strangers=0 not=- floor=0.30 verdict=FAIL"
+    assert cast.run(["her.jpg", "scene.mp4", "--not", "empty.jpg"]) == 64
+    assert "second reference holds no face" in capsys.readouterr().out
+    assert cast.run(["her.jpg", "scene.mp4", "--not"]) == 64
+    two = files["scene.mp4"].faces + files["her.jpg"].faces
+    assert cast.against([(two, 720), ([], 720)], files["narrator.jpg"].faces[0]) == [0.53], "a face behind her was read"
 
 
 def test_every_face_on_screen_is_read_not_only_the_largest():
