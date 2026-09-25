@@ -150,6 +150,9 @@ def duration(path):
         return None
 
 
+GONE = (404, 410)        # the vendor no longer has the job or its result, so waiting is over
+
+
 def held_back(code):
     """Whether a refused result fetch is one that waiting can change: a locked or unpaid account, a
     rate limit, or the vendor's own error. A 404 or a 410 means the result is gone."""
@@ -415,6 +418,20 @@ class LiveToolkit(Toolkit):
         elif verdict is None:
             flags[s] = "CAST: the cast gate could not read this scene, so it needs a look"
 
+    def dropped(self, handle, auth):
+        """Whether the vendor has confirmed it no longer has a job: its status and its result both
+        come back not found, twice, a poll apart. One 404 can be a lookup that lagged, and taking
+        it as gone would pay for the scene a second time."""
+        _, _, status_url, response_url = handle
+        for attempt in range(2):
+            if attempt:
+                time.sleep(POLL_SECONDS)
+            if http("GET", status_url, auth, timeout=60)[0] not in GONE:
+                return False
+            if http("GET", response_url, auth, timeout=120)[0] not in GONE:
+                return False
+        return True
+
     def earlier(self, spot, scene, prompt):
         """This run's last request for this scene with this prompt: its id, what the vendor
         answered, and whether it is still owed, sent and never landed or timed out."""
@@ -494,9 +511,15 @@ class LiveToolkit(Toolkit):
             raw = os.path.join(self.dir(f"{spot}-{s}"), "raw.mp4")
             if before and before["owed"]:
                 # Sent already and never collected, or timed out: the vendor may still deliver
-                # it and bill it, so it is collected rather than sent a second time.
-                pending[s] = before["handle"]
-                continue
+                # it and bill it, so it is collected rather than sent a second time. It is asked
+                # about once first, because a job the vendor has dropped is never coming, and
+                # waiting on it only runs the clock out.
+                if not self.dropped(before["handle"], auth):
+                    pending[s] = before["handle"]
+                    continue
+                self.ledger.append("landing", "render", request_id=before["request_id"], vendor_id=before["handle"][1],
+                                   status="FAILED", http=404, during="status", error="the vendor no longer has this job")
+                before = None
             if before and before["unconfirmed"] and before["seq"] > reentered:
                 unconfirmed.append(s)
                 why[s] = (f"{before['request_id']} was sent and never confirmed, so it may have been billed. Look for it "
@@ -550,7 +573,20 @@ class LiveToolkit(Toolkit):
                     status = as_json(data).get("status")
                     if status == "COMPLETED":
                         break
+                if code in GONE:
+                    if 200 <= http("GET", response_url, auth, timeout=120)[0] < 300:
+                        status = "COMPLETED"    # the status record lapsed, and the result is there
+                        break
+                    if self.dropped((rid, vendor_id, status_url, response_url), auth):
+                        status = "GONE"
+                        break
                 time.sleep(POLL_SECONDS)
+            if status == "GONE":
+                self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="FAILED", http=code,
+                                   during="status", error="the vendor no longer has this job")
+                failed.append(s)
+                why[s] = "the vendor no longer has this job"
+                continue
             if status != "COMPLETED":
                 self.ledger.append("landing", "render", request_id=rid, vendor_id=vendor_id, status="TIMEOUT", last=status)
                 failed.append(s)

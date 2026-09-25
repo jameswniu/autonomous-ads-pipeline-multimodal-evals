@@ -60,8 +60,10 @@ class Vendor:
     check the ledger at the moment of a POST."""
 
     def __init__(self, reject=(), on_post=None, net_fail=0, heygen_status="completed", die_on_status=False, locked=(), empty=(),
+                 dropped=(),
                  post_fail=(), post_noid=()):
         self.calls, self.reject, self.on_post, self.locked, self.empty = [], set(reject), on_post, set(locked), set(empty)
+        self.dropped = set(dropped)     # jobs the vendor no longer has, by id
         self.net_fail, self.heygen_status, self.die_on_status = net_fail, heygen_status, die_on_status
         self.post_fail, self.post_noid = set(post_fail), set(post_noid)   # which queue POSTs, by count, go wrong
 
@@ -88,6 +90,8 @@ class Vendor:
             rid = f"fal-{n}"
             return 200, json.dumps({"request_id": rid, "status_url": f"https://queue/{rid}/status",
                                     "response_url": f"https://queue/{rid}"}).encode()
+        if url.endswith("/status") and url.split("/")[-2] in self.dropped:
+            return 404, b'{"status": "NOT_FOUND"}'
         if url.endswith("/status"):
             if self.die_on_status:
                 raise KeyboardInterrupt("the process died mid-poll")
@@ -95,6 +99,8 @@ class Vendor:
                 self.net_fail -= 1
                 return 0, b"URLError: <urlopen error [Errno 8] nodename nor servname provided>"
             return 200, b'{"status": "COMPLETED"}'
+        if url.rsplit("/", 1)[-1] in self.dropped:
+            return 404, b'{"detail": "Request not found"}'
         if url.rsplit("/", 1)[-1] in self.empty:
             return 200, b'{"video": null}'
         if url.rsplit("/", 1)[-1] in self.locked:
@@ -425,6 +431,91 @@ def test_a_spot_with_nobody_written_in_it_and_no_face_source_runs_without_one(li
     v = tk.render(state)
     assert v["failed"] == [], v
     assert not calls_to(run, "gates/cast_gate.py"), "a face was asked for with nothing to hold it to"
+
+
+def test_a_job_the_vendor_dropped_is_sent_again_in_the_same_pass(live, monkeypatch):
+    """fal dropped two finished jobs while the account was locked, and their status came back
+    NOT_FOUND. Owed, they were polled for forty minutes and timed out, and the run stopped with
+    nothing to show. A dropped job is asked about once, recorded as gone, and sent again in the
+    same pass, so the re-entry that pays for it also collects it. Gone means the vendor said so
+    twice, for the status and the result alike."""
+    tk, state = live
+    monkeypatch.setattr(L, "WAIT_LIMIT", 1)   # a wait that never ends fails the test, not the clock
+    board = json.load(open(BOARD))
+    prompt = L.scene_prompt(board, board["spots"]["zai"]["scenes"]["b"])
+    tk.ledger.append("request", "render", request_id="req_b1", spot="zai", scene="zai-b", engine="google/gemini-omni-flash",
+                     prompt=prompt)
+    tk.ledger.append("queued", "render", request_id="req_b1", vendor_id="fal-b1", status_url="https://queue/fal-b1/status",
+                     response_url="https://queue/fal-b1")
+    tk.ledger.append("landing", "render", request_id="req_b1", vendor_id="fal-b1", status="TIMEOUT", last=None)
+    vendor = Vendor(dropped={"fal-b1"})
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    v = tk.render(dict(state, verdict={"render": {"failed": ["b"]}}))
+    assert v["failed"] == [] and len(vendor.posts()) == 1, (v, vendor.posts())
+    gone = [r for r in tk.ledger.rows() if r.get("request_id") == "req_b1" and r.get("during") == "status"]
+    assert gone and gone[0]["status"] == "FAILED" and gone[0]["http"] == 404, gone
+    polls = [u for m, u in vendor.calls if u == "https://queue/fal-b1/status"]
+    assert len(polls) == 2, f"a dropped job is confirmed twice, a poll apart, and was asked {len(polls)} times"
+
+
+def test_a_lapsed_status_with_its_result_still_there_is_collected_not_paid_for_again(live, monkeypatch):
+    """A status lookup that says NOT_FOUND is not proof the job is gone. When the result is still
+    there, the scene is collected, and nothing is sent for it again."""
+    tk, state = live
+    monkeypatch.setattr(L, "WAIT_LIMIT", 1)
+    vendor = Vendor()
+    real = vendor.__call__
+
+    def lapsed(method, url, headers, body=None, timeout=120):
+        if method == "GET" and url == "https://queue/fal-2/status":
+            vendor.calls.append((method, url))
+            return 404, b'{"status": "NOT_FOUND"}'
+        return real(method, url, headers, body, timeout)
+    monkeypatch.setattr(L, "http", lapsed)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    v = tk.render(state)
+    assert v["failed"] == [] and len(vendor.posts()) == 3, (v, vendor.posts())
+    assert not [r for r in tk.ledger.rows() if r.get("during") == "status"], "a lapsed status was taken for a dropped job"
+
+
+def test_an_owed_job_whose_status_lapsed_is_collected_before_anything_is_sent(live, monkeypatch):
+    """The check before waiting on an owed job reads the result too. A lapsed status with the
+    result still there is a finished render to collect, never a scene to pay for again."""
+    tk, state = live
+    monkeypatch.setattr(L, "WAIT_LIMIT", 1)
+    board = json.load(open(BOARD))
+    prompt = L.scene_prompt(board, board["spots"]["zai"]["scenes"]["b"])
+    tk.ledger.append("request", "render", request_id="req_b1", spot="zai", scene="zai-b", engine="google/gemini-omni-flash",
+                     prompt=prompt)
+    tk.ledger.append("queued", "render", request_id="req_b1", vendor_id="fal-b1", status_url="https://queue/fal-b1/status",
+                     response_url="https://queue/fal-b1")
+    tk.ledger.append("landing", "render", request_id="req_b1", vendor_id="fal-b1", status="TIMEOUT", last=None)
+    vendor = Vendor()
+    real = vendor.__call__
+
+    def lapsed(method, url, headers, body=None, timeout=120):
+        if method == "GET" and url == "https://queue/fal-b1/status":
+            vendor.calls.append((method, url))
+            return 404, b'{"status": "NOT_FOUND"}'
+        return real(method, url, headers, body, timeout)
+    monkeypatch.setattr(L, "http", lapsed)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    v = tk.render(dict(state, verdict={"render": {"failed": ["b"]}}))
+    assert v["failed"] == [] and vendor.posts() == [], (v, vendor.posts())
+
+
+def test_a_job_dropped_while_it_is_polled_stops_the_wait(live, monkeypatch):
+    """A job that turns NOT_FOUND mid-poll will never complete, so the wait ends there and the
+    scene fails, rather than running the clock out to a timeout that reads as still owed."""
+    tk, state = live
+    monkeypatch.setattr(L, "WAIT_LIMIT", 1)   # a wait that never ends fails the test, not the clock
+    vendor = Vendor(dropped={"fal-2"})
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    v = tk.render(state)
+    assert v["failed"] == ["b"] and "no longer has" in v["why"]["b"], v
+    assert not [r for r in tk.ledger.rows() if r.get("status") == "TIMEOUT"], "a dropped job was waited out"
 
 
 def test_a_render_that_came_back_with_no_video_is_sent_again(live, monkeypatch):
