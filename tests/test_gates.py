@@ -192,6 +192,47 @@ def test_board_probe_holds_a_chain_to_the_spots_own_scenes(tmp_path):
     assert _chain_check(tmp_path, ["a", "b"], noun=None) is False, "a chained character with no noun to name her passed"
 
 
+NO_SLOTS = object()
+
+
+def _slots_check(tmp_path, slots=NO_SLOTS, chain=NO_CHAIN, narration="It works. It is cheap. Build it."):
+    scenes = {"a": "{character} sits at a desk.", "b": "The room grows around {character}.",
+              "c": "A mug sits still.", "d": "The room folds back around {character}."}
+    p = os.path.join(str(tmp_path), "b.json")
+    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": narration, "character_noun": "student",
+            "scenes": {k: v + " Mouth closed, nobody speaks." for k, v in scenes.items()}}
+    if slots is not NO_SLOTS:
+        spot["slots"] = slots
+    if chain is not NO_CHAIN:
+        spot["chain"] = chain
+    json.dump({"guard": "Keep the subject in the middle third.", "spots": {"s": spot}}, open(p, "w"))
+    r = run([sys.executable, os.path.join(GATES, "board_probe.py"), p, "--json"])
+    return json.loads(r.stdout)["spots"]["s"]["checks"]["slots"]
+
+
+def test_board_probe_holds_slots_to_the_three_sentences_the_builder_cuts(tmp_path):
+    """A sentence can hold more than one shot. The slots give each of the three sentences the
+    builder cuts the narration into its own shots, every scene in exactly one of them, and a chained
+    scene plays in the chain's order. A spot with no slots passes, one scene to a sentence."""
+    three = [["a"], ["b", "c"], ["d"]]
+    assert _slots_check(tmp_path) is True
+    assert _slots_check(tmp_path, three) is True
+    assert _slots_check(tmp_path, three, chain=["a", "b", "c", "d"]) is True
+    assert _slots_check(tmp_path, three, chain=["b", "c"]) is True, "a chain that leaves a scene out was refused"
+    assert _slots_check(tmp_path, three, narration="One. Two. Three. Four. Five.") is True, (
+        "a narration the builder merges down to three was refused")
+    assert _slots_check(tmp_path, [["a"], ["b"], ["d"]]) is False, "a scene left out of every slot passed"
+    assert _slots_check(tmp_path, [["a"], ["b", "c"], ["c", "d"]]) is False, "a scene in two slots passed"
+    assert _slots_check(tmp_path, [["a"], ["b", "x"], ["c", "d"]]) is False, "a scene the spot lacks passed"
+    assert _slots_check(tmp_path, [["a", "b"], ["c", "d"]]) is False, "two slots for three sentences passed"
+    assert _slots_check(tmp_path, [["a"], [], ["b", "c", "d"]]) is False, "an empty slot passed"
+    assert _slots_check(tmp_path, "abcd") is False, "slots that are not a list passed"
+    assert _slots_check(tmp_path, [["a"], ["c", "b"], ["d"]], chain=["a", "b", "c", "d"]) is False, (
+        "shots playing out of the chain's order passed")
+    assert _slots_check(tmp_path, three, narration="It works. Build it.") is False, (
+        "a narration the builder cannot cut into three sentences held slots")
+
+
 # --------------------------------------------------------------------------------------
 # cast_gate.py
 # --------------------------------------------------------------------------------------
@@ -275,6 +316,28 @@ def test_every_face_on_screen_is_read_not_only_the_largest():
     assert cast.score([([her, stranger], 720)] + [([her], 720)] * 7, ref)[1] == 1
     assert cast.verdict(*cast.score([([stranger, her], 720)] * 8, ref)) == "FAIL"
     assert cast.score([([], 720)] * 8, ref) == ([], 0)
+
+
+def test_a_face_too_small_to_read_is_no_face_not_a_reading():
+    """A figure far off in a wide shot is a few pixels of face, too few for the model to recognise
+    anyone. A frame whose largest face is shorter than MIN_FACE of its height counts as holding none,
+    so a scene of only such frames is NOFACE, which goes to the eye, and the bound is inclusive. The
+    second reference skips the same frames, so the two readings stay frame for frame."""
+    from types import SimpleNamespace as face
+    cast = _gate_module("cast_gate")
+    ref, other = face(normed_embedding=[1.0, 0.0]), face(normed_embedding=[0.0, 1.0])
+
+    def at(height):
+        return face(normed_embedding=[1.0, 0.0], bbox=[0, 0, height, height])
+    bound = int(cast.MIN_FACE * 1000)
+    far = [([at(bound - 1)], 1000)] * 8
+    assert cast.score(far, ref) == ([], 0)
+    assert cast.verdict(*cast.score(far, ref)) == "NOFACE"
+    assert cast.against(far, other) == []
+    near = [([at(bound)], 1000)] * 8
+    assert cast.score(near, ref) == ([1.0] * 8, 0), "a face exactly at the bound was not read"
+    mixed = [([at(bound - 1)], 1000)] * 4 + [([at(bound * 3)], 1000)] * 4
+    assert cast.score(mixed, ref) == ([1.0] * 4, 0) and cast.against(mixed, other) == [0.0] * 4
 
 
 def test_the_cast_gate_loads_without_the_face_extra_and_says_so_when_it_needs_it(tmp_path):

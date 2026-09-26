@@ -800,6 +800,178 @@ def test_the_build_records_its_parameters_before_it_runs(live, monkeypatch):
     assert env["CLOSER_AUTOALIGN"] == "0" and env["CLOSER_NUDGE"] == "-0.12", env
 
 
+SHOTS_BOARD = os.path.join(ROOT, "shoots", "graph-zai-shots", "boards.json")
+
+
+def _ffmpeg(*args):
+    subprocess.run(["ffmpeg", "-v", "error", "-y", *args], check=True, timeout=300)
+
+
+def _probe(path, entries, stream="v:0"):
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", stream, "-show_entries", entries, "-of", "csv=p=0",
+                        path], capture_output=True, text=True, timeout=60)
+    return r.stdout.strip()
+
+
+def _colour_at(path, t):
+    """The average colour of one frame, as (r, g, b)."""
+    r = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(t), "-i", path, "-frames:v", "1", "-vf", "scale=1:1",
+                        "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True, timeout=60)
+    return tuple(r.stdout[:3])
+
+
+def _shot(path, head, body, size, rate, sound=True, length=2.0):
+    """A shot whose first 0.4 s is one colour and the rest another, with or without sound."""
+    args = ["-f", "lavfi", "-i", f"color=c={head}:s={size}:r={rate}:d=0.4",
+            "-f", "lavfi", "-i", f"color=c={body}:s={size}:r={rate}:d={length - 0.4}"]
+    if sound:
+        args += ["-f", "lavfi", "-i", f"sine=frequency=440:duration={length}"]
+    args += ["-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]", "-map", "[v]"]
+    if sound:
+        args += ["-map", "2:a", "-c:a", "aac"]
+    _ffmpeg(*args, "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path))
+
+
+def test_the_shots_of_a_sentence_join_in_order_and_each_later_one_loses_its_head(tmp_path):
+    """The first shot keeps its head for the builder to drop, every later shot loses the same
+    SHOT_HEAD at the cut, and the clip carries the first shot's size, 25 frames a second and 48 kHz
+    stereo throughout, with silence where a shot had no sound."""
+    first, second, out = tmp_path / "b.mp4", tmp_path / "c.mp4", tmp_path / "slot.mp4"
+    _shot(first, "yellow", "red", "1280x720", 24)
+    _shot(second, "green", "blue", "640x360", 30, sound=False)
+    assert L.join_shots([str(first), str(second)], str(out))
+    seconds = L.duration(str(out))
+    assert abs(seconds - (2.0 + 2.0 - L.SHOT_HEAD)) < 0.1, seconds
+    assert _probe(str(out), "stream=width,height") == "1280,720"
+    assert _probe(str(out), "stream=r_frame_rate") == "25/1"
+    assert _probe(str(out), "stream=sample_rate,channels", "a:0") == "48000,2"
+
+    def is_(colour, t):
+        r, g, b = _colour_at(str(out), t)
+        return {"yellow": r > 180 and g > 180 and b < 90, "red": r > 180 and g < 90 and b < 90,
+                "green": g > 90 and r < 90 and b < 90, "blue": b > 180 and r < 90 and g < 90}[colour]
+    assert is_("yellow", 0.1), "the first shot lost its head, which the builder drops itself"
+    assert is_("red", 1.5), "the first shot does not come first"
+    assert is_("blue", 2.1), "the second shot kept the head the builder would have dropped"
+    assert is_("blue", 3.4)
+    assert abs(float(_probe(str(out), "stream=duration", "a:0")) - seconds) < 0.15, "the silent shot left a gap in the sound"
+
+
+def test_a_join_whose_probe_or_encode_hangs_is_a_failed_join_not_a_crash(tmp_path, monkeypatch):
+    first = tmp_path / "b.mp4"
+    _shot(first, "gray", "gray", "320x180", 25)
+
+    def hang(cmd, **kw):
+        raise subprocess.TimeoutExpired(cmd, kw.get("timeout", 0))
+    monkeypatch.setattr(L.subprocess, "run", hang)
+    assert L.join_shots([str(first), str(first)], str(tmp_path / "slot.mp4")) is False
+
+    def missing(cmd, **kw):
+        raise FileNotFoundError(cmd[0])
+    monkeypatch.setattr(L.subprocess, "run", missing)
+    assert L.join_shots([str(first), str(first)], str(tmp_path / "slot.mp4")) is False
+
+
+def test_two_joined_shots_cover_the_long_sentence_the_old_build_froze_on(tmp_path):
+    """The chained Z.ai run's middle sentence ran 9.28 s. One five second shot covers 4.55 s after
+    the head the builder drops, so the builder slowed it to 1.6 times and held its last frame. Two
+    joined shots cover it at the pace they were shot, within two percent."""
+    first, second, out = tmp_path / "b.mp4", tmp_path / "c.mp4", tmp_path / "slot.mp4"
+    _shot(first, "gray", "gray", "1280x720", 24, length=5.0)
+    _shot(second, "gray", "gray", "1280x720", 24, length=5.0)
+    assert L.join_shots([str(first), str(second)], str(out))
+    sentence, dropped = 9.28, 0.45     # shoots/build-ad.sh counts a clip as its length less 0.45 s
+    assert sentence / (L.duration(str(first)) - dropped) > 1.6, "one shot would not have frozen"
+    assert sentence / (L.duration(str(out)) - dropped) < 1.02, L.duration(str(out))
+
+
+def test_a_sentence_that_holds_two_shots_gets_them_joined_before_the_build(live, monkeypatch):
+    """The build row names the shots under each sentence before anything runs. A lone shot goes to
+    the builder as it is, and two shots are joined in order into the sentence's own clip first."""
+    tk, state = live
+    joined = []
+
+    def join(self, srcs, out):
+        joined.append(([os.path.basename(os.path.dirname(x)) for x in srcs], os.path.basename(os.path.dirname(out))))
+        open(out, "wb").write(b"joined")
+        return True
+    monkeypatch.setattr(L.LiveToolkit, "join", join)
+    monkeypatch.setattr(L, "has_audio", lambda path: True)
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert tk.build(dict(state, board=SHOTS_BOARD))["pass"]
+    assert joined == [(["zai-b", "zai-c"], "zai-slot2")], joined
+    env = calls_to(run, "shoots/build-ad.sh")[0][1]
+    assert (env["SCENE_A"], env["SCENE_B"], env["SCENE_C"]) == tuple(
+        os.path.join(tk.takes, d, "raw.mp4") for d in ("zai-a", "zai-slot2", "zai-d")), env
+    row = [r for r in tk.ledger.rows() if r["kind"] == "build"][0]
+    assert row["slots"] == [["a"], ["b", "c"], ["d"]] and sorted(row["scene_px"]) == ["a", "b", "c", "d"], row
+
+
+def test_a_lone_shot_with_no_sound_is_joined_alone_so_the_builder_has_sound_to_mix(live, monkeypatch):
+    tk, state = live
+    joined = []
+
+    def join(self, srcs, out):
+        joined.append(([os.path.basename(os.path.dirname(x)) for x in srcs], os.path.basename(os.path.dirname(out))))
+        open(out, "wb").write(b"joined")
+        return True
+    monkeypatch.setattr(L.LiveToolkit, "join", join)
+    monkeypatch.setattr(L, "has_audio", lambda path: os.path.basename(os.path.dirname(path)) != "zai-d")
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert tk.build(dict(state, board=SHOTS_BOARD))["pass"]
+    assert joined == [(["zai-b", "zai-c"], "zai-slot2"), (["zai-d"], "zai-slot3")], joined
+    env = calls_to(run, "shoots/build-ad.sh")[0][1]
+    assert env["SCENE_A"].endswith(os.path.join("zai-a", "raw.mp4")) and env["SCENE_C"].endswith(
+        os.path.join("zai-slot3", "raw.mp4")), env
+
+
+def test_one_shot_joined_alone_keeps_its_head_and_gains_silence(tmp_path):
+    shot, out = tmp_path / "d.mp4", tmp_path / "slot.mp4"
+    _shot(shot, "yellow", "red", "320x180", 24, sound=False)
+    assert L.join_shots([str(shot)], str(out))
+    assert abs(L.duration(str(out)) - 2.0) < 0.1 and L.has_audio(str(out))
+
+
+def test_a_spot_without_slots_builds_one_scene_to_a_sentence_as_before(live, monkeypatch):
+    tk, state = live
+    monkeypatch.setattr(L.LiveToolkit, "join", lambda self, srcs, out: pytest.fail("a spot without slots joined shots"))
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert tk.build(state)["pass"]
+    env = calls_to(run, "shoots/build-ad.sh")[0][1]
+    assert not any(k.startswith("SCENE_") for k in env), env
+    assert "slots" not in [r for r in tk.ledger.rows() if r["kind"] == "build"][0]
+
+
+def test_a_sentence_whose_shots_cannot_be_joined_stops_the_build(live, monkeypatch, tmp_path):
+    """A failed join is recorded and the builder never runs, and so is a board whose slots do not
+    come to the three sentences the builder cuts, which the board gate refuses before a run."""
+    tk, state = live
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    monkeypatch.setattr(L.LiveToolkit, "join", lambda self, srcs, out: False)
+    assert tk.build(dict(state, board=SHOTS_BOARD)) == {"pass": False}
+    failed = [r for r in tk.ledger.rows() if r["kind"] == "landing" and r["step"] == "build"]
+    assert failed[-1]["status"] == "FAILED" and failed[-1]["during"] == "join", failed
+    board = json.load(open(SHOTS_BOARD))
+    board["spots"]["zai"]["slots"] = [["a", "b"], ["c", "d"]]
+    two = tmp_path / "two.json"
+    two.write_text(json.dumps(board))
+    tried = []
+
+    def join(self, srcs, out):
+        tried.append(srcs)
+        open(out, "wb").write(b"joined")
+        return True
+    monkeypatch.setattr(L.LiveToolkit, "join", join)
+    assert tk.build(dict(state, board=str(two))) == {"pass": False}
+    assert "gives 2 slots" in [r for r in tk.ledger.rows() if r["kind"] == "landing"][-1]["error"]
+    assert not tried, "shots were joined for slots the builder cannot cut"
+    assert not calls_to(run, "shoots/build-ad.sh"), "the builder ran without its clips"
+
+
 def test_each_build_is_a_new_master_even_after_a_re_entry(live, monkeypatch):
     tk, state = live
     monkeypatch.setattr(L.LiveToolkit, "script", scripts())

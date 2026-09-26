@@ -57,7 +57,7 @@ import uuid
 
 from pipeline.ledger import fingerprint, new_request_id, sha256
 from pipeline.toolkit import (CHAIN_ENGINE, NARRATOR, PLACEHOLDER, PRICE_PER_SCENE, REFERENCE_ENGINE, ROOT, Toolkit,
-                              cast_ok, cast_text, chain_of, chain_text, engine_for, has_cast, load_spot, scene_prompt)
+                              cast_ok, cast_text, chain_of, chain_text, engine_for, has_cast, load_spot, scene_prompt, slots_of)
 
 __all__ = ["LiveSetupError", "LiveToolkit", "fingerprint"]
 
@@ -185,6 +185,58 @@ def grab_frame(src, out, last=False):
     else:
         args = ["-i", src, "-frames:v", "1"]
     r = subprocess.run(["ffmpeg", "-v", "error", "-y", *args, "-q:v", "2", out], capture_output=True, text=True, timeout=120)
+    return r.returncode == 0 and os.path.isfile(out) and os.path.getsize(out) > 0
+
+
+SHOT_HEAD = 0.4   # what shoots/build-ad.sh drops from the head of every scene before it cuts it
+
+
+def has_audio(path):
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index",
+                        "-of", "csv=p=0", path], capture_output=True, text=True, timeout=60)
+    return bool(r.stdout.strip())
+
+
+def join_shots(srcs, out):
+    """Several shots joined in order into one clip, for a narration sentence that holds more than one.
+    Every shot after the first loses its first SHOT_HEAD seconds, the head shoots/build-ad.sh drops
+    from a scene, where an engine's first frames settle before anything moves, and the first keeps
+    its head for the builder to drop. Each join is a hard cut. Every shot is scaled to the first
+    one's size and set to 25 frames a second with 48 kHz stereo sound, so the clip carries one
+    codec, rate and size throughout, and a shot with no sound gets silence of its own length.
+    True when the clip was written. A probe or an encode that hangs past its timeout, or a tool
+    that cannot start, is a failed join, which the build records, never a crash."""
+    try:
+        return _join(srcs, out)
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _join(srcs, out):
+    size = frame_size(srcs[0])
+    if not size:
+        return False
+    w, h = size
+    args, parts, n = [], [], 0
+    for i, src in enumerate(srcs):
+        head = 0 if i == 0 else SHOT_HEAD
+        args += ["-i", src]
+        v = n
+        n += 1
+        if has_audio(src):
+            a = v
+        else:
+            args += ["-f", "lavfi", "-t", str(duration(src) or 0), "-i", "anullsrc=r=48000:cl=stereo"]
+            a = n
+            n += 1
+        parts.append(f"[{v}:v]trim=start={head},setpts=PTS-STARTPTS,scale={w}:{h},setsar=1,fps=25[v{i}];"
+                     f"[{a}:a]atrim=start={head},asetpts=PTS-STARTPTS,aresample=48000,"
+                     f"aformat=channel_layouts=stereo[a{i}];")
+    graph = "".join(parts) + "".join(f"[v{i}][a{i}]" for i in range(len(srcs))) + \
+        f"concat=n={len(srcs)}:v=1:a=1[v][a]"
+    r = subprocess.run(["ffmpeg", "-v", "error", "-y", *args, "-filter_complex", graph, "-map", "[v]", "-map", "[a]",
+                        "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-b:a", "192k", out], capture_output=True, text=True, timeout=600)
     return r.returncode == 0 and os.path.isfile(out) and os.path.getsize(out) > 0
 
 
@@ -1069,6 +1121,26 @@ class LiveToolkit(Toolkit):
 
     # Build: shoots/build-ad.sh, with every parameter on the record.
 
+    def slot_clips(self, spot, slots):
+        """The clip for each sentence: a lone shot as it is, several joined in order into one, each
+        after the first without the head the builder drops. The builder mixes every clip's sound,
+        so a lone shot with none goes through the same join, alone, and comes out with silence.
+        None when a join fails."""
+        clips = []
+        for n, shots in enumerate(slots, 1):
+            raws = [os.path.join(self.takes, f"{spot}-{s}", "raw.mp4") for s in shots]
+            if len(raws) == 1 and has_audio(raws[0]):
+                clips.append(raws[0])
+                continue
+            out = os.path.join(self.dir(f"{spot}-slot{n}"), "raw.mp4")
+            if not self.join(raws, out):
+                return None
+            clips.append(out)
+        return clips
+
+    def join(self, srcs, out):
+        return join_shots(srcs, out)
+
     def build(self, state):
         _, spot_def = load_spot(state["board"], state["spot"])
         spot = state["spot"]
@@ -1086,10 +1158,24 @@ class LiveToolkit(Toolkit):
                   "bed": os.path.basename(need("BED")), "closer_nudge": nudge, "closer_autoalign": 0,
                   "script": "shoots/build-ad.sh", "master": "shoots/master.sh, loudnorm I=-16 TP=-2 LRA=11",
                   "version": version}
+        # A sentence can hold more than one shot. The row names which shots play under each of the
+        # three sentences the builder cuts the narration into, before any of them is joined.
+        slots = slots_of(spot_def)
+        if slots:
+            params["slots"] = slots
         self.ledger.append("build", "build", spot=spot, **params)
         env = {"TAKES": self.takes, "FILM2": need("FILM2"), "BED": need("BED"), "BRAND": params["brand"],
                "TAG": params["tag"], "CLOSER_AUTOALIGN": "0", "CLOSER_NUDGE": str(nudge),
                "GATES": os.path.join(ROOT, "gates"), "FACEPY": os.environ.get("FACEPY", sys.executable)}
+        if slots:
+            # The builder cuts the narration into exactly three sentences, one clip each.
+            clips = self.slot_clips(spot, slots) if len(slots) == 3 else None
+            if clips is None:
+                error = ("the shots of a sentence could not be joined into one clip" if len(slots) == 3 else
+                         f"the builder cuts the narration into three sentences, and the board gives {len(slots)} slots")
+                self.ledger.append("landing", "build", spot=spot, status="FAILED", during="join", error=error)
+                return {"pass": False}
+            env.update(zip(("SCENE_A", "SCENE_B", "SCENE_C"), clips, strict=True))
         r = self.script("shoots/build-ad.sh", spot, f"{spot}-av", env=env)
         out = os.path.join(self.takes, f"out-{spot}-{spot}-av")
         if r.returncode != 0 or not os.path.isfile(os.path.join(out, "ad.mp4")):

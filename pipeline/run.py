@@ -1,6 +1,6 @@
 """Run one spot through the graph, or resume a run that is waiting for a person.
 
-    python -m pipeline.run --board shoots/graph-zai-chain/boards.json --spot zai --mode dry
+    python -m pipeline.run --board shoots/graph-zai-shots/boards.json --spot zai --mode dry
     python -m pipeline.run --board <boards.json> --spot <name> --mode live --run-dir shoots/<run>
     python -m pipeline.run --resume shoots/<run> --answer '{"verdict": "keep"}'
     python -m pipeline.run --resume shoots/<run> --from build --reason "<what was fixed>"

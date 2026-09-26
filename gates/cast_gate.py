@@ -12,7 +12,10 @@ character is rendered from her reference, and this gate reads the result back be
 built from it.
 
 The face in each of FRAMES frames is the largest one insightface (buffalo_l) finds, and the verdict
-is on the mean cosine similarity of those faces to the reference face. Every other face in the frame
+is on the mean cosine similarity of those faces to the reference face. A face shorter than MIN_FACE
+of the frame's height is too small to read, a figure far off in a wide shot, so a frame whose
+largest face is that small counts as holding none, and a scene with no readable face is NOFACE,
+which goes to the eye, never a similarity reading off a few pixels. Every other face in the frame
 is read too, since a stranger behind her is still a person on screen. One at least MIN_FACE of the
 frame's height that falls under the floor in STRANGER_FRAMES frames or more fails the scene. The two
 bounds keep a poster, a reflection or one glitched frame from reading as a person. With --not, the
@@ -45,7 +48,7 @@ import tempfile
 
 CAST_MIN = 0.30
 FRAMES = 8
-MIN_FACE = 0.06          # a background face shorter than this share of the frame is too small to read
+MIN_FACE = 0.06          # a face shorter than this share of the frame's height is too small to read
 STRANGER_FRAMES = 2      # a background stranger has to be there in this many sampled frames
 _APP = None
 
@@ -89,15 +92,23 @@ def _sim(face, ref):
     return float(sum(a * b for a, b in zip(face.normed_embedding, ref.normed_embedding, strict=True)))
 
 
+def readable(faces, height):
+    """The frame's main face, the largest, when it is tall enough to read, or None."""
+    if faces and (faces[0].bbox[3] - faces[0].bbox[1]) >= MIN_FACE * height:
+        return faces[0]
+    return None
+
+
 def score(frame_faces, ref):
-    """The main face's similarity to the reference in each frame, and how many frames hold a
-    second face, tall enough to read, that is not hers. frame_faces is (faces largest first,
-    frame height) per frame, and ref is the reference face."""
+    """The main face's similarity to the reference in each frame that holds a readable one, and how
+    many frames hold a second face, tall enough to read, that is not hers. frame_faces is (faces
+    largest first, frame height) per frame, and ref is the reference face."""
     sims, strangers = [], 0
     for faces, height in frame_faces:
-        if not faces:
+        main = readable(faces, height)
+        if main is None:
             continue
-        sims.append(_sim(faces[0], ref))
+        sims.append(_sim(main, ref))
         tall = [f for f in faces[1:] if (f.bbox[3] - f.bbox[1]) >= MIN_FACE * height]
         if any(_sim(f, ref) < CAST_MIN for f in tall):
             strangers += 1
@@ -105,8 +116,9 @@ def score(frame_faces, ref):
 
 
 def against(frame_faces, other):
-    """The main face's similarity to a second reference, in each frame that holds a face."""
-    return [_sim(faces[0], other) for faces, _height in frame_faces if faces]
+    """The main face's similarity to a second reference, in each frame that holds a readable face."""
+    mains = (readable(faces, height) for faces, height in frame_faces)
+    return [_sim(main, other) for main in mains if main is not None]
 
 
 def faces_in(img):

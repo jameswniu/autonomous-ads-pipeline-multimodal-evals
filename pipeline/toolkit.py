@@ -99,6 +99,13 @@ def chain_of(spot_def):
     return [s for s in (spot_def.get("chain") or []) if s in (spot_def.get("scenes") or {})]
 
 
+def slots_of(spot_def):
+    """The shots each narration sentence holds, in order, one list per sentence, or None when every
+    sentence holds one scene, the three scenes a, b and c as the August builds cut them."""
+    slots = spot_def.get("slots")
+    return [list(s) for s in slots] if slots else None
+
+
 def chain_text(spot_def, text):
     """A chained scene line. The frame it starts from carries her, so she is named, not bound to an image."""
     return text.replace(PLACEHOLDER, f"the {spot_def.get('character_noun', 'person')}")

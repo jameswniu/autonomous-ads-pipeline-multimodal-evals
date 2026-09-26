@@ -5,6 +5,9 @@
 #   avatar-slug defaults to <ad>-av (harbor uses harbor-maya-av etc.)
 # TAKES is the directory holding <ad>-vo, <ad>-a/b/c and the avatar slug; it defaults to the August
 # layout under SHOOT_ROOT. FILM2 holds the beds and the two hits. pipeline/live.py sets all three.
+# SCENE_A, SCENE_B and SCENE_C name the clip for each of the three sentences when it is not
+# <ad>-a/b/c. pipeline/live.py sets them for a spot whose sentence holds more than one shot, joined
+# into one clip before this script cuts it to the sentence.
 set -euo pipefail
 AD=$1; AV=${2:-$AD-av}; S=${SHOOT_ROOT:-}; T=${TAKES:-$S/takes/ads2}
 # Absolute, because the concat list near the end names every segment by path, and ffmpeg
@@ -130,9 +133,9 @@ print(min(50, max(28, int(2136 / need))))
 PYF
 )
 echo "caption size $CAPSZ (longest caption $(python3 -c "import sys; print(max(len(a) for a in sys.argv[1:] if a))" "$C1" "$C2" "$C3" "$AVCAP" "$PROMISE") chars)"
-scene "$T/$AD-a/raw.mp4" "$D1" "$V/q1.mp4" "$(esc "$C1")" ":enable='gte(t,$S1)'" "scene a"
-scene "$T/$AD-b/raw.mp4" "$D2" "$V/q2.mp4" "$(esc "$C2")" ":enable='gte(t,0.15)'" "scene b"
-SC=${SCENE_C:-$T/$AD-c/raw.mp4}
+SA=${SCENE_A:-$T/$AD-a/raw.mp4}; SB=${SCENE_B:-$T/$AD-b/raw.mp4}; SC=${SCENE_C:-$T/$AD-c/raw.mp4}
+scene "$SA" "$D1" "$V/q1.mp4" "$(esc "$C1")" ":enable='gte(t,$S1)'" "scene a"
+scene "$SB" "$D2" "$V/q2.mp4" "$(esc "$C2")" ":enable='gte(t,0.15)'" "scene b"
 scene "$SC" "$D3" "$V/q3.mp4" "$(esc "$C3")" ":enable='between(t,0.15,$(echo "$E3-$T3+0.10"|bc))'" "scene c"
 # measured, frame-exact scene lengths: every audio anchor below derives from these, never from the plan
 frames() { ffprobe -v error -select_streams v -count_frames -show_entries stream=nb_read_frames -of csv=p=0 "$1"; }
@@ -208,7 +211,7 @@ ffmpeg -v error -y -f lavfi -i "color=c=black:s=1080x1080:d=3.0:r=25" -i "$V/c1.
 ffmpeg -v error -y -f concat -safe 0 -i "$V/concat.txt" -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p "$V/video.mp4"
 AVMS=$(echo "$TEND*1000/1"|bc); CARDMS=$(echo "($TEND+$AVD)*1000/1"|bc); DUR=$(echo "$TEND+$AVD+3.0"|bc)
 T2MS=$(echo "$T2*1000/1"|bc); T3MS=$(echo "$T3*1000/1"|bc)
-ffmpeg -v error -y -i "$T/$AD-vo/narration.mp3" -i "$T/$AD-a/raw.mp4" -i "$T/$AD-b/raw.mp4" -i "${SCENE_C:-$T/$AD-c/raw.mp4}" -i "$AVV" -i "$BED" -i "$F2/hit2.mp3" -i "$F2/hit.mp3" -filter_complex "
+ffmpeg -v error -y -i "$T/$AD-vo/narration.mp3" -i "$SA" -i "$SB" -i "$SC" -i "$AVV" -i "$BED" -i "$F2/hit2.mp3" -i "$F2/hit.mp3" -filter_complex "
 [0:a]apad=whole_dur=$DUR[vo];
 [1:a]atrim=0.4:$(echo "0.4+$D1"|bc),asetpts=PTS-STARTPTS,volume=0.14[m1];
 [2:a]atrim=0.4:$(echo "0.4+$D2"|bc),asetpts=PTS-STARTPTS,volume=0.14,adelay=$T2MS|$T2MS[m2];

@@ -21,6 +21,12 @@ Mechanical half only. Checks, per spot:
                    before, names real scenes in its 'chain', each once, and a chained scene that
                    writes {character} has a 'character_noun' to name her by. A spot with no chain
                    passes.
+  slots            a spot that gives a narration sentence more than one shot lists its 'slots', one
+                   for each of the three sentences shoots/build-ad.sh cuts the narration into (it
+                   merges any beyond three, and it cannot cut fewer), each holding the shots that
+                   play under that sentence in order. Every scene is in exactly one slot, and a
+                   chained scene plays in the chain's order. A spot with no slots passes, one scene
+                   to a sentence as before.
 The four judgment rows (hook, realism, absurdity, logic) are printed as questions for the eye.
 Exit 0 all pass, 1 any fail.
 """
@@ -35,6 +41,8 @@ HUMAN_NOUNS = re.compile(r"\b(woman|women|man|men|girls?|boys?|students?|persons
                          r"fathers?|moms?|dads?)\b")
 PRONOUNS = re.compile(r"\b(she|her|hers|he|him|his)\b")
 THIRD_PERSON = re.compile(r"\b(she|her|hers|he|him|his)\b", re.IGNORECASE)
+SENTENCE_END = re.compile(r"(?<=[.?!])\s+")   # the split shoots/build-ad.sh cuts the narration on
+BUILDER_SLOTS = 3                               # and the three sentences it merges them down to
 
 def words(t):
     return set(re.findall(r"[a-z]{5,}", t.lower()))
@@ -60,6 +68,27 @@ def chain_ok(sp, scenes):
     if not isinstance(chain, list) or not chain or len(set(chain)) != len(chain) or any(k not in scenes for k in chain):
         return False
     return bool(sp.get("character_noun")) or not any(PLACEHOLDER in scenes[k] for k in chain)
+
+def sentence_count(narration):
+    """How many sentences shoots/build-ad.sh would cut a narration into: every one, merged down to three."""
+    return min(len([x for x in SENTENCE_END.split(narration.strip()) if x.strip()]), BUILDER_SLOTS)
+
+def slots_ok(sp, scenes):
+    """True when the spot has no slots, or its slots hold its own scenes once each, one slot to each
+    of the three sentences the builder cuts the narration into, and a chained scene plays in the
+    chain's order. The builder reads three sentence windows, so a narration of fewer cannot hold slots."""
+    slots = sp.get("slots")
+    if slots is None:
+        return True
+    if not isinstance(slots, list) or not slots or any(not isinstance(s, list) or not s for s in slots):
+        return False
+    flat = [k for s in slots for k in s]
+    if sorted(flat) != sorted(scenes):   # every scene, each exactly once
+        return False
+    if len(slots) != BUILDER_SLOTS or sentence_count(sp.get("narration", "")) != BUILDER_SLOTS:
+        return False
+    chain = sp.get("chain")
+    return not isinstance(chain, list) or [k for k in flat if k in chain] == chain
 
 def main():
     args = [a for a in sys.argv[1:] if a != "--json"]
@@ -95,7 +124,7 @@ def main():
         register = register_ok(narration)
         checks = {"product_absent": product_absent, "escalation": escalation, "quirk_unspoken": quirk_unspoken,
                   "mouths_closed": closed, "crop_clause": crop, "cast": cast, "register": register,
-                  "chain": chain_ok(sp, scenes)}
+                  "chain": chain_ok(sp, scenes), "slots": slots_ok(sp, scenes)}
         bad = [k for k, v in checks.items() if not v]
         if bad: fails.append((ad, bad, sorted(shared)))
         rows.append((ad, checks, sorted(shared)))

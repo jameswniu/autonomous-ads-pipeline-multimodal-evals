@@ -27,14 +27,15 @@ class Step:
 
 STEPS = (
     Step("board", "Board",
-         "Eight mechanical checks, free, before a cent is spent (the product absent before the "
+         "Nine mechanical checks, free, before a cent is spent (the product absent before the "
          "payoff, the escalation declared, the quirk never spoken by the narration, mouths closed "
          "under narration, the centre-crop clause present, every person in a scene written as the "
          "story's character, the narration spoken to the viewer, a chain naming the spot's own "
-         "scenes once each). The four judgment rows it "
+         "scenes once each, and slots giving each of the three sentences its own shots, every "
+         "scene once). The four judgment rows it "
          "prints are scored when the board is written, before a run starts",
          "The board goes back",
-         "eight mechanical checks, four eye rows", "gates/board_probe.py", "process"),
+         "nine mechanical checks, four eye rows", "gates/board_probe.py", "process"),
     Step("render", "Render",
          "Every request and every landing appended to the ledger, the vendor's own rejection "
          "text included, and every scene read by the edge probe. A scene that shows the story's "
@@ -52,8 +53,9 @@ STEPS = (
          "Stops the run, a new look is needed",
          "identity pin, jaw under 0.17", "guards/, gates/jaw_gate.py", "process"),
     Step("build", "Build",
-         "The scenes cut to the narration's sentences, the closer and its captions placed after "
-         "them, and the master normalised toward -16 LUFS",
+         "The scenes cut to the narration's sentences, a sentence that holds more than one shot "
+         "getting them joined in order first, the closer and its captions placed after them, and "
+         "the master normalised toward -16 LUFS",
          "Stops the run",
          "cut to the words, then mastered", "shoots/build-ad.sh, master.sh", "process"),
     Step("ad_gates", "Ad gates",
