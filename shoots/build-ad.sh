@@ -5,6 +5,8 @@
 #   avatar-slug defaults to <ad>-av (harbor uses harbor-maya-av etc.)
 # TAKES is the directory holding <ad>-vo, <ad>-a/b/c and the avatar slug; it defaults to the August
 # layout under SHOOT_ROOT. FILM2 holds the beds and the two hits. pipeline/live.py sets all three.
+# SWITCHES says where the switching sound, hit2.mp3, plays: slots (the default, under the second and
+# third sentences), off, or cuts (where the picture changes most). shoots/switches.sh has the detail.
 # SCENE_A, SCENE_B and SCENE_C name the clip for each of the three sentences when it is not
 # <ad>-a/b/c. pipeline/live.py sets them for a spot whose sentence holds more than one shot, joined
 # into one clip before this script cuts it to the sentence.
@@ -17,6 +19,7 @@ AD=$1; AV=${2:-$AD-av}; S=${SHOOT_ROOT:-}; T=${TAKES:-$S/takes/ads2}
 case $T in /*) ;; *) T=$PWD/$T ;; esac
 V=$T/out-$AD-${AV}; mkdir -p "$V"; F2=${FILM2:-$S/takes/film2}
 GATES=${GATES:-$(cd "$(dirname "$0")/../gates" && pwd)}
+. "$(dirname "$0")/switches.sh"
 FN='/System/Library/Fonts/Supplemental/Arial.ttf'
 enc=(-c:v libx264 -crf 18 -preset medium -pix_fmt yuv420p -r 25)
 # A named spot supplies its August brand, tag and bed only where the caller set none. It used to
@@ -211,6 +214,8 @@ ffmpeg -v error -y -f lavfi -i "color=c=black:s=1080x1080:d=3.0:r=25" -i "$V/c1.
 ffmpeg -v error -y -f concat -safe 0 -i "$V/concat.txt" -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p "$V/video.mp4"
 AVMS=$(echo "$TEND*1000/1"|bc); CARDMS=$(echo "($TEND+$AVD)*1000/1"|bc); DUR=$(echo "$TEND+$AVD+3.0"|bc)
 T2MS=$(echo "$T2*1000/1"|bc); T3MS=$(echo "$T3*1000/1"|bc)
+switch_hits "${SWITCHES:-}" "$T2MS" "$T3MS" "$V/video.mp4" "$(echo "scale=3; $CARDMS/1000"|bc)"
+[ -z "$SWITCHLINE" ] || echo "$SWITCHLINE"
 ffmpeg -v error -y -i "$T/$AD-vo/narration.mp3" -i "$SA" -i "$SB" -i "$SC" -i "$AVV" -i "$BED" -i "$F2/hit2.mp3" -i "$F2/hit.mp3" -filter_complex "
 [0:a]apad=whole_dur=$DUR[vo];
 [1:a]atrim=0.4:$(echo "0.4+$D1"|bc),asetpts=PTS-STARTPTS,volume=0.14[m1];
@@ -218,9 +223,9 @@ ffmpeg -v error -y -i "$T/$AD-vo/narration.mp3" -i "$SA" -i "$SB" -i "$SC" -i "$
 [3:a]atrim=0.4:$(echo "0.4+$D3"|bc),asetpts=PTS-STARTPTS,apad=whole_dur=$D3,volume=0.14,adelay=$T3MS|$T3MS[m3];
 [4:a]atrim=0:$AVD,asetpts=PTS-STARTPTS,volume=1.0,adelay=$AVMS|$AVMS[av];
 [5:a]atrim=0:$DUR,asetpts=PTS-STARTPTS,volume='if(lt(t,$TEND),0.20,if(lt(t,$(echo "$TEND+$AVD"|bc)),0.10,0.22))':eval=frame,afade=t=in:st=0:d=0.2,afade=t=out:st=$(echo "$DUR-0.8"|bc):d=0.8[bed];
-[6:a]adelay=$T2MS|$T2MS,volume=0.4[k1];[6:a]adelay=$T3MS|$T3MS,volume=0.4[k2];
+$KHITS
 [7:a]adelay=$CARDMS|$CARDMS,volume=0.7[h1];
-[vo][m1][m2][m3][av][bed][k1][k2][h1]amix=inputs=9:duration=first:normalize=0[a]" -map "[a]" -c:a aac -b:a 160k "$V/audio.m4a"
+[vo][m1][m2][m3][av][bed]$KLABELS[h1]amix=inputs=$((7 + NK)):duration=first:normalize=0[a]" -map "[a]" -c:a aac -b:a 160k "$V/audio.m4a"
 ffmpeg -v error -y -i "$V/video.mp4" -i "$V/audio.m4a" -map 0:v -map 1:a -c copy -shortest -movflags +faststart "$V/ad.mp4"
 # caption sidecar for the gates: narration sentences then the avatar line
 python3 - "$T/$AD-vo/stt.json" "$T/$AV/stt.json" "$TEND" "$V/clean.srt" <<'PY'

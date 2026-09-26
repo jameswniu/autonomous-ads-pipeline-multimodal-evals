@@ -561,13 +561,13 @@ def dry(tmp_path, board, spot):
 
 
 def test_a_dry_run_stops_before_the_first_spend_and_prices_it(tmp_path):
-    """The Z.ai board with its student written as the story's character. It passes all nine
+    """The Z.ai board with its student written as the story's character. It passes all ten
     board checks, each scene would go to the reference path with her face, and the prompt is
     August's own line with only the person bound to that face, the guard after it verbatim."""
     out, rows = dry(tmp_path, "shoots/graph-zai-character/boards.json", "zai")
     assert out["trail"] == ["board", "render", "ledger"], out["trail"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
-    assert gate["pass"] and len(gate["checks"]) == 9 and gate["failed"] == [], gate
+    assert gate["pass"] and len(gate["checks"]) == 10 and gate["failed"] == [], gate
     assert out["outcome"] == "dry: stopped before the first spend"
     requests = [r for r in rows if r["kind"] == "request"]
     assert len(requests) == 3 and all(r["dry"] for r in requests)
@@ -589,7 +589,7 @@ def test_a_dry_run_on_the_chain_board_shoots_each_scene_from_a_frame_in_order(tm
     out, rows = dry(tmp_path, "shoots/graph-zai-chain/boards.json", "zai")
     assert out["outcome"] == "dry: stopped before the first spend", out["outcome"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
-    assert gate["pass"] and len(gate["checks"]) == 9 and gate["checks"]["chain"] and gate["failed"] == [], gate
+    assert gate["pass"] and len(gate["checks"]) == 10 and gate["checks"]["chain"] and gate["failed"] == [], gate
     requests = [r for r in rows if r["kind"] == "request"]
     assert [r["scene"] for r in requests] == ["zai-a", "zai-b", "zai-c"], requests
     assert {r["engine"] for r in requests} == {"google/gemini-omni-flash/image-to-video"}, requests
@@ -602,14 +602,14 @@ def test_a_dry_run_on_the_chain_board_shoots_each_scene_from_a_frame_in_order(tm
 
 
 def test_a_dry_run_on_the_shots_board_chains_four_shots_under_three_sentences(tmp_path):
-    """The shots board opens on the room already coming apart, gives the long middle sentence two
-    shots, a wide one and a close one on the mug, and names a camera in each. It passes every board
-    check, slots included, and a live run would send its four shots in the chain's order, each from
-    a frame, at the same price per shot."""
+    """The shots board opens on the walls already shooting away, gives the long middle sentence two
+    shots, a crane up to a high wide and a lower one that folds the warehouse back, and names a
+    camera in each. It passes every board check, slots included, and a live run would send its four
+    shots in the chain's order, each from a frame, at the same price per shot."""
     out, rows = dry(tmp_path, "shoots/graph-zai-shots/boards.json", "zai")
     assert out["outcome"] == "dry: stopped before the first spend", out["outcome"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
-    assert gate["pass"] and len(gate["checks"]) == 9 and gate["checks"]["slots"] and gate["failed"] == [], gate
+    assert gate["pass"] and len(gate["checks"]) == 10 and gate["checks"]["slots"] and gate["failed"] == [], gate
     requests = [r for r in rows if r["kind"] == "request"]
     assert [r["scene"] for r in requests] == ["zai-a", "zai-b", "zai-c", "zai-d"], requests
     assert [r["start_from"] for r in requests] == ["the character's still", "the last frame of zai-a",

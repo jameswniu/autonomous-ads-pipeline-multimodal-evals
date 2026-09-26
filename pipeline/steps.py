@@ -27,15 +27,15 @@ class Step:
 
 STEPS = (
     Step("board", "Board",
-         "Nine mechanical checks, free, before a cent is spent (the product absent before the "
+         "Ten mechanical checks, free, before a cent is spent (the product absent before the "
          "payoff, the escalation declared, the quirk never spoken by the narration, mouths closed "
          "under narration, the centre-crop clause present, every person in a scene written as the "
          "story's character, the narration spoken to the viewer, a chain naming the spot's own "
-         "scenes once each, and slots giving each of the three sentences its own shots, every "
-         "scene once). The four judgment rows it "
+         "scenes once each, slots giving each of the three sentences its own shots, every "
+         "scene once, and the switching sound placed where the build knows how). The four judgment rows it "
          "prints are scored when the board is written, before a run starts",
          "The board goes back",
-         "nine mechanical checks, four eye rows", "gates/board_probe.py", "process"),
+         "ten mechanical checks, four eye rows", "gates/board_probe.py", "process"),
     Step("render", "Render",
          "Every request and every landing appended to the ledger, the vendor's own rejection "
          "text included, and every scene read by the edge probe. A scene that shows the story's "

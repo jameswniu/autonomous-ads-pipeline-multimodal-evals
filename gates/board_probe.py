@@ -27,6 +27,10 @@ Mechanical half only. Checks, per spot:
                    play under that sentence in order. Every scene is in exactly one slot, and a
                    chained scene plays in the chain's order. A spot with no slots passes, one scene
                    to a sentence as before.
+  switches         where the build plays the switching sound, when a spot says: slots (under the
+                   narration's sentence boundaries, the default), off, or cuts (where the picture
+                   changes most). Any other value fails, since the build would refuse it after the
+                   spend. A spot that does not say passes.
 The four judgment rows (hook, realism, absurdity, logic) are printed as questions for the eye.
 Exit 0 all pass, 1 any fail.
 """
@@ -90,6 +94,15 @@ def slots_ok(sp, scenes):
     chain = sp.get("chain")
     return not isinstance(chain, list) or [k for k in flat if k in chain] == chain
 
+# The modes shoots/switches.sh knows. pipeline/toolkit.py carries the same tuple, and a test holds
+# the three together, since a gate that knew a mode the build does not would pass a board the build
+# then refuses.
+SWITCHES = ("slots", "off", "cuts")
+
+def switches_ok(sp):
+    """True when the spot leaves the switching sound at the build's default or names a mode it knows."""
+    return "switches" not in sp or sp["switches"] in SWITCHES
+
 def main():
     args = [a for a in sys.argv[1:] if a != "--json"]
     as_json = "--json" in sys.argv[1:]
@@ -124,7 +137,7 @@ def main():
         register = register_ok(narration)
         checks = {"product_absent": product_absent, "escalation": escalation, "quirk_unspoken": quirk_unspoken,
                   "mouths_closed": closed, "crop_clause": crop, "cast": cast, "register": register,
-                  "chain": chain_ok(sp, scenes), "slots": slots_ok(sp, scenes)}
+                  "chain": chain_ok(sp, scenes), "slots": slots_ok(sp, scenes), "switches": switches_ok(sp)}
         bad = [k for k, v in checks.items() if not v]
         if bad: fails.append((ad, bad, sorted(shared)))
         rows.append((ad, checks, sorted(shared)))

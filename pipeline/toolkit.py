@@ -106,6 +106,16 @@ def slots_of(spot_def):
     return [list(s) for s in slots] if slots else None
 
 
+# Where the build plays hit2.mp3, the switching sound: under the narration's sentence boundaries
+# (the August default), nowhere, or where the picture changes most. shoots/switches.sh has the detail.
+SWITCHES = ("slots", "off", "cuts")
+
+
+def switches_of(spot_def):
+    """The switching-sound mode a spot asks for, or None when it leaves the build's default."""
+    return spot_def.get("switches")
+
+
 def chain_text(spot_def, text):
     """A chained scene line. The frame it starts from carries her, so she is named, not bound to an image."""
     return text.replace(PLACEHOLDER, f"the {spot_def.get('character_noun', 'person')}")

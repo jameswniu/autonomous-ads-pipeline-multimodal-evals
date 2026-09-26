@@ -800,6 +800,150 @@ def test_a_relative_takes_directory_still_joins_the_segments(tmp_path):
     assert r.returncode == 0 and (out / "video.mp4").stat().st_size > 0, r.stderr
 
 
+def _switch_times():
+    spec = importlib.util.spec_from_file_location("switch_times", os.path.join(ROOT, "shoots", "switch_times.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _cuts_clip(path):
+    """White, black, white, two seconds each at 25 fps, so the picture cuts at 2.0 and 4.0 s."""
+    parts = ("color=c=white:s=160x90:r=25:d=2[a];color=c=black:s=160x90:r=25:d=2[b];"
+             "color=c=white:s=160x90:r=25:d=2[c];[a][b][c]concat=n=3:v=1:a=0,format=yuv420p[v]")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-filter_complex", parts, "-map", "[v]", str(path)],
+                   check=True, timeout=120)
+    return path
+
+
+def _hits(mode, video="none", card="30"):
+    """shoots/switches.sh's switch_hits for a mode, with the second and third sentences at 4.52 and
+    13.96 s: its exit, KHITS, KLABELS, NK and SWITCHLINE, and what it said on stderr."""
+    r = subprocess.run(["bash", "-c", '. "$0"; switch_hits "$1" 4520 13960 "$2" "$3"; rc=$?; '
+                        'printf "%s\\n%s\\n%s\\n%s\\n%s\\n" "$rc" "$KHITS" "$KLABELS" "$NK" "$SWITCHLINE"',
+                        os.path.join(ROOT, "shoots", "switches.sh"), mode, str(video), card],
+                       capture_output=True, text=True, timeout=120)
+    return r.stdout.split("\n")[:5], r.stderr
+
+
+def test_the_switching_sound_finds_a_cut_and_a_morph_but_not_a_pop_or_a_pan():
+    """A chained cut changes its picture two ways worth a whoosh, a hard cut all at once and a morph
+    over about half a second. A one-frame pop in a render and a slow camera move are not scene
+    changes, and neither is a picture that never stops moving. The sound goes a tenth of a second
+    ahead of the frame that changes most, the first of them when two change equally."""
+    st = _switch_times()
+    changes = [0.8] * 750                                   # 30 s at 25 fps, a quiet baseline
+    changes[99] = 70.0                                      # a hard cut arriving with frame 100, at 4.00 s
+    for k, v in zip(range(293, 305), (4, 5, 6, 7, 8, 9, 10, 8, 7, 6, 5, 4), strict=True):
+        changes[k] = v                                      # a morph over 12 frames, its biggest arriving at 12.00 s,
+                                                            # no quarter second of it enough on its own
+    changes[199] = 14.0                                     # a one-frame pop at 8.00 s
+    for k in range(450, 500):
+        changes[k] = 3.5                                    # a slow pan from 18 to 20 s
+    assert st.picks(changes, 30.0) == [3.9, 11.9]
+    busy = [4.5] * 750                                      # her talking, the camera drifting, every frame moving
+    busy[99] = 70.0
+    assert st.picks(busy, 30.0) == [3.9]
+    even = [0.8] * 750
+    even[99] = even[100] = 40.0                             # a change spread evenly over two frames
+    assert st.picks(even, 30.0) == [3.9]
+
+
+def test_the_switching_sound_keeps_the_stronger_of_two_close_changes_and_at_most_four():
+    """Two changes closer than two seconds keep the stronger, and the earlier when they are equal, so
+    the same picture always gets the same sound. Four is the most a cut gets, the strongest four.
+    Nothing goes within a second of the card, which has its own sting, and a change with the very
+    first frame cannot be led."""
+    st = _switch_times()
+    close = [0.8] * 1000
+    close[99], close[136] = 60.0, 90.0                     # 4.00 s and 5.48 s
+    assert st.picks(close, 40.0) == [5.38]
+    tie = [0.8] * 1000
+    tie[99], tie[124] = 60.0, 60.0                         # 4.00 s and 5.00 s, equally strong
+    assert st.picks(tie, 40.0) == [3.9]
+    close[136], close[149] = 0.8, 90.0                     # 4.00 s and 6.00 s, exactly two seconds apart
+    assert st.picks(close, 40.0) == [3.9, 5.9]
+    many = [0.8] * 1000
+    for n, k in enumerate(range(99, 900, 100)):             # nine cuts, each stronger than the last
+        many[k] = 60.0 + n
+    assert st.picks(many, 40.0) == [23.9, 27.9, 31.9, 35.9]
+    near = [0.8] * 1000
+    near[99], near[974] = 70.0, 80.0                       # the second lands 0.1 s before a card at 39.1 s
+    assert st.picks(near, 39.1) == [3.9]
+    first = [0.8] * 500
+    first[0] = 70.0
+    assert st.picks(first, 20.0) == [0.0]
+    assert st.picks([], 20.0) == []
+
+
+def test_the_switching_sound_reads_hard_cuts_off_a_real_video(tmp_path):
+    """The detector reads the picture through ffmpeg. White, black and white cut at 2.0 and 4.0 s,
+    so the sound goes at 1.9 and 3.9, and nothing past the card at 6 s is read."""
+    clip = _cuts_clip(tmp_path / "cuts.mp4")
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "shoots", "switch_times.py"), str(clip), "6.0"],
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0 and r.stdout.splitlines()[-1] == "SWITCHES mode=cuts at=1.90,3.90", r.stdout + r.stderr
+
+
+def test_the_default_switching_sound_is_the_august_mix_to_the_byte():
+    """A board that says nothing gets the mix the build made before there were modes, hit2 under the
+    second and third sentences and nothing extra printed. The build's own mix lines are read here,
+    so what they make from the snippet is exactly the two lines they replaced."""
+    legacy = "[6:a]adelay=4520|4520,volume=0.4[k1];[6:a]adelay=13960|13960,volume=0.4[k2];"
+    out, _ = _hits("")
+    assert out == ["0", legacy, "[k1][k2]", "2", ""], out
+    out, _ = _hits("slots")
+    assert out == ["0", legacy, "[k1][k2]", "2", "SWITCHES mode=slots at=4.52,13.96"], out
+    out, _ = _hits("off")
+    assert out == ["0", "", "", "0", "SWITCHES mode=off at="], out
+    out, err = _hits("loud")
+    assert out[0] == "2" and "slots, off or cuts" in err, (out, err)
+    build = _build_text()
+    assert "[k1];[6:a]adelay=$T3MS" not in build and build.count("\n$KHITS\n") == 1, "hit2 reaches the mix another way"
+    amix = "[vo][m1][m2][m3][av][bed]$KLABELS[h1]amix=inputs=$((7 + NK)):duration=first:normalize=0[a]"
+    assert build.count(amix) == 1
+    made = subprocess.run(["bash", "-c", '. "$0"; switch_hits "" 4520 13960 none 30; printf "%s" "' + amix + '"',
+                           os.path.join(ROOT, "shoots", "switches.sh")], capture_output=True, text=True, timeout=60)
+    assert made.stdout == "[vo][m1][m2][m3][av][bed][k1][k2][h1]amix=inputs=9:duration=first:normalize=0[a]", made.stdout
+    assert 'switch_hits "${SWITCHES:-}"' in build, "the build passes a mode other than the board's"
+
+
+def test_cuts_mode_puts_the_switching_sound_where_the_picture_changes(tmp_path):
+    clip = _cuts_clip(tmp_path / "cuts.mp4")
+    out, err = _hits("cuts", clip, "6.0")
+    assert out == ["0", "[6:a]adelay=1900|1900,volume=0.4[k1];[6:a]adelay=3900|3900,volume=0.4[k2];",
+                   "[k1][k2]", "2", "SWITCHES mode=cuts at=1.90,3.90"], (out, err)
+
+
+def test_the_board_gate_the_toolkit_and_the_build_know_the_same_switching_modes(tmp_path):
+    """A gate that knew a mode the build does not would pass a board the build then refuses, after
+    the spend. So every mode the board gate passes, the build accepts, and any other it refuses."""
+    spec = importlib.util.spec_from_file_location("board_probe", os.path.join(GATES, "board_probe.py"))
+    bp = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bp)
+    sys.path.insert(0, ROOT)
+    from pipeline.toolkit import SWITCHES
+    assert tuple(bp.SWITCHES) == tuple(SWITCHES) == ("slots", "off", "cuts")
+    clip = _cuts_clip(tmp_path / "cuts.mp4")
+    for mode in SWITCHES:
+        assert _hits(mode, clip, "6.0")[0][0] == "0", mode
+    assert _hits("cut", clip, "6.0")[0][0] == "2"
+
+
+def test_board_probe_refuses_a_switching_mode_the_build_does_not_know(tmp_path):
+    def switches(value):
+        p = tmp_path / "b.json"
+        spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.",
+                "scenes": {"a": "A warehouse hums. Mouth closed, nobody speaks."}}
+        if value is not None:
+            spot["switches"] = value
+        p.write_text(json.dumps({"guard": "Keep the subject in the middle third.", "spots": {"s": spot}}))
+        r = run([sys.executable, os.path.join(GATES, "board_probe.py"), str(p), "--json"])
+        return json.loads(r.stdout)["spots"]["s"]["checks"]["switches"]
+    assert switches(None) and switches("slots") and switches("off") and switches("cuts")
+    assert not switches("scenes") and not switches("") and not switches(["cuts"])
+
+
 def test_the_master_lands_under_the_true_peak_ceiling(tmp_path):
     """shoots/master.sh aimed loudnorm at a true peak of -1.5 dBTP, the gate's own ceiling, and the
     gate compares strictly on a reading rounded to a tenth, so a limited mix re-encoded to AAC

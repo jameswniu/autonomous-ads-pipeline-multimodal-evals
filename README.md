@@ -175,7 +175,7 @@ flowchart TD
         %% GH is an invisible twin of the eye, it balances the spine so the steps stay in one column
         ad_gates ~~~ GH["The eye · a person rules before anything ships"]
         GH ~~~ ship_gate
-        board["Board · nine checks before any spend"] --> render["Render · every request ledgered"] --> closer["Closer · identity pin, jaw under 0.17"] --> build["Build · cut to the words, mastered"] --> ad_gates --> ship_gate{{"Ship gate · loudness and peak, fails closed"}} --> deliver["Deliver · only after the ship gate"]
+        board["Board · ten checks before any spend"] --> render["Render · every request ledgered"] --> closer["Closer · identity pin, jaw under 0.17"] --> build["Build · cut to the words, mastered"] --> ad_gates --> ship_gate{{"Ship gate · loudness and peak, fails closed"}} --> deliver["Deliver · only after the ship gate"]
         deliver --> review["The review · a person, after delivery"]
         review -->|"kept"| ledger[("Ledger · append-only, shipped or stopped")]
         render -->|"a scene broke, once"| render
@@ -326,7 +326,7 @@ Everything below ran.
 | `shoots/<batch>/build-*.sh` | The batch driver: normalise scenes, patch the assembly script, build every spot, master to the loudness standard |
 | `shoots/build-ad.sh` | The assembly. Scenes trimmed to the narration's sentence boundaries from measured frame counts, captions written beside the master with each cue's spoken window, the closer placed frame-exact, one music bed per brand |
 | `shoots/<batch>/requests.jsonl`, `landings.jsonl` | The append-only ledgers. Every engine request with its prompt, every landing with the vendor's own rejection text when there was one, every gated master with its caption, drift and mouth readings, every withdrawal with its reason |
-| `gates/board_probe.py` | The nine mechanical checks on a board before a cent is spent, and the four judgment rows printed for me to score |
+| `gates/board_probe.py` | The ten mechanical checks on a board before a cent is spent, and the four judgment rows printed for me to score |
 | `gates/ad_gates.sh`, `caption_gate.py`, `mouth_sync_probe.py` | The caption gate and the closer gate a master must clear before delivery |
 | `gates/edge_clip_probe.py`, `script_match.sh`, `voice_take.sh` | The frame-edge flagger for legible props, the transcription diff against the script, the three-draw voice meter whose consensus probe lives outside this repo and which now refuses to spend a draw without it |
 | `gates/source_gate.py` | The closer look path: jaw, settle and loop jump measured on the raw render. The framing checks on the look, head and body inside the crop and shot size, run in look generation, which drives the avatar vendor's account and stays out of the repo |

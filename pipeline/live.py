@@ -57,7 +57,8 @@ import uuid
 
 from pipeline.ledger import fingerprint, new_request_id, sha256
 from pipeline.toolkit import (CHAIN_ENGINE, NARRATOR, PLACEHOLDER, PRICE_PER_SCENE, REFERENCE_ENGINE, ROOT, Toolkit,
-                              cast_ok, cast_text, chain_of, chain_text, engine_for, has_cast, load_spot, scene_prompt, slots_of)
+                              cast_ok, cast_text, chain_of, chain_text, engine_for, has_cast, load_spot, scene_prompt, slots_of,
+                              switches_of)
 
 __all__ = ["LiveSetupError", "LiveToolkit", "fingerprint"]
 
@@ -188,6 +189,7 @@ def grab_frame(src, out, last=False):
     return r.returncode == 0 and os.path.isfile(out) and os.path.getsize(out) > 0
 
 
+SWITCH_LINE = re.compile(r"^SWITCHES mode=(slots|off|cuts) at=([\d.,]*)$", re.M)   # shoots/switches.sh
 SHOT_HEAD = 0.4   # what shoots/build-ad.sh drops from the head of every scene before it cuts it
 
 
@@ -1163,10 +1165,17 @@ class LiveToolkit(Toolkit):
         slots = slots_of(spot_def)
         if slots:
             params["slots"] = slots
+        # Where the switching sound plays, when the board says. The times a "cuts" build picks from
+        # the picture are only known after it runs, so they go on the build's landing.
+        switches = switches_of(spot_def)
+        if switches:
+            params["switches"] = switches
         self.ledger.append("build", "build", spot=spot, **params)
         env = {"TAKES": self.takes, "FILM2": need("FILM2"), "BED": need("BED"), "BRAND": params["brand"],
                "TAG": params["tag"], "CLOSER_AUTOALIGN": "0", "CLOSER_NUDGE": str(nudge),
                "GATES": os.path.join(ROOT, "gates"), "FACEPY": os.environ.get("FACEPY", sys.executable)}
+        if switches:
+            env["SWITCHES"] = switches
         if slots:
             # The builder cuts the narration into exactly three sentences, one clip each.
             clips = self.slot_clips(spot, slots) if len(slots) == 3 else None
@@ -1176,7 +1185,8 @@ class LiveToolkit(Toolkit):
                 self.ledger.append("landing", "build", spot=spot, status="FAILED", during="join", error=error)
                 return {"pass": False}
             env.update(zip(("SCENE_A", "SCENE_B", "SCENE_C"), clips, strict=True))
-        r = self.script("shoots/build-ad.sh", spot, f"{spot}-av", env=env)
+        # Only the board decides where the switching sound plays, never a SWITCHES left in the shell.
+        r = self.script("shoots/build-ad.sh", spot, f"{spot}-av", env=env, drop=("SWITCHES",))
         out = os.path.join(self.takes, f"out-{spot}-{spot}-av")
         if r.returncode != 0 or not os.path.isfile(os.path.join(out, "ad.mp4")):
             self.ledger.append("landing", "build", spot=spot, status="FAILED", error=self.clean((r.stdout + r.stderr)[-800:]))
@@ -1193,8 +1203,10 @@ class LiveToolkit(Toolkit):
             self.ledger.append("landing", "build", spot=spot, status="FAILED", during="mastering",
                                error=self.clean((m.stdout + m.stderr)[-600:]))
             return {"pass": False}
+        heard = SWITCH_LINE.search(r.stdout or "")
+        placed = {"switch_times": [float(t) for t in heard.group(2).split(",") if t]} if switches and heard else {}
         self.ledger.append("landing", "build", spot=spot, status="OK", file=self.rel(master), sha256=sha256(master),
-                           seconds=duration(master), log=self.lines(r.stdout, 6))
+                           seconds=duration(master), log=self.lines(r.stdout, 6), **placed)
         return {"pass": True, "artifacts": {"master": master, "captions": captions, "srt": srt}}
 
     # Ad gates and ship gate: the repo's gates, read off their machine lines.

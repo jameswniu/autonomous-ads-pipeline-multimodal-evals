@@ -945,6 +945,71 @@ def test_a_spot_without_slots_builds_one_scene_to_a_sentence_as_before(live, mon
     assert "slots" not in [r for r in tk.ledger.rows() if r["kind"] == "build"][0]
 
 
+def _switches_board(tmp_path, value):
+    board = json.load(open(SHOTS_BOARD))
+    board["spots"]["zai"]["switches"] = value
+    path = tmp_path / f"switches-{value}.json"
+    path.write_text(json.dumps(board))
+    return str(path)
+
+
+def test_a_board_that_says_where_the_switching_sound_plays_is_built_that_way(live, monkeypatch, tmp_path):
+    """The board's switches reaches the builder and the build row names it. The times the builder
+    placed the sound at are only known after it runs, so they go on the build's landing, read off
+    its machine line. A SWITCHES left in the operator's shell never reaches the builder."""
+    tk, state = live
+    monkeypatch.setattr(L.LiveToolkit, "join", lambda self, srcs, out: open(out, "wb").write(b"j") > 0)
+    monkeypatch.setattr(L, "has_audio", lambda path: True)
+
+    def build(self, args, env):
+        out = os.path.join(env["TAKES"], f"out-{args[1]}-{args[2]}")
+        os.makedirs(out, exist_ok=True)
+        open(os.path.join(out, "ad.mp4"), "wb").write(b"ad")
+        return done(0, "measured scenes 4.52/9.44/2.80\nSWITCHES mode=cuts at=0.18,12.98,16.66\nbuilt ad.mp4\n")
+    run = scripts(build=build)
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert tk.build(dict(state, board=_switches_board(tmp_path, "cuts")))["pass"]
+    args, env, drop, _ = calls_to(run, "shoots/build-ad.sh")[0]
+    assert env["SWITCHES"] == "cuts" and "SWITCHES" in drop, (env, drop)
+    rows = tk.ledger.rows()
+    assert [r for r in rows if r["kind"] == "build"][0]["switches"] == "cuts"
+    landing = [r for r in rows if r["kind"] == "landing" and r["step"] == "build"][-1]
+    assert landing["status"] == "OK" and landing["switch_times"] == [0.18, 12.98, 16.66], landing
+
+
+def test_a_board_that_turns_the_switching_sound_off_records_no_times(live, monkeypatch, tmp_path):
+    tk, state = live
+    monkeypatch.setattr(L.LiveToolkit, "join", lambda self, srcs, out: open(out, "wb").write(b"j") > 0)
+    monkeypatch.setattr(L, "has_audio", lambda path: True)
+
+    def build(self, args, env):
+        out = os.path.join(env["TAKES"], f"out-{args[1]}-{args[2]}")
+        os.makedirs(out, exist_ok=True)
+        open(os.path.join(out, "ad.mp4"), "wb").write(b"ad")
+        return done(0, "SWITCHES mode=off at=\nbuilt ad.mp4\n")
+    run = scripts(build=build)
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert tk.build(dict(state, board=_switches_board(tmp_path, "off")))["pass"]
+    assert calls_to(run, "shoots/build-ad.sh")[0][1]["SWITCHES"] == "off"
+    landing = [r for r in tk.ledger.rows() if r["kind"] == "landing" and r["step"] == "build"][-1]
+    assert landing["switch_times"] == [], landing
+
+
+def test_a_board_that_says_nothing_about_the_switching_sound_builds_as_before(live, monkeypatch):
+    """No mode, no variable for the builder, nothing new on the ledger, and a SWITCHES in the
+    operator's shell is still kept out, so the builder makes its default mix."""
+    tk, state = live
+    monkeypatch.setenv("SWITCHES", "off")
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert tk.build(state)["pass"]
+    args, env, drop, _ = calls_to(run, "shoots/build-ad.sh")[0]
+    assert "SWITCHES" not in env and "SWITCHES" in drop, (env, drop)
+    rows = tk.ledger.rows()
+    assert "switches" not in [r for r in rows if r["kind"] == "build"][0]
+    assert "switch_times" not in [r for r in rows if r["kind"] == "landing" and r["step"] == "build"][-1]
+
+
 def test_a_sentence_whose_shots_cannot_be_joined_stops_the_build(live, monkeypatch, tmp_path):
     """A failed join is recorded and the builder never runs, and so is a board whose slots do not
     come to the three sentences the builder cuts, which the board gate refuses before a run."""
