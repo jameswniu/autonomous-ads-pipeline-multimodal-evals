@@ -104,7 +104,7 @@ The invented brands were the easy case, because a story can bend to whatever the
 
 <table>
   <tr>
-    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-cell-zai.gif" alt="Z.ai spec ad" width="100%"><br><b>Z.ai.</b> Her studio apartment is smaller than the problem she's solving. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-zai.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-cell-zai-neurons.gif" alt="Z.ai spec ad" width="100%"><br><b>Z.ai.</b> Your studio apartment is smaller than the problem you're solving. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-zai-neurons.mp4">&#9654; with sound</a></td>
     <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-cell-kimi.gif" alt="Kimi spec ad" width="100%"><br><b>Kimi.</b> She has one question and a library's worth of everything else. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-kimi.mp4">&#9654; with sound</a></td>
   </tr>
 </table>
