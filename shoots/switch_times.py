@@ -15,7 +15,9 @@ pop in a render stay under it. ENERGY_MIN is AUTHORED from one measurement, the 
 master on 2026-09-26, 64 px grey frames at 25 fps, summed over WINDOW frames each side of a frame
 after the video's median frame change is taken off: the studio blowing apart 95, the cut to the
 closer 78, the warehouse folding back 72, then a crane move 38, a render pop 16.5, the join of two
-chained shots 9 and her talking in the closer 6. The line sits between 38 and 72.
+chained shots 9 and her talking in the closer 6. The line sits between 38 and 72. Another spot's
+footage can sit differently against it, so a new master is measured the same way before the line
+moves, and the build records the times it placed on its landing for the review to hear.
 
 Within a moment's window the sound is placed LEAD seconds ahead of the frame that changes most,
 so the whoosh lands on the change. Moments closer than SPACING seconds keep the stronger one, at

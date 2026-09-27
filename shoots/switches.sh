@@ -10,7 +10,8 @@
 #          scene to the next. An empty mode is this too, the default, and exactly the mix the build
 #          made before this existed, down to printing nothing extra.
 #   off    nowhere
-#   cuts   where the assembled picture changes most, found by switch_times.py beside this file
+#   cuts   where the assembled picture changes most, found by switch_times.py beside this file. A
+#          picture with no change above its line stops the build, never ships without the sound.
 switch_hits() {
   local mode=$1 t2=$2 t3=$3 video=$4 card=$5 at s ms
   KHITS=""; KLABELS=""; NK=0; SWITCHLINE=""
@@ -25,6 +26,11 @@ switch_hits() {
       at=${SWITCHLINE#"SWITCHES mode=cuts at="}
       if [ "$at" = "$SWITCHLINE" ]; then
         echo "switch_times.py printed no machine line for $video" >&2; return 3
+      fi
+      # Asked for at the cuts and none found: stop rather than ship the cut without the sound the
+      # board asked for. The person picks slots or off, or measures this footage against the line.
+      if [ -z "$at" ]; then
+        echo "switches=cuts found no change in $video above switch_times.py's line; set switches to slots or off, or measure this footage" >&2; return 4
       fi
       for s in ${at//,/ }; do
         NK=$((NK + 1)); ms=$(echo "$s*1000/1" | bc)

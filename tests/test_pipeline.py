@@ -549,6 +549,32 @@ def test_every_kind_a_committed_graph_run_wrote_is_in_the_schema():
         assert written <= documented, (os.path.relpath(path, ROOT), sorted(written - documented))
 
 
+def test_the_state_table_in_the_pipeline_doc_is_the_graphs_state():
+    """docs/PIPELINE.md shows what the graph carries from step to step, one row per key of
+    ShootState with its type. A key added to the state without a row, a row naming a key the state
+    lacks, or a type that drifted all fail here. So does the doc's claim that trail is the only key
+    with a reducer."""
+    import re
+    import typing
+    doc = open(os.path.join(ROOT, "docs", "PIPELINE.md")).read()
+    assert "## What the graph carries from step to step" in doc, "the state section is gone"
+    section = doc.split("## What the graph carries from step to step", 1)[1].split("\n## ", 1)[0]
+    rows = re.findall(r"^\| `([a-z_]+)` \| `([a-z]+)` \|", section, re.M)
+    documented = dict(rows)
+    assert len(rows) == len(documented), [k for k, _ in rows]
+    hints = typing.get_type_hints(G.ShootState, include_extras=True)
+    assert set(documented) == set(hints), sorted(set(documented) ^ set(hints))
+    reduced = set()
+    for key, hint in hints.items():
+        base = hint
+        if typing.get_origin(hint) is typing.Annotated:
+            base = typing.get_args(hint)[0]
+            reduced.add(key)
+        assert documented[key] == base.__name__, (key, documented[key], base)
+    assert reduced == {"trail"}, reduced
+    assert "only key with a reducer" in section
+
+
 # dry runs on the committed boards
 
 def dry(tmp_path, board, spot):
