@@ -816,12 +816,14 @@ def _cuts_clip(path):
     return path
 
 
-def _hits(mode, video="none", card="30"):
+def _hits(mode, video="none", card="30", closer=None):
     """shoots/switches.sh's switch_hits for a mode, with the second and third sentences at 4.52 and
-    13.96 s: its exit, KHITS, KLABELS, NK and SWITCHLINE, and what it said on stderr."""
-    r = subprocess.run(["bash", "-c", '. "$0"; switch_hits "$1" 4520 13960 "$2" "$3"; rc=$?; '
+    13.96 s, and the closer's start as a sixth argument when one is given: its exit, KHITS, KLABELS,
+    NK and SWITCHLINE, and what it said on stderr."""
+    r = subprocess.run(["bash", "-c", '. "$0"; switch_hits "$1" 4520 13960 "$2" "$3" "${@:4}"; rc=$?; '
                         'printf "%s\\n%s\\n%s\\n%s\\n%s\\n" "$rc" "$KHITS" "$KLABELS" "$NK" "$SWITCHLINE"',
-                        os.path.join(ROOT, "shoots", "switches.sh"), mode, str(video), card],
+                        os.path.join(ROOT, "shoots", "switches.sh"), mode, str(video), card,
+                        *([] if closer is None else [closer])],
                        capture_output=True, text=True, timeout=120)
     return r.stdout.split("\n")[:5], r.stderr
 
@@ -876,6 +878,30 @@ def test_the_switching_sound_keeps_the_stronger_of_two_close_changes_and_at_most
     assert st.picks([], 20.0) == []
 
 
+def test_the_cut_to_the_closer_gets_the_switching_sound_however_little_it_changes():
+    """The build puts the closer in itself, so it knows where that cut is to the frame. The cut to
+    the rebuilt Z.ai closer, lit darker than the story, measured 46.5 against the line's 55, and
+    the whoosh the approved cuts version had at 16.7 s was gone. Given the closer's start, the sound
+    goes a tenth of a second ahead of it whatever the picture measures. A measured cut within two
+    seconds of it gives way to it, it is one of the four, and it is not placed within a second of
+    the card, like any other."""
+    st = _switch_times()
+    quiet = [0.8] * 750                                     # 30 s at 25 fps, a quiet baseline
+    assert st.picks(quiet, 30.0) == [] and st.picks(quiet, 30.0, 16.76) == [16.66]
+    dim = [0.8] * 750
+    dim[418] = 47.3                                         # the cut to a darker closer at 16.76 s, 46.5 above the median
+    assert st.picks(dim, 30.0) == [] and st.picks(dim, 30.0, 16.76) == [16.66]
+    near = [0.8] * 750
+    near[274] = 90.0                                        # a hard cut at 11.00 s, a second before the closer
+    assert st.picks(near, 30.0) == [10.9] and st.picks(near, 30.0, 12.0) == [11.9]
+    many = [0.8] * 1000
+    for n, k in enumerate(range(99, 900, 100)):             # nine cuts, each stronger than the last
+        many[k] = 60.0 + n
+    assert st.picks(many, 40.0, 38.5) == [27.9, 31.9, 35.9, 38.4]
+    assert st.picks(quiet, 30.0, 29.5) == [] and st.picks(near, 30.0, 29.5) == [10.9]
+    assert st.picks([], 20.0, 16.76) == [16.66]
+
+
 def test_the_switching_sound_reads_hard_cuts_off_a_real_video(tmp_path):
     """The detector reads the picture through ffmpeg. White, black and white cut at 2.0 and 4.0 s,
     so the sound goes at 1.9 and 3.9, and nothing past the card at 6 s is read."""
@@ -913,6 +939,26 @@ def test_cuts_mode_puts_the_switching_sound_where_the_picture_changes(tmp_path):
     out, err = _hits("cuts", clip, "6.0")
     assert out == ["0", "[6:a]adelay=1900|1900,volume=0.4[k1];[6:a]adelay=3900|3900,volume=0.4[k2];",
                    "[k1][k2]", "2", "SWITCHES mode=cuts at=1.90,3.90"], (out, err)
+
+
+def test_the_closers_start_reaches_the_detector_and_its_cut_sounds_once(tmp_path):
+    """The build passes the closer's start through switch_hits to the detector. White, black and white
+    cut at 2.0 and 4.0 s, and with the closer at 4.0 that cut is both the build's number and a change
+    the detector measures, so it gets one sound, not two: 1.9 and 3.9, as without the closer. A picture
+    that never changes stops a call without the closer's start, and with it gets the sound there."""
+    clip = _cuts_clip(tmp_path / "cuts.mp4")
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "shoots", "switch_times.py"), str(clip), "6.0", "4.0"],
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0 and r.stdout.splitlines()[-1] == "SWITCHES mode=cuts at=1.90,3.90", r.stdout + r.stderr
+    out, err = _hits("cuts", clip, "6.0", "4.0")
+    assert out == ["0", "[6:a]adelay=1900|1900,volume=0.4[k1];[6:a]adelay=3900|3900,volume=0.4[k2];",
+                   "[k1][k2]", "2", "SWITCHES mode=cuts at=1.90,3.90"], (out, err)
+    still = tmp_path / "still.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=black:s=160x90:r=25:d=6", str(still)],
+                   check=True, capture_output=True, timeout=120)
+    assert _hits("cuts", still, "5.0")[0][0] == "4"
+    out, err = _hits("cuts", still, "5.0", "2.0")
+    assert out == ["0", "[6:a]adelay=1900|1900,volume=0.4[k1];", "[k1]", "1", "SWITCHES mode=cuts at=1.90"], (out, err)
 
 
 def test_a_build_asked_for_cuts_stops_when_the_detector_cannot_read_the_picture(tmp_path):

@@ -735,6 +735,101 @@ def test_a_reused_closer_must_say_this_spots_line(live, monkeypatch, tmp_path):
     assert reused["identity"] == "unrecorded", reused
 
 
+def test_a_closer_from_another_take_replaces_the_held_one_and_moves_it_aside(live, monkeypatch, tmp_path):
+    """A re-entry with CLOSER_FROM on a new take went straight to the take the run already held and
+    kept it without a word, so the old file had to be moved aside by hand before the new closer was
+    used. The take CLOSER_FROM names now replaces a different one the run holds, the held one moves
+    aside whole under its own hash, never overwritten, and the reuse says where it went. Re-entered on
+    the same take again, the run already holds it, so nothing moves and nothing is reused twice."""
+    tk, state = live
+    old, new = tmp_path / "ads8-real" / "zai-av", tmp_path / "ads8-real" / "zai-av2"
+    for src, frame in ((old, b"x"), (new, b"y")):
+        src.mkdir(parents=True)
+        for name in ("render.mp4", "upload.mp3", "stt.json"):
+            (src / name).write_bytes(frame)
+        (src / "script.txt").write_text(CLOSER + "\n")
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    monkeypatch.setenv("CLOSER_FROM", str(old))
+    assert tk.closer(state)["pass"] is True
+    monkeypatch.setenv("CLOSER_FROM", str(new))
+    assert tk.closer(state)["pass"] is True
+    held = os.path.join(tk.takes, "zai-av", "render.mp4")
+    assert L.sha256(held) == L.sha256(str(new / "render.mp4")), "the take the run held was kept over CLOSER_FROM"
+    aside = os.path.join(tk.takes, "zai-av-replaced-" + L.sha256(str(old / "render.mp4"))[:8])
+    reused = [r for r in tk.ledger.rows() if r.get("status") == "REUSED"]
+    assert reused[-1]["source"] == "ads8-real/zai-av2" and tk.rel(aside) in reused[-1]["note"], reused[-1]
+    assert open(os.path.join(aside, "render.mp4"), "rb").read() == b"x", "the take the run held is gone"
+    assert tk.closer(state)["pass"] is True
+    assert len([r for r in tk.ledger.rows() if r.get("status") == "REUSED"]) == len(reused), "the held take was reused again"
+    assert sorted(os.listdir(tk.takes)) == ["zai-av", os.path.basename(aside)], "a take the run already held was moved"
+    assert L.sha256(held) == L.sha256(str(new / "render.mp4"))
+
+
+def test_a_refused_closer_from_puts_the_held_take_back(live, monkeypatch, tmp_path):
+    """The held take used to move aside before the one CLOSER_FROM names was checked, so a take turned
+    away for saying another line, for failing its read-back, for a missing file, for changing while it
+    was copied, or for a copy that broke, left the run with no closer and half a take in its place.
+    The take is checked in a staging dir now, and a refusal leaves the held take exactly where it was."""
+    tk, state = live
+    old, wrong, deaf = (tmp_path / "ads8-real" / name for name in ("zai-av", "zai-av-wrong", "zai-av-deaf"))
+    for src, frame, line in ((old, b"x", CLOSER), (wrong, b"y", "a different closer line"), (deaf, b"z", CLOSER)):
+        src.mkdir(parents=True)
+        for name in ("render.mp4", "upload.mp3", "stt.json"):
+            (src / name).write_bytes(frame)
+        (src / "script.txt").write_text(line + "\n")
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    monkeypatch.setenv("CLOSER_FROM", str(old))
+    assert tk.closer(state)["pass"] is True
+    held = os.path.join(tk.takes, "zai-av")
+    refusals = (("reused take says this closer", wrong, scripts()),
+                ("reused take's read-back says this closer", deaf, scripts(match=(1, "SCRIPT-MATCH FAIL: heard another line"))))
+    for check, src, run in refusals:
+        monkeypatch.setattr(L.LiveToolkit, "script", run)
+        monkeypatch.setenv("CLOSER_FROM", str(src))
+        assert tk.closer(state)["pass"] is False, check
+        assert os.listdir(tk.takes) == ["zai-av"], "the refused take cost the run the one it held"
+        for name in ("render.mp4", "upload.mp3", "stt.json"):
+            assert open(os.path.join(held, name), "rb").read() == b"x", f"{name} is not the held take's"
+        assert open(os.path.join(held, "script.txt")).read() == CLOSER + "\n"
+        row = [r for r in tk.ledger.rows() if r.get("check") == check][-1]
+        assert row["passed"] is False, row
+    # A take missing a file is refused before the held one moves at all.
+    os.remove(deaf / "stt.json")
+    monkeypatch.setenv("CLOSER_FROM", str(deaf))
+    assert tk.closer(state)["pass"] is False
+    row = [r for r in tk.ledger.rows() if r.get("check") == "the take to reuse is whole"][-1]
+    assert row["passed"] is False and "stt.json" in row["said"], row
+    assert os.listdir(tk.takes) == ["zai-av"] and open(os.path.join(held, "render.mp4"), "rb").read() == b"x"
+    # A copy that breaks partway raises, with the held take back where it was.
+    (deaf / "stt.json").write_bytes(b"z")
+    real = L.shutil.copy2
+
+    def broken(a, b):
+        if str(a).endswith("stt.json"):
+            raise OSError("disk full")
+        return real(a, b)
+
+    monkeypatch.setattr(L.shutil, "copy2", broken)
+    with pytest.raises(OSError):
+        tk.closer(state)
+    assert os.listdir(tk.takes) == ["zai-av"], "a broken copy left the held take moved aside"
+    for name in ("render.mp4", "upload.mp3", "stt.json"):
+        assert open(os.path.join(held, name), "rb").read() == b"x", f"{name} is not the held take's"
+    # A take rewritten while it is copied is refused, so the files that land are always one take's.
+
+    def racing(a, b):
+        out = real(a, b)
+        if str(a).endswith("render.mp4"):
+            (deaf / "upload.mp3").write_bytes(b"another take")
+        return out
+
+    monkeypatch.setattr(L.shutil, "copy2", racing)
+    assert tk.closer(state)["pass"] is False
+    row = [r for r in tk.ledger.rows() if r.get("check") == "the take to reuse held still while it was copied"][-1]
+    assert row["passed"] is False, row
+    assert os.listdir(tk.takes) == ["zai-av"] and open(os.path.join(held, "upload.mp3"), "rb").read() == b"x"
+
+
 def test_a_jaw_gate_that_gave_no_verdict_is_unreadable_not_a_fail(live, monkeypatch):
     tk, state = live
     open(os.path.join(tk.dir("zai-av"), "render.mp4"), "wb").write(b"x")

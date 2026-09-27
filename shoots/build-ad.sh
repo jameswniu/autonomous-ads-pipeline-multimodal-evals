@@ -214,7 +214,7 @@ ffmpeg -v error -y -f lavfi -i "color=c=black:s=1080x1080:d=3.0:r=25" -i "$V/c1.
 ffmpeg -v error -y -f concat -safe 0 -i "$V/concat.txt" -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p "$V/video.mp4"
 AVMS=$(echo "$TEND*1000/1"|bc); CARDMS=$(echo "($TEND+$AVD)*1000/1"|bc); DUR=$(echo "$TEND+$AVD+3.0"|bc)
 T2MS=$(echo "$T2*1000/1"|bc); T3MS=$(echo "$T3*1000/1"|bc)
-switch_hits "${SWITCHES:-}" "$T2MS" "$T3MS" "$V/video.mp4" "$(echo "scale=3; $CARDMS/1000"|bc)"
+switch_hits "${SWITCHES:-}" "$T2MS" "$T3MS" "$V/video.mp4" "$(echo "scale=3; $CARDMS/1000"|bc)" "$(echo "scale=3; $AVMS/1000"|bc)"
 [ -z "$SWITCHLINE" ] || echo "$SWITCHLINE"
 ffmpeg -v error -y -i "$T/$AD-vo/narration.mp3" -i "$SA" -i "$SB" -i "$SC" -i "$AVV" -i "$BED" -i "$F2/hit2.mp3" -i "$F2/hit.mp3" -filter_complex "
 [0:a]apad=whole_dur=$DUR[vo];

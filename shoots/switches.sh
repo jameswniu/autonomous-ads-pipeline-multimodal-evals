@@ -1,6 +1,6 @@
 # switches.sh: where shoots/build-ad.sh mixes hit2.mp3, the switching sound. Sourced by the build, never run.
 #
-# switch_hits <mode> <t2_ms> <t3_ms> <video> <card_s> sets four variables for the audio mix:
+# switch_hits <mode> <t2_ms> <t3_ms> <video> <card_s> [closer_s] sets four variables for the audio mix:
 #   KHITS       the filter lines that delay hit2 to each time, one per hit
 #   KLABELS     their output labels, in order, for the amix
 #   NK          how many there are
@@ -10,10 +10,14 @@
 #          scene to the next. An empty mode is this too, the default, and exactly the mix the build
 #          made before this existed, down to printing nothing extra.
 #   off    nowhere
-#   cuts   where the assembled picture changes most, found by switch_times.py beside this file. A
+#   cuts   where the assembled picture changes most, found by switch_times.py beside this file, and
+#          at the cut to the closer when closer_s, the seconds where the closer begins, is given. The
+#          build knows that cut exactly, so it is placed from that number rather than measured. A
 #          picture with no change above its line stops the build, never ships without the sound.
+#          Given closer_s, the cut to the closer is placed unless it falls within a second of the
+#          card, so in practice only a call without closer_s can reach that stop.
 switch_hits() {
-  local mode=$1 t2=$2 t3=$3 video=$4 card=$5 at s ms
+  local mode=$1 t2=$2 t3=$3 video=$4 card=$5 closer=${6:-} at s ms
   KHITS=""; KLABELS=""; NK=0; SWITCHLINE=""
   case $mode in
     ''|slots)
@@ -22,7 +26,7 @@ switch_hits() {
     off)
       SWITCHLINE="SWITCHES mode=off at=" ;;
     cuts)
-      SWITCHLINE=$(python3 "$(dirname "${BASH_SOURCE[0]}")/switch_times.py" "$video" "$card" | tail -1)
+      SWITCHLINE=$(python3 "$(dirname "${BASH_SOURCE[0]}")/switch_times.py" "$video" "$card" ${closer:+"$closer"} | tail -1)
       at=${SWITCHLINE#"SWITCHES mode=cuts at="}
       if [ "$at" = "$SWITCHLINE" ]; then
         echo "switch_times.py printed no machine line for $video" >&2; return 3

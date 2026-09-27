@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""switch_times.py <video> <card_s>: where the switching sound goes when a spot asks for it at the cuts.
+"""switch_times.py <video> <card_s> [closer_s]: where the switching sound goes when a spot asks for it at the cuts.
 
 The build mixes hit2.mp3, the switching sound, under a change of scene. By default it plays at the
 narration's sentence boundaries, which is where the August builds cut from one scene to the next.
@@ -24,6 +24,14 @@ so the whoosh lands on the change. Moments closer than SPACING seconds keep the 
 most CAP are kept, and none is placed within CARD_GAP seconds of the card, which has its own sting.
 An exact tie goes to the earlier moment and the earlier frame, so the same picture always gets the
 same times.
+
+The cut to the closer is the one change the build makes itself, so it knows the time exactly. Given
+closer_s, the seconds where the closer begins in the assembled video, that cut is placed from the
+build's own number rather than measured, because a closer lit differently from the story can change
+less of the frame than the line. The cut to the rebuilt Z.ai closer, darker than the story,
+measured 46.5 against 55 on 2026-09-26, and that build lost the whoosh at 16.7 s the approved cuts
+version had. It counts toward CAP like any other moment, a measured one within SPACING of it gives
+way to it, and it is not placed within CARD_GAP seconds of the card either.
 
 The last line printed is the machine line the build reads, the times comma separated:
 
@@ -55,15 +63,20 @@ def frame_changes(video, end_s):
     return [sum(abs(a - b) for a, b in zip(cur, prev, strict=True)) / n for prev, cur in itertools.pairwise(frames)]
 
 
-def picks(changes, card_s):
+def picks(changes, card_s, closer_s=None):
     """The times to place the switching sound, from a list of frame changes, strongest first,
-    returned in time order. A pure function of its inputs."""
+    returned in time order. The cut to the closer, at closer_s when the build gives it, is taken
+    first whatever it measures, and counts toward CAP like any other. A pure function of its inputs."""
+    chosen = []
+    if closer_s is not None:
+        at = max(0.0, closer_s - LEAD)
+        if at <= card_s - CARD_GAP:
+            chosen.append((closer_s, round(at, 2)))
     if not changes:
-        return []
+        return sorted(at for _, at in chosen)
     base = statistics.median(changes)
     excess = [max(c - base, 0.0) for c in changes]
     energy = [sum(excess[max(0, i - WINDOW):i + WINDOW + 1]) for i in range(len(excess))]
-    chosen = []
     for i in sorted(range(len(energy)), key=lambda k: (-energy[k], k)):
         if energy[i] < ENERGY_MIN or len(chosen) == CAP:
             break
@@ -80,11 +93,12 @@ def picks(changes, card_s):
 
 
 def main(argv):
-    if len(argv) != 2:
+    if len(argv) not in (2, 3):
         print(__doc__.strip().splitlines()[0], file=sys.stderr)
         return 64
     video, card_s = argv[0], float(argv[1])
-    at = picks(frame_changes(video, card_s), card_s)
+    closer_s = float(argv[2]) if len(argv) == 3 else None
+    at = picks(frame_changes(video, card_s), card_s, closer_s)
     print("SWITCHES mode=cuts at=" + ",".join(f"{t:.2f}" for t in at))
     return 0
 

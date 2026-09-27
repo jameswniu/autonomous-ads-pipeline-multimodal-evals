@@ -86,6 +86,9 @@ AD_FICTION = "ad fiction, a spot's time of day is staged, not a claim"
 AD_GATES_LINE = re.compile(r"AD_GATES_RESULT caption=(\w+) drift=(\w+) mouth=(\w+)")
 MOUTH_LINE = re.compile(r"MOUTH SYNC \w+: corr (-?[0-9.]+) at lag ([-+]?[0-9.]+)s")
 JAW_LINE = re.compile(r"^JAW_GATE .*verdict=(PASS|FAIL|UNMEASURED)$", re.M)
+# The four files a closer take is, in the order they are copied. The render goes first here and lands
+# last, so a directory holding a render always holds the whole take.
+CLOSER_TAKE = ("render.mp4", "upload.mp3", "stt.json", "script.txt")
 # `not` is the reading against a second face, the narrator's. Readings written before the gate read
 # one carry no `not`, and they still parse.
 CAST_LINE = re.compile(r"^CAST_GATE faces=(?P<faces>\d+) sim=(?P<sim>-?[0-9.]+|nan) min=(?P<min>-?[0-9.]+|nan) "
@@ -980,30 +983,54 @@ class LiveToolkit(Toolkit):
         on_file = list((state.get("artifacts") or {}).get("closer_inputs") or [None, None])
         wants_new = any(asked) and asked != on_file
         src = os.environ.get("CLOSER_FROM", "")
-        if os.path.isfile(render) and not wants_new:
-            source, inputs = "this run", on_file
-        elif src and not wants_new:
-            for name in ("render.mp4", "upload.mp3", "stt.json", "script.txt"):
-                shutil.copy2(os.path.join(src, name), os.path.join(d, name))
-            said = " ".join(open(os.path.join(d, "script.txt")).read().split())
-            source, inputs = "/".join(os.path.normpath(src).split(os.sep)[-2:]), [None, None]
-            if said != " ".join(spot_def["closer"].split()):
-                os.remove(render)   # a take that says another line never counts as this run's closer
-                self.ledger.append("gate", "closer", spot=spot, check="reused take says this closer", passed=False,
-                                   source=source)
-                return {"pass": False, "why": "the take to reuse says a different closer line"}
-            # script.txt is what the take was asked to say. stt.json is what it said when read back.
-            r = self.script("gates/script_match.sh", os.path.join(d, "stt.json"), os.path.join(d, "script.txt"),
-                            timeout=120)
-            self.ledger.append("gate", "closer", spot=spot, check="reused take's read-back says this closer",
-                               passed=r.returncode == 0, said=self.clean(r.stdout.strip()[-400:]), source=source)
-            if r.returncode != 0:
-                os.remove(render)
-                return {"pass": False, "why": "the take to reuse does not say this closer when it is read back"}
+        source, note, reuse = "/".join(os.path.normpath(src).split(os.sep)[-2:]) if src else "", {}, False
+        if src and not wants_new:
+            missing = [name for name in CLOSER_TAKE if not os.path.isfile(os.path.join(src, name))]
+            if missing:
+                # The take CLOSER_FROM names has to be whole before anything the run holds is touched.
+                self.ledger.append("gate", "closer", spot=spot, check="the take to reuse is whole", passed=False,
+                                   said=f"no {', '.join(missing)}", source=source)
+                return {"pass": False, "why": f"the take to reuse has no {', '.join(missing)}"}
+            reuse = not os.path.isfile(render) or sha256(os.path.join(src, "render.mp4")) != sha256(render)
+        if reuse:
+            # The run holds no closer, or CLOSER_FROM names another take than the one it holds. The take
+            # is copied and checked in a staging dir first, so one refused for any reason, or a copy
+            # that breaks, never touches the closer the run holds.
+            stage = f"{d}-incoming"
+            shutil.rmtree(stage, ignore_errors=True)
+            os.makedirs(stage)
+            try:
+                refused = self.stage_closer(spot, spot_def, src, stage, source)
+            except BaseException:
+                shutil.rmtree(stage, ignore_errors=True)
+                raise
+            if refused:
+                shutil.rmtree(stage, ignore_errors=True)
+                return refused
+            if os.path.isfile(render):
+                # The held take moves aside whole, never overwritten, since it can be the only copy.
+                aside, n = f"{d}-replaced-{sha256(render)[:8]}", 1
+                while os.path.exists(aside + (f"-v{n}" if n > 1 else "")):
+                    n += 1
+                aside += f"-v{n}" if n > 1 else ""
+                os.rename(d, aside)
+                try:
+                    os.rename(stage, d)
+                except OSError:
+                    os.rename(aside, d)
+                    raise
+                note = {"note": f"replaced the take this run held, now at {self.rel(aside)}"}
+            else:
+                for name in reversed(CLOSER_TAKE):   # the render lands last, so a take is never half there
+                    os.replace(os.path.join(stage, name), os.path.join(d, name))
+                shutil.rmtree(stage)
+            inputs = [None, None]
             # A take made outside this run carries no record of the look and voice behind it. The
             # ledger says so, and whoever set CLOSER_FROM is the one vouching for it.
             self.ledger.append("landing", "closer", spot=spot, status="REUSED", source=source, identity="unrecorded",
-                               file=self.rel(render), sha256=sha256(render), seconds=duration(render))
+                               file=self.rel(render), sha256=sha256(render), seconds=duration(render), **note)
+        elif os.path.isfile(render) and not wants_new:
+            source, inputs = "this run", on_file
         else:
             ok, reason = self.render_closer(spot, spot_def, d, changes)
             if not ok:
@@ -1030,6 +1057,34 @@ class LiveToolkit(Toolkit):
             elif verdict != "PASS":
                 v.update(why="the closer is not the narrator whose face the run holds", **{"pass": False})
         return v
+
+    def stage_closer(self, spot, spot_def, src, stage, source):
+        """Copy the take CLOSER_FROM names into stage and check it: None when it may be reused, else the
+        refusal. A take whose files change while they are copied is refused, so the four files that
+        land are always one take's."""
+        before = {name: sha256(os.path.join(src, name)) for name in CLOSER_TAKE}
+        for name in CLOSER_TAKE:
+            shutil.copy2(os.path.join(src, name), os.path.join(stage, name))
+        after = {name: sha256(os.path.join(src, name)) for name in CLOSER_TAKE}
+        landed = {name: sha256(os.path.join(stage, name)) for name in CLOSER_TAKE}
+        if not before == after == landed:
+            self.ledger.append("gate", "closer", spot=spot, check="the take to reuse held still while it was copied",
+                               passed=False, source=source)
+            return {"pass": False, "why": "the take to reuse changed while it was copied"}
+        said = " ".join(open(os.path.join(stage, "script.txt")).read().split())
+        if said != " ".join(spot_def["closer"].split()):
+            # A take that says another line never counts as this run's closer.
+            self.ledger.append("gate", "closer", spot=spot, check="reused take says this closer", passed=False,
+                               source=source)
+            return {"pass": False, "why": "the take to reuse says a different closer line"}
+        # script.txt is what the take was asked to say. stt.json is what it said when read back.
+        r = self.script("gates/script_match.sh", os.path.join(stage, "stt.json"), os.path.join(stage, "script.txt"),
+                        timeout=120)
+        self.ledger.append("gate", "closer", spot=spot, check="reused take's read-back says this closer",
+                           passed=r.returncode == 0, said=self.clean(r.stdout.strip()[-400:]), source=source)
+        if r.returncode != 0:
+            return {"pass": False, "why": "the take to reuse does not say this closer when it is read back"}
+        return None
 
     def owed_closer(self, spot, look, engine):
         """A closer render this run asked for and never collected, polled before paying for another."""
