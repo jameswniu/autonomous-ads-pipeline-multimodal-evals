@@ -830,6 +830,62 @@ def test_a_refused_closer_from_puts_the_held_take_back(live, monkeypatch, tmp_pa
     assert os.listdir(tk.takes) == ["zai-av"] and open(os.path.join(held, "upload.mp3"), "rb").read() == b"x"
 
 
+def test_a_person_can_pass_a_refused_jaw_by_eye_for_that_take_only(live, monkeypatch, tmp_path):
+    """The jaw meter reads realistic skin as a rubbery jaw. The author passed by eye a closer the gate
+    read at 0.189 and flagged one it read at 0.137. A waiver names the render by its hash, so it holds
+    for that take and no other, and the refused reading stays on the ledger beside it. Too short a hash
+    names nothing, and a reading the gate could not take is never waived."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(jaw=(1, "JAW_GATE jaw=0.189 face_cov=1.0 max=0.17 verdict=FAIL")))
+    assert tk.closer(state)["pass"] is False
+    digest = L.sha256(os.path.join(tk.takes, "zai-av", "render.mp4"))
+    for waiver, why in ((f"{'0' * 12}:author:passed by eye", "a waiver for another take passed this one"),
+                        (f"{digest[:8]}:author:passed by eye", "a waiver naming too little of the hash passed"),
+                        (f"{digest[:12]}: : ", "a waiver naming nobody and no reason passed"),
+                        (f"{digest[:12]}:author:passed\nby eye", "a waiver with a control character passed")):
+        monkeypatch.setenv("CLOSER_JAW_WAIVER", waiver)
+        assert tk.closer(state)["pass"] is False, why
+    monkeypatch.setenv("CLOSER_JAW_WAIVER", f"{digest[:12]}:author:passed by eye on the HeyGen page")
+    assert tk.closer(state)["pass"] is True
+    jaw = [r for r in tk.ledger.rows() if r.get("step") == "closer" and str(r.get("check", "")).startswith("jaw")]
+    assert jaw[-2]["check"] == "jaw" and jaw[-2]["passed"] is False, jaw[-2]
+    waived = jaw[-1]
+    assert waived["check"] == "jaw waived by a person" and waived["passed"] is True, waived
+    assert waived["waived_by"] == "author" and waived["sha256"] == digest and "0.189" in waived["reading"], waived
+    monkeypatch.setattr(L.LiveToolkit, "script",
+                        scripts(jaw=(64, "JAW_GATE jaw=- face_cov=0.4 max=0.17 verdict=UNMEASURED")))
+    assert tk.closer(state)["pass"] is False, "a jaw the gate could not read was waived"
+
+
+def test_a_build_refuses_a_closer_its_gates_never_passed(live, monkeypatch, tmp_path):
+    """A re-entry at the build ran on the checkpoint of an earlier pass, whose closer verdict had passed
+    one take, while a later pass had swapped in another the jaw gate refused, and the build cut that
+    one into a master. The closer verdict now carries the hash of the take its gates read, and the
+    build refuses any other file in its place, and a checkpoint that recorded no hash at all."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    v = tk.closer(state)
+    held = os.path.join(tk.takes, "zai-av", "render.mp4")
+    assert v["pass"] and v["artifacts"]["closer_sha256"] == L.sha256(held), v
+    passed = dict(state, verdict={"closer": v}, artifacts=dict(v["artifacts"]))
+    assert tk.build(passed)["pass"], "the take the gates passed was refused"
+    with open(held, "wb") as fh:
+        fh.write(b"another take")
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    refused = tk.build(passed)
+    assert refused["pass"] is False and "re-enter from closer" in refused["why"], refused
+    assert not calls_to(run, "shoots/build-ad.sh"), "the build cut a closer its gates never passed"
+    row = [r for r in tk.ledger.rows() if r.get("check") == "the closer is the take its gates passed"][-1]
+    assert row["passed"] is False and row["step"] == "build", row
+    legacy = dict(passed, artifacts={k: a for k, a in passed["artifacts"].items() if k != "closer_sha256"})
+    with open(held, "wb") as fh:
+        fh.write(b"x")
+    assert tk.build(legacy)["pass"] is False, "a checkpoint with no hash for its closer was built"
+
+
 def test_a_jaw_gate_that_gave_no_verdict_is_unreadable_not_a_fail(live, monkeypatch):
     tk, state = live
     open(os.path.join(tk.dir("zai-av"), "render.mp4"), "wb").write(b"x")

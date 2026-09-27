@@ -39,6 +39,11 @@ What a live run needs in its environment, all checked before the graph starts:
                                 as close to the narrator as to the character fails, and the closer
                                 is read back against the narrator. Each face is cut again when its
                                 source changes.
+  CLOSER_JAW_WAIVER             a person's pass by eye on a closer the jaw gate refused, written as
+                                <sha256 prefix>:<who>:<why>. It holds only for the render whose
+                                sha256 starts with that prefix, twelve hex digits or more, so it
+                                never carries over to another take, and never for a reading the
+                                gate could not take. The refused reading stays on the ledger.
   CLOSER_FROM                   a directory holding an existing closer take to reuse, or else
   HEYGEN_API_KEY, CLOSER_LOOK_ID to render one. The REST API bills a wallet of its own, separate
                                 from a web plan's credits.
@@ -1043,7 +1048,16 @@ class LiveToolkit(Toolkit):
         passed = bool(m) and m.group(1) == "PASS" and r.returncode == 0
         extra = {"unreadable": True, "error": self.clean((r.stderr or r.stdout).strip()[-300:])} if unreadable else {}
         self.ledger.append("gate", "closer", spot=spot, check="jaw", passed=passed, reading=reading, source=source, **extra)
-        v = {"pass": passed, "jaw": reading, "artifacts": {"closer": render, "closer_inputs": inputs}}
+        waived = self.jaw_waiver(render) if not passed and not unreadable else {}
+        if waived:
+            # The meter refused the take and a person passed it by eye. The jaw meter reads realistic
+            # skin as a rubbery jaw, and a person's eye is the ruler, so both stay on the ledger.
+            self.ledger.append("gate", "closer", spot=spot, check="jaw waived by a person", passed=True, reading=reading,
+                               source=source, sha256=sha256(render), **waived)
+            passed = True
+        # The hash of the take the gates read travels with the verdict, so a build can refuse any other.
+        v = {"pass": passed, "jaw": reading,
+             "artifacts": {"closer": render, "closer_inputs": inputs, "closer_sha256": sha256(render)}}
         if unreadable:
             v["unreadable"] = True
         reference = os.path.join(self.takes, f"{spot}-presenter", "reference.jpg")
@@ -1057,6 +1071,14 @@ class LiveToolkit(Toolkit):
             elif verdict != "PASS":
                 v.update(why="the closer is not the narrator whose face the run holds", **{"pass": False})
         return v
+
+    def jaw_waiver(self, render):
+        """A person's pass by eye on this exact render, from CLOSER_JAW_WAIVER, or {} when there is none."""
+        m = re.fullmatch(r"([0-9a-f]{12,64}):([^:\x00-\x1f]+):([^\x00-\x1f]+)", os.environ.get("CLOSER_JAW_WAIVER", "").strip())
+        # A waiver with nobody named or no reason given is no waiver, since the ledger has to say who and why.
+        if not m or not m.group(2).strip() or not m.group(3).strip() or not sha256(render).startswith(m.group(1)):
+            return {}
+        return {"waived_by": m.group(2).strip(), "waiver": m.group(3).strip()}
 
     def stage_closer(self, spot, spot_def, src, stage, source):
         """Copy the take CLOSER_FROM names into stage and check it: None when it may be reused, else the
@@ -1201,6 +1223,18 @@ class LiveToolkit(Toolkit):
     def build(self, state):
         _, spot_def = load_spot(state["board"], state["spot"])
         spot = state["spot"]
+        # A re-entry at the build carries the closer verdict of the pass that was checkpointed, while
+        # the closer on disk can have changed since, as when a later pass swapped in a take the jaw
+        # gate refused and a build cut it anyway. The build reads the file, so it builds only the
+        # take the closer gates passed, named by its hash.
+        if (state.get("verdict") or {}).get("closer") is not None:
+            held = os.path.join(self.takes, f"{spot}-av", "render.mp4")
+            gated = (state.get("artifacts") or {}).get("closer_sha256")
+            on_disk = sha256(held) if os.path.isfile(held) else None
+            if not gated or on_disk != gated:
+                self.ledger.append("gate", "build", spot=spot, check="the closer is the take its gates passed", passed=False,
+                                   said=f"gated {(gated or 'nothing recorded')[:16]}, on disk {(on_disk or 'nothing')[:16]}")
+                return {"pass": False, "why": "the closer on disk is not the take the closer gates passed, so re-enter from closer"}
         # Numbered from the ledger, not the checkpoint, so a run re-entered from an earlier step
         # never writes over a master it already built.
         version = 1 + len(self.rows("build", spot=spot))
