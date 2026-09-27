@@ -53,7 +53,7 @@ The August ledgers under `shoots/<batch>/` were written by hand by the agent tha
 
 The eye and the review nest the person's whole answer under `answer`, scrubbed like everything else, because a key inside it, `spot` or `step` among them, could otherwise collide with the row's own fields. `preset` is true on both when the answer came from a preset rather than a person typing one in.
 
-No written row is ever changed in place, with one sanctioned exception. A person may correct what an earlier row exposed, and records the correction as a `redacted` row of its own, appended like every other row, never an edit to the row it corrects. It was used once, in `shoots/graph-zai/ledger.jsonl`, to remove local paths a few rows had captured before that ledger's first commit.
+No written row is ever changed in place, with one sanctioned exception. A person may correct what an earlier row exposed, and records the correction as a `redacted` row of its own, appended like every other row, never an edit to the row it corrects. It was used twice, in `shoots/graph-zai/ledger.jsonl` to remove local paths a few rows had captured before that ledger's first commit, and in `shoots/graph-zai-shots/ledger.jsonl` to take the author's name out of two re-entry reasons before those rows were committed.
 
 A row that says something false is left as written, and a person appends a `corrected` row naming it and saying what is true. It was used once, in `shoots/graph-zai-cast/ledger.jsonl`, for a re-entry that said the vendor account had been topped up when it had not.
 

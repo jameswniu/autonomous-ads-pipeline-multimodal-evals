@@ -834,7 +834,7 @@ def test_the_switching_sound_finds_a_cut_and_a_morph_but_not_a_pop_or_a_pan():
     st = _switch_times()
     changes = [0.8] * 750                                   # 30 s at 25 fps, a quiet baseline
     changes[99] = 70.0                                      # a hard cut arriving with frame 100, at 4.00 s
-    for k, v in zip(range(293, 305), (4, 5, 6, 7, 8, 9, 10, 8, 7, 6, 5, 4), strict=True):
+    for k, v in zip(range(293, 305), (4, 5, 6, 7, 8, 9, 10, 8, 7, 6, 5, 4), strict=True):  # pii-allow: a synthetic change curve, not a schedule
         changes[k] = v                                      # a morph over 12 frames, its biggest arriving at 12.00 s,
                                                             # no quarter second of it enough on its own
     changes[199] = 14.0                                     # a one-frame pop at 8.00 s
@@ -913,6 +913,34 @@ def test_cuts_mode_puts_the_switching_sound_where_the_picture_changes(tmp_path):
     out, err = _hits("cuts", clip, "6.0")
     assert out == ["0", "[6:a]adelay=1900|1900,volume=0.4[k1];[6:a]adelay=3900|3900,volume=0.4[k2];",
                    "[k1][k2]", "2", "SWITCHES mode=cuts at=1.90,3.90"], (out, err)
+
+
+def test_a_build_asked_for_cuts_stops_when_the_detector_cannot_read_the_picture(tmp_path):
+    """A build asked for the switching sound at the cuts never goes out without it. A detector that
+    cannot read the picture fails switch_hits with no hits set, and the build, which runs under
+    set -euo pipefail and calls it bare, stops there with the error."""
+    missing = str(tmp_path / "missing.mp4")
+    out, err = _hits("cuts", missing, "6.0")
+    assert out[0] not in ("", "0") and out[1:4] == ["", "", "0"], (out, err)
+    build = _build_text()
+    call = next(line for line in build.splitlines() if line.startswith('switch_hits "${SWITCHES:-}"'))
+    assert "||" not in call and "&&" not in call, call
+    assert build.index("\nset -euo pipefail\n") < build.index(call)
+    r = subprocess.run(["bash", "-c", 'set -euo pipefail; . "$0"; switch_hits cuts 4520 13960 "$1" 6.0; echo carried on',
+                        os.path.join(ROOT, "shoots", "switches.sh"), missing], capture_output=True, text=True, timeout=120)
+    assert r.returncode != 0 and "carried on" not in r.stdout, r.stdout + r.stderr
+
+
+def test_a_build_asked_for_cuts_stops_when_the_picture_never_changes(tmp_path):
+    """A board that asks for the switching sound at the cuts, on footage where nothing changes above
+    the detector's line, gets no whoosh at all. Shipping that silently would drop the sound the board
+    asked for, so switch_hits refuses with its own exit and names the way out."""
+    still = tmp_path / "still.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=black:s=160x90:r=25:d=6", str(still)],
+                   check=True, capture_output=True, timeout=120)
+    out, err = _hits("cuts", still, "5.0")
+    assert out[0] == "4" and out[3] == "0" and out[2] == "", (out, err)
+    assert "slots or off" in err, err
 
 
 def test_the_board_gate_the_toolkit_and_the_build_know_the_same_switching_modes(tmp_path):
