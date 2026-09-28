@@ -1164,7 +1164,9 @@ class LiveToolkit(Toolkit):
         on_file = list((state.get("artifacts") or {}).get("closer_inputs") or [None, None])
         wants_new = any(asked) and asked != on_file
         src = os.environ.get("CLOSER_FROM", "")
-        source, note, reuse = "/".join(os.path.normpath(src).split(os.sep)[-2:]) if src else "", {}, False
+        parts = os.path.normpath(src).split(os.sep) if src else []
+        source, take = ("/".join(parts[-2:]), parts[-1]) if parts else ("", "")
+        note, reuse = {}, False
         if src and not wants_new:
             missing = [name for name in CLOSER_TAKE if not os.path.isfile(os.path.join(src, name))]
             if missing:
@@ -1172,7 +1174,12 @@ class LiveToolkit(Toolkit):
                 self.ledger.append("gate", "closer", spot=spot, check="the take to reuse is whole", passed=False,
                                    said=f"no {', '.join(missing)}", source=source)
                 return {"pass": False, "why": f"the take to reuse has no {', '.join(missing)}"}
-            reuse = not os.path.isfile(render) or sha256(os.path.join(src, "render.mp4")) != sha256(render)
+            # Every file of the take has to match what this run already holds, not render.mp4 alone,
+            # or a source whose render happens to match while its script or audio does not would be
+            # kept as "this run" with no staging and no read-back check of what actually differs.
+            reuse = not os.path.isfile(render) or any(
+                not os.path.isfile(os.path.join(d, name)) or sha256(os.path.join(src, name)) != sha256(os.path.join(d, name))
+                for name in CLOSER_TAKE)
         if reuse:
             # The run holds no closer, or CLOSER_FROM names another take than the one it holds. The take
             # is copied and checked in a staging dir first, so one refused for any reason, or a copy
@@ -1205,11 +1212,15 @@ class LiveToolkit(Toolkit):
                 for name in reversed(CLOSER_TAKE):   # the render lands last, so a take is never half there
                     os.replace(os.path.join(stage, name), os.path.join(d, name))
                 shutil.rmtree(stage)
-            inputs = [None, None]
-            # A take made outside this run carries no record of the look and voice behind it. The
-            # ledger says so, and whoever set CLOSER_FROM is the one vouching for it.
+            h = sha256(render)
+            inputs = [take, h]
+            # A take made outside this run carries no record of the look and voice that made it, so
+            # identity stays unrecorded, and whoever set CLOSER_FROM is the one vouching for it. The
+            # ledger names the take itself instead, its directory's name and the hash of the file
+            # that landed, never the path it came from.
             self.ledger.append("landing", "closer", spot=spot, status="REUSED", source=source, identity="unrecorded",
-                               file=self.rel(render), sha256=sha256(render), seconds=duration(render), **note)
+                               file=self.rel(render), sha256=h, seconds=duration(render), take=take,
+                               take_sha256=h, **note)
         elif os.path.isfile(render) and not wants_new:
             source, inputs = "this run", on_file
         else:

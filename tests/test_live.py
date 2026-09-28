@@ -786,6 +786,96 @@ def test_a_reused_closer_must_say_this_spots_line(live, monkeypatch, tmp_path):
     assert reused["identity"] == "unrecorded", reused
 
 
+def test_a_reused_closers_row_names_the_take_and_its_render_hash(live, monkeypatch, tmp_path):
+    """An adversarial review found identity: unrecorded and closer_inputs: [null, null] on a run
+    that reused a closer, naming neither which take CLOSER_FROM pointed at nor its hash. The
+    landing row and the verdict's closer_inputs both carry the take's directory name and the
+    sha256 of its render.mp4 now."""
+    tk, state = live
+    src = tmp_path / "ads8-real" / "grok-av7"
+    src.mkdir(parents=True)
+    for name in ("render.mp4", "upload.mp3", "stt.json"):
+        (src / name).write_bytes(b"x")
+    (src / "script.txt").write_text(CLOSER + "\n")
+    monkeypatch.setenv("CLOSER_FROM", str(src))
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    v = tk.closer(state)
+    assert v["pass"] is True, v
+    digest = L.sha256(str(src / "render.mp4"))
+    reused = [r for r in tk.ledger.rows() if r.get("status") == "REUSED"][0]
+    assert reused["take"] == "grok-av7" and reused["take_sha256"] == digest, reused
+    assert v["artifacts"]["closer_inputs"] == ["grok-av7", digest], v["artifacts"]
+
+
+def test_a_reused_closers_ledger_carries_no_absolute_path(live, monkeypatch, tmp_path):
+    """The take's name is its directory's basename alone, never CLOSER_FROM's full path, so a
+    kept run's ledger commits with no local path in it, home directory included."""
+    tk, state = live
+    src = tmp_path / "ads8-real" / "grok-av7"
+    src.mkdir(parents=True)
+    for name in ("render.mp4", "upload.mp3", "stt.json"):
+        (src / name).write_bytes(b"x")
+    (src / "script.txt").write_text(CLOSER + "\n")
+    monkeypatch.setenv("CLOSER_FROM", str(src))
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    assert tk.closer(state)["pass"] is True
+    text = ledger_text(tk)
+    for leak in (str(tmp_path), str(src), str(src.parent), os.path.expanduser("~") + "/"):
+        assert leak not in text, f"{leak!r} reached the ledger"
+    reused = [r for r in tk.ledger.rows() if r.get("status") == "REUSED"][0]
+    assert reused["take"] == "grok-av7", reused
+
+
+def test_a_second_reused_take_is_not_recorded_under_the_first_ones_name_or_hash(live, monkeypatch, tmp_path):
+    """The take's name and hash have to be read after the swap lands the new take, not before, or
+    a re-entry that replaces a held take with another would name the row for the one it just moved
+    aside instead of the one it just moved in."""
+    tk, state = live
+    old, new = tmp_path / "ads8-real" / "grok-av7", tmp_path / "ads8-real" / "grok-av8"
+    for src, frame in ((old, b"x"), (new, b"y")):
+        src.mkdir(parents=True)
+        for name in ("render.mp4", "upload.mp3", "stt.json"):
+            (src / name).write_bytes(frame)
+        (src / "script.txt").write_text(CLOSER + "\n")
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    monkeypatch.setenv("CLOSER_FROM", str(old))
+    assert tk.closer(state)["pass"] is True
+    monkeypatch.setenv("CLOSER_FROM", str(new))
+    assert tk.closer(state)["pass"] is True
+    reused = [r for r in tk.ledger.rows() if r.get("status") == "REUSED"]
+    assert len(reused) == 2, reused
+    assert reused[-1]["take"] == "grok-av8" and reused[-1]["take_sha256"] == L.sha256(str(new / "render.mp4")), reused[-1]
+    assert reused[-1]["take_sha256"] != reused[0]["take_sha256"], "the second reuse recorded the first take's hash"
+
+
+def test_a_reuse_check_compares_every_file_not_only_the_render(live, monkeypatch, tmp_path):
+    """An adversarial review found the reuse check compared render.mp4 alone, so a source whose
+    render happened to match the one this run already held, while its script did not, would be
+    kept as "this run" with no staging and no read-back check of what had actually changed. Any
+    file differing now forces the take back through staging, where a wrong line is still refused."""
+    tk, state = live
+    old = tmp_path / "ads8-real" / "grok-av7"
+    old.mkdir(parents=True)
+    for name in ("render.mp4", "upload.mp3", "stt.json"):
+        (old / name).write_bytes(b"x")
+    (old / "script.txt").write_text(CLOSER + "\n")
+    monkeypatch.setenv("CLOSER_FROM", str(old))
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    assert tk.closer(state)["pass"] is True
+    other = tmp_path / "ads8-real" / "grok-av9"
+    other.mkdir(parents=True)
+    for name in ("render.mp4", "upload.mp3", "stt.json"):
+        (other / name).write_bytes(b"x")   # byte-identical to the render this run already holds
+    (other / "script.txt").write_text("a different closer line\n")
+    monkeypatch.setenv("CLOSER_FROM", str(other))
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert tk.closer(state)["pass"] is False, "a source whose script differs was kept as this run's closer"
+    assert not calls_to(run, "gates/jaw_gate.py"), "an unvalidated take reached the gates that cost money"
+    row = [r for r in tk.ledger.rows() if r.get("check") == "reused take says this closer"][-1]
+    assert row["passed"] is False, row
+
+
 def test_a_closer_from_another_take_replaces_the_held_one_and_moves_it_aside(live, monkeypatch, tmp_path):
     """A re-entry with CLOSER_FROM on a new take went straight to the take the run already held and
     kept it without a word, so the old file had to be moved aside by hand before the new closer was
