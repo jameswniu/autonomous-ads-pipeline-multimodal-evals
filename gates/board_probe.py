@@ -31,6 +31,11 @@ Mechanical half only. Checks, per spot:
                    narration's sentence boundaries, the default), off, or cuts (where the picture
                    changes most). Any other value fails, since the build would refuse it after the
                    spend. A spot that does not say passes.
+  props            what every shot has to hold from its first frame to its last, when a spot names
+                   any: a list of lines, each a thing in plain words ("an open laptop on the desk"),
+                   none blank and none twice. The render reads every shot back against them with
+                   gates/continuity_gate.py, so a malformed list would be a question nobody can
+                   answer, asked after the spend. A spot that names none passes.
 The four judgment rows (hook, realism, absurdity, logic) are printed as questions for the eye.
 Exit 0 all pass, 1 any fail.
 """
@@ -103,6 +108,15 @@ def switches_ok(sp):
     """True when the spot leaves the switching sound at the build's default or names a mode it knows."""
     return "switches" not in sp or sp["switches"] in SWITCHES
 
+def props_ok(sp):
+    """True when the spot names no props, or names each one once as a line of plain words."""
+    props = sp.get("props")
+    if props is None:
+        return True
+    if not isinstance(props, list) or not props or any(not isinstance(p, str) or not p.strip() for p in props):
+        return False
+    return len({p.strip().lower() for p in props}) == len(props)
+
 def main():
     args = [a for a in sys.argv[1:] if a != "--json"]
     as_json = "--json" in sys.argv[1:]
@@ -137,7 +151,8 @@ def main():
         register = register_ok(narration)
         checks = {"product_absent": product_absent, "escalation": escalation, "quirk_unspoken": quirk_unspoken,
                   "mouths_closed": closed, "crop_clause": crop, "cast": cast, "register": register,
-                  "chain": chain_ok(sp, scenes), "slots": slots_ok(sp, scenes), "switches": switches_ok(sp)}
+                  "chain": chain_ok(sp, scenes), "slots": slots_ok(sp, scenes), "switches": switches_ok(sp),
+                  "props": props_ok(sp)}
         bad = [k for k, v in checks.items() if not v]
         if bad: fails.append((ad, bad, sorted(shared)))
         rows.append((ad, checks, sorted(shared)))

@@ -587,13 +587,13 @@ def dry(tmp_path, board, spot):
 
 
 def test_a_dry_run_stops_before_the_first_spend_and_prices_it(tmp_path):
-    """The Z.ai board with its student written as the story's character. It passes all ten
+    """The Z.ai board with its student written as the story's character. It passes all eleven
     board checks, each scene would go to the reference path with her face, and the prompt is
     August's own line with only the person bound to that face, the guard after it verbatim."""
     out, rows = dry(tmp_path, "shoots/graph-zai-character/boards.json", "zai")
     assert out["trail"] == ["board", "render", "ledger"], out["trail"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
-    assert gate["pass"] and len(gate["checks"]) == 10 and gate["failed"] == [], gate
+    assert gate["pass"] and len(gate["checks"]) == 11 and gate["failed"] == [], gate
     assert out["outcome"] == "dry: stopped before the first spend"
     requests = [r for r in rows if r["kind"] == "request"]
     assert len(requests) == 3 and all(r["dry"] for r in requests)
@@ -615,7 +615,7 @@ def test_a_dry_run_on_the_chain_board_shoots_each_scene_from_a_frame_in_order(tm
     out, rows = dry(tmp_path, "shoots/graph-zai-chain/boards.json", "zai")
     assert out["outcome"] == "dry: stopped before the first spend", out["outcome"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
-    assert gate["pass"] and len(gate["checks"]) == 10 and gate["checks"]["chain"] and gate["failed"] == [], gate
+    assert gate["pass"] and len(gate["checks"]) == 11 and gate["checks"]["chain"] and gate["failed"] == [], gate
     requests = [r for r in rows if r["kind"] == "request"]
     assert [r["scene"] for r in requests] == ["zai-a", "zai-b", "zai-c"], requests
     assert {r["engine"] for r in requests} == {"google/gemini-omni-flash/image-to-video"}, requests
@@ -635,7 +635,7 @@ def test_a_dry_run_on_the_shots_board_chains_four_shots_under_three_sentences(tm
     out, rows = dry(tmp_path, "shoots/graph-zai-shots/boards.json", "zai")
     assert out["outcome"] == "dry: stopped before the first spend", out["outcome"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
-    assert gate["pass"] and len(gate["checks"]) == 10 and gate["checks"]["slots"] and gate["failed"] == [], gate
+    assert gate["pass"] and len(gate["checks"]) == 11 and gate["checks"]["slots"] and gate["failed"] == [], gate
     requests = [r for r in rows if r["kind"] == "request"]
     assert [r["scene"] for r in requests] == ["zai-a", "zai-b", "zai-c", "zai-d"], requests
     assert [r["start_from"] for r in requests] == ["the character's still", "the last frame of zai-a",
@@ -645,6 +645,25 @@ def test_a_dry_run_on_the_shots_board_chains_four_shots_under_three_sentences(tm
     assert board["slots"] == [["a"], ["b", "c"], ["d"]] and board["chain"] == ["a", "b", "c", "d"]
     est = [r for r in rows if r["kind"] == "estimate"][0]
     assert est["est_usd"] == round(sum(r["est_usd"] for r in requests), 2) == 2.52, est
+
+
+def test_a_board_that_names_props_passes_the_board_gate_and_one_that_garbles_them_goes_back(tmp_path):
+    """The shots board with the mug its quirk is about named as a prop, the way the redo boards name
+    theirs, passes every board check and stops before the first spend. The same board with the prop
+    named twice goes back at the board, before anything could be read against it."""
+    board = json.load(open(os.path.join(ROOT, "shoots/graph-zai-shots/boards.json")))
+    board["spots"]["zai"]["props"] = ["a ceramic mug on the desk beside the keyboard"]
+    named = tmp_path / "named.json"
+    named.write_text(json.dumps(board))
+    out, rows = dry(tmp_path / "named", str(named), "zai")
+    gate = [r for r in rows if r["kind"] == "gate"][0]
+    assert gate["pass"] and gate["checks"]["props"] and out["outcome"] == "dry: stopped before the first spend", gate
+    board["spots"]["zai"]["props"] *= 2
+    twice = tmp_path / "twice.json"
+    twice.write_text(json.dumps(board))
+    out, rows = dry(tmp_path / "twice", str(twice), "zai")
+    gate = [r for r in rows if r["kind"] == "gate"][0]
+    assert not gate["pass"] and gate["failed"] == ["props"] and out["trail"] == ["board", "ledger"], (gate, out["trail"])
 
 
 def test_a_chain_on_an_engine_with_no_path_from_a_frame_is_refused_in_a_dry_run(tmp_path):

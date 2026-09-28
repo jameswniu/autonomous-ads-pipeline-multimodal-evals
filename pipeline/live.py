@@ -7,6 +7,8 @@ and guards/prop_gate.sh vet a closer render before anything is paid for, the voi
 and gates/jaw_gate.py rules on it after. gates/edge_clip_probe.py looks at every scene that
 comes back, and gates/cast_gate.py checks that every scene shows the story's character and not
 the narrator, since a scene that names her is rendered from her reference face.
+gates/continuity_gate.py reads every scene again for a prop the board names that vanishes or
+changes form and a background that breaks, and reads the closer for anything moving behind her.
 shoots/build-ad.sh cuts the master, shoots/master.sh masters it, and gates/ad_gates.sh,
 guards/ship_gate.sh and gates/loudness_gate.py gate it.
 
@@ -27,6 +29,10 @@ What a live run needs in its environment, all checked before the graph starts:
   FILM2, BED                    the directory holding hit.mp3 and hit2.mp3, and this spot's bed
   FACEPY                        an interpreter with the face extra, for the jaw and mouth probes
                                 and the cast gate
+  MATTEPY                       an interpreter with torch, for the continuity gate's matte on the
+                                closer, whose weights come from the torch hub cache TORCH_HOME
+                                names. The judge that reads every scene for continuity is the
+                                claude CLI on PATH, and a scene it cannot read goes to the eye
   CHARACTER_FROM                a take or a still of the story's character, whose face every scene
                                 that writes {character} is rendered from and every scene is read
                                 back against. A spot with a character is refused without it. A
@@ -62,8 +68,8 @@ import uuid
 
 from pipeline.ledger import fingerprint, new_request_id, sha256
 from pipeline.toolkit import (CHAIN_ENGINE, NARRATOR, PLACEHOLDER, PRICE_PER_SCENE, REFERENCE_ENGINE, ROOT, Toolkit,
-                              cast_ok, cast_text, chain_of, chain_text, engine_for, has_cast, load_spot, scene_prompt, slots_of,
-                              switches_of)
+                              cast_ok, cast_text, chain_of, chain_text, engine_for, has_cast, load_spot, props_of, scene_prompt,
+                              slots_of, switches_of)
 
 __all__ = ["LiveSetupError", "LiveToolkit", "fingerprint"]
 
@@ -100,6 +106,10 @@ CAST_LINE = re.compile(r"^CAST_GATE faces=(?P<faces>\d+) sim=(?P<sim>-?[0-9.]+|n
                        r"strangers=(?P<strangers>\d+)(?: not=(?P<other>-?[0-9.]+|nan|-))? floor=(?P<floor>[0-9.]+) "
                        r"verdict=(?P<verdict>PASS|FAIL|NOFACE)\s*$", re.M)
 VIDEO_EXT = (".mp4", ".mov", ".m4v", ".webm")
+# split is an axis the judge's votes disagreed on, and REVIEW the verdict that sends such a take to the eye.
+CONTINUITY_LINE = re.compile(r"^CONTINUITY_GATE props=(?P<props>ok|fail|split|-) background=(?P<background>ok|fail|split|-) "
+                             r"first_break=(?P<first_break>[0-9.]+|-) verdict=(?P<verdict>PASS|FAIL|REVIEW|UNREAD)[ \t]*$", re.M)
+CONTINUITY_EXIT = {"PASS": 0, "FAIL": 1, "REVIEW": 2, "UNREAD": 64}
 LOUDNESS_LINE = re.compile(r"^LOUDNESS_GATE .*verdict=(PASS|FAIL)$", re.M)
 SLIT_LINE = re.compile(r"^slit-scan: (.+?)\s*$", re.M)   # the rest of the line, so a path with a space still reads
 REPLAY_VERTEX = re.compile(r"^replay vertex: t=([0-9.]+)s$", re.M)
@@ -316,6 +326,10 @@ class LiveToolkit(Toolkit):
         if not os.environ.get("CLOSER_FROM"):
             need("HEYGEN_API_KEY")
             need("CLOSER_LOOK_ID")
+        # Every closer, reused or rendered, has its background read under the matte's interpreter, and a
+        # closer that cannot be read stops the run, which would be after the scenes were paid for.
+        if not os.path.isfile(need("MATTEPY")):
+            raise LiveSetupError("MATTEPY is not a file; the closer's background is read under that interpreter")
         self.secrets = identity_values(pins) | {v for v in (voice_id, os.environ.get("CLOSER_LOOK_ID")) if v}
         super().__init__(run_dir, run_id)
         # Absolute, because the build writes an ffmpeg concat list, and ffmpeg resolves a
@@ -560,6 +574,89 @@ class LiveToolkit(Toolkit):
         elif verdict is None:
             flags[s] = "CAST: the cast gate could not read this scene, so it needs a look"
 
+    def continuity(self, clip, out, props=(), story=None, presenter=False):
+        """The continuity gate on one clip, its findings written to `out`: PASS, FAIL or UNREAD, or None when
+        it printed no line its exit code agrees with, the line it printed, and the match. A presenter take
+        runs under MATTEPY, whose interpreter carries the matte her background is measured with."""
+        args = [clip, "--out", out]
+        for p in props:
+            args += ["--prop", p]
+        if story:
+            args += ["--story", story]
+        if presenter:
+            args.append("--presenter")
+        r = self.script("gates/continuity_gate.py", *args, python=os.environ.get("MATTEPY") if presenter else None,
+                        timeout=1800)
+        found = list(CONTINUITY_LINE.finditer(r.stdout))
+        m = found[-1] if found else None
+        if not m or CONTINUITY_EXIT[m["verdict"]] != r.returncode:
+            return None, self.clean((r.stdout + r.stderr).strip()[-300:]), None
+        return m["verdict"], self.clean(m.group(0)), m
+
+    def findings_path(self, take):
+        """Where the continuity gate writes what it found on a take: beside it, named by its hash, never over
+        an earlier reading of the same take."""
+        base = os.path.join(os.path.dirname(take), f"continuity-{sha256(take)[:16]}")
+        out, n = f"{base}.json", 1
+        while os.path.exists(out):
+            n += 1
+            out = f"{base}-v{n}.json"
+        return out
+
+    def first_break(self, out, m):
+        """The break the continuity gate points a person at on a take, in words: on a FAIL the median of its
+        votes' earliest breaks, on a REVIEW the earliest a dissenting vote named."""
+        try:
+            with open(out) as fh:
+                record = json.load(fh)
+            first = record.get("first") or (record.get("findings") or [None])[0]
+        except (OSError, ValueError, AttributeError):
+            first = None
+        if not isinstance(first, dict):
+            return f"a continuity break at {m['first_break']} s"
+        what = f"\"{first.get('prop')}\" {first.get('kind')}" if first.get("axis") == "props" else f"the background {first.get('kind')}"
+        return self.clean(f"{what} at {first.get('t')} s: {first.get('what') or 'no words given'}")
+
+    def continuity_check(self, spot, s, raw, hold, failed, why, flags):
+        """Read one scene's take for continuity: every prop the board names held from its first frame to its
+        last, and a background that changes only the way the scene's own line says. A break every vote of
+        the judge names re-rolls the scene the way a failed cast reading does. A split among the votes is a
+        look, not a re-shoot: the take stays, and the scene goes to the eye as a flag naming the first break a
+        dissenting vote saw, with nothing sent again. A take the gate could not read goes to the eye too. A
+        scene the cast gate already failed is rendered again whatever this says, so it is not paid to read. A
+        take already read PASS or REVIEW against the same props is not read again, since the judge can answer
+        the same question two ways and a take that has not changed has not earned a new verdict, and a
+        REVIEW's flag is raised again from the row that recorded it."""
+        if s in failed:
+            return
+        take, props = sha256(raw), list(hold["props"])
+        read = self.rows("gate", step="render", scene=f"{spot}-{s}", check="continuity")
+        last = read[-1] if read else {}
+        if last.get("sha256") == take and last.get("props") == props:
+            m = CONTINUITY_LINE.search(last.get("reading") or "")
+            if m and m["verdict"] == "PASS":
+                return
+            if m and m["verdict"] == "REVIEW" and last.get("flag"):
+                flags[s] = last["flag"]
+                return
+        out = self.findings_path(raw)
+        verdict, reading, m = self.continuity(raw, out, props=props, story=hold["story"])
+        extra = {"findings": self.rel(out)} if os.path.isfile(out) else {}
+        if verdict == "REVIEW":
+            extra.update(split=True, flag=f"CONTINUITY: the judge split on this scene, and the first break a vote named is "
+                                          f"{self.first_break(out, m)}. Look before shipping.")
+        elif verdict in (None, "UNREAD"):
+            extra["unreadable"] = True
+        self.ledger.append("gate", "render", spot=spot, scene=f"{spot}-{s}", check="continuity", passed=verdict == "PASS",
+                           reading=reading, props=props, sha256=take, **extra)
+        if verdict == "FAIL":
+            failed.append(s)
+            why[s] = self.first_break(out, m)
+        elif verdict == "REVIEW":
+            flags[s] = extra["flag"]
+        elif verdict != "PASS":
+            flags[s] = "CONTINUITY: the continuity gate could not read this scene, so it needs a look"
+
     def dropped(self, handle, auth):
         """Whether the vendor has confirmed it no longer has a job: its status and its result both
         come back not found, twice, a poll apart. One 404 can be a lookup that lagged, and taking
@@ -618,12 +715,15 @@ class LiveToolkit(Toolkit):
 
     def read_back_failed(self, spot, scene, since):
         """Whether the take that landed at row `since` was failed by its read-back: the newest cast
-        reading of the scene after that row says FAIL. No face where one was expected, or a reading
-        the gate could not make, is a flag for the eye and not a failure, so neither counts, though
-        both are written with passed false."""
-        readings = [r for r in self.rows("gate", step="render", scene=f"{spot}-{scene}", check="cast") if r["seq"] > since]
-        m = CAST_LINE.search(readings[-1].get("reading") or "") if readings else None
-        return bool(m) and m["verdict"] == "FAIL"
+        reading or the newest continuity reading of the scene after that row says FAIL. No face where
+        one was expected, or a reading a gate could not make, is a flag for the eye and not a failure,
+        so neither counts, though both are written with passed false."""
+        for check, pattern in (("cast", CAST_LINE), ("continuity", CONTINUITY_LINE)):
+            readings = [r for r in self.rows("gate", step="render", scene=f"{spot}-{scene}", check=check) if r["seq"] > since]
+            m = pattern.search(readings[-1].get("reading") or "") if readings else None
+            if m and m["verdict"] == "FAIL":
+                return True
+        return False
 
     def character_still(self, spot):
         """The frame a chain starts from: a whole frame of the character from CHARACTER_FROM, the
@@ -683,9 +783,10 @@ class LiveToolkit(Toolkit):
                            status_url=j.get("status_url"), response_url=j.get("response_url"))
         return (rid, j["request_id"], j.get("status_url"), j.get("response_url"))
 
-    def collect(self, spot, s, handle, auth, failed, why, flags, fresh, refs, writes_her):
-        """Wait for one queued scene, bring it home and read it back. True when the scene holds a take
-        that landed and was not failed by its read-back."""
+    def collect(self, spot, s, handle, auth, failed, why, flags, fresh, refs, writes_her, hold):
+        """Wait for one queued scene, bring it home and read it back, for her face and for continuity against
+        `hold`, the props the board names and the scene's own line. True when the scene holds a take that
+        landed and was not failed by its read-back."""
         rid, vendor_id, status_url, response_url = handle
         status, deadline, code = None, time.time() + WAIT_LIMIT, 0
         while time.time() < deadline:
@@ -765,9 +866,10 @@ class LiveToolkit(Toolkit):
                            edge_clip=flag or "clean")
         if refs.get("character") or refs.get("presenter"):
             self.cast_check(spot, s, raw, refs, failed, why, flags, writes_her=writes_her)
+        self.continuity_check(spot, s, raw, hold, failed, why, flags)
         return s not in failed
 
-    def reuse(self, spot, s, before, raw, refs, failed, flags, why, writes_her):
+    def reuse(self, spot, s, before, raw, refs, failed, flags, why, writes_her, hold):
         """A take this run already holds, kept as it stands and read again. True when it still passes."""
         self.ledger.append("landing", "render", request_id=before["request_id"], spot=spot, scene=f"{spot}-{s}",
                            status="REUSED", file=self.rel(raw), sha256=sha256(raw))
@@ -776,6 +878,7 @@ class LiveToolkit(Toolkit):
             flags[s] = flag
         if refs.get("character") or refs.get("presenter"):
             self.cast_check(spot, s, raw, refs, failed, why, flags, writes_her=writes_her)
+        self.continuity_check(spot, s, raw, hold, failed, why, flags)
         return s not in failed
 
     def render(self, state):
@@ -822,6 +925,10 @@ class LiveToolkit(Toolkit):
                    for s in stranger}
             return {"failed": stranger, "why": why, "flags": {}, "rendered": [], "fresh": [], "unconfirmed": []}
         cast = {s: PLACEHOLDER in texts[s] for s in every}
+        # What each scene is read back against for continuity: the props the board names, and the scene's
+        # own line with the character named in words, so the judge can tell a change the story asks for
+        # from a break.
+        holds = {s: {"props": props_of(spot_def), "story": chain_text(spot_def, texts[s])} for s in every}
         engines = {s: REFERENCE_ENGINE.get(engine) if cast[s] else engine for s in plain}
         if any(cast[s] for s in plain) and REFERENCE_ENGINE.get(engine) not in ENGINE_INPUT:
             raise LiveSetupError(f"{engine} has no reference path here, so a scene that shows the story's "
@@ -878,7 +985,7 @@ class LiveToolkit(Toolkit):
             held_take = before and before["landed"] and os.path.isfile(raw) and not asked
             if held_take and not self.read_back_failed(spot, s, before["landed_seq"]):
                 # A re-entry after the spend: this run already holds this scene with this prompt.
-                self.reuse(spot, s, before, raw, refs, failed, flags, why, cast[s])
+                self.reuse(spot, s, before, raw, refs, failed, flags, why, cast[s], holds[s])
                 continue
             if held or unconfirmed:
                 why[s] = "not sent, a request that may have been billed is waiting for a person"
@@ -894,12 +1001,12 @@ class LiveToolkit(Toolkit):
                 pending[s] = handle
 
         for s, handle in pending.items():
-            self.collect(spot, s, handle, auth, failed, why, flags, fresh, refs, cast[s])
+            self.collect(spot, s, handle, auth, failed, why, flags, fresh, refs, cast[s], holds[s])
 
         rendered = list(plain)
         if chained:
             rendered += self.walk(board, spot_def, spot, chained, texts, cast, asked, changes, last, refs, auth,
-                                  still, waiting, held, reentered, failed, why, flags, fresh, unconfirmed)
+                                  still, waiting, held, reentered, failed, why, flags, fresh, unconfirmed, holds)
         verdict = {"failed": failed, "why": why, "flags": flags, "rendered": rendered, "fresh": fresh,
                    "unconfirmed": unconfirmed}
         if unconfirmed:
@@ -913,7 +1020,7 @@ class LiveToolkit(Toolkit):
         return verdict
 
     def walk(self, board, spot_def, spot, chained, texts, cast, asked, changes, last, refs, auth, still, waiting, held,
-             reentered, failed, why, flags, fresh, unconfirmed):
+             reentered, failed, why, flags, fresh, unconfirmed, holds):
         """Shoot a chain in its order, one scene at a time. Each starts from a frame, the character's
         still for the first and the last frame of the scene before for the rest, and is read back
         before the next is sent, so she and the room carry through and a scene that fails is the
@@ -943,11 +1050,11 @@ class LiveToolkit(Toolkit):
             if before and before["owed"]:
                 # Sent from this frame already and never collected: collected, never sent again.
                 reached.append(s)
-                good = self.collect(spot, s, before["handle"], auth, failed, why, flags, fresh, refs, cast[s])
+                good = self.collect(spot, s, before["handle"], auth, failed, why, flags, fresh, refs, cast[s], holds[s])
             elif before and before["landed"] and os.path.isfile(raw) and asked != s \
                     and not self.read_back_failed(spot, s, before["landed_seq"]):
                 reached.append(s)
-                good = self.reuse(spot, s, before, raw, refs, failed, flags, why, cast[s])
+                good = self.reuse(spot, s, before, raw, refs, failed, flags, why, cast[s], holds[s])
             elif held or unconfirmed:
                 why[s] = "not sent, a request that may have been billed is waiting for a person"
                 good = False
@@ -963,7 +1070,8 @@ class LiveToolkit(Toolkit):
                                    auth, failed, why, unconfirmed, start_sha256=start_sha, start_from=start_from,
                                    why=reason, prompt_reused=bool(before), asked_by_person=asked == s)
                 reached.append(s)
-                good = bool(handle) and self.collect(spot, s, handle, auth, failed, why, flags, fresh, refs, cast[s])
+                good = bool(handle) and self.collect(spot, s, handle, auth, failed, why, flags, fresh, refs, cast[s],
+                                                     holds[s])
             if not good:
                 broke = s
                 continue
@@ -1070,6 +1178,21 @@ class LiveToolkit(Toolkit):
                 v.update(unreadable=True, **{"pass": False})
             elif verdict != "PASS":
                 v.update(why="the closer is not the narrator whose face the run holds", **{"pass": False})
+        # What moves behind her is measured rather than judged. The camera holds still on a closer, so her
+        # matte and a frame difference show what moved, the traffic avatar_iii invents behind a still that
+        # held none. A background that moves stops the run for a person, who picks another take or look.
+        findings = self.findings_path(render)
+        verdict, said, m = self.continuity(render, findings, presenter=True)
+        extra = {"findings": self.rel(findings)} if os.path.isfile(findings) else {}
+        if verdict in (None, "UNREAD"):
+            extra["unreadable"] = True
+        self.ledger.append("gate", "closer", spot=spot, check="continuity", passed=verdict == "PASS", reading=said,
+                           source=source, sha256=sha256(render), **extra)
+        if verdict in (None, "UNREAD"):
+            v.update(unreadable=True, **{"pass": False})
+        elif verdict != "PASS":
+            v["pass"] = False
+            v.setdefault("why", self.first_break(findings, m))
         return v
 
     def jaw_waiver(self, render):

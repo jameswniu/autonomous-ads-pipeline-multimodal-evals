@@ -127,6 +127,43 @@ def test_the_jaw_gate_line_is_the_line_live_reads(tmp_path):
     assert r.returncode == 64 and not live.JAW_LINE.search(r.stdout), (r.stdout, r.stderr)
 
 
+def test_the_continuity_gate_line_is_the_line_live_reads(tmp_path):
+    """The real gate on a real clip, its judge's CLI replaced by a stand-in that answers each way the real
+    one can: every prop held, a prop broken, votes that split, prose, and a call that died. The three votes
+    run at once, so each call claims its answer by creating its number's file, which only one process can
+    do. Each line the gate prints is read with the pattern live.py routes on, and its exit code is the one
+    live.py expects for that verdict."""
+    clip = tmp_path / "shot.mp4"
+    ffmpeg("-f", "lavfi", "-i", "testsrc=size=320x180:rate=25", "-t", "2", "-pix_fmt", "yuv420p", str(clip))
+    held = json.dumps({"props": [{"n": 1, "ok": True, "first_break": None}], "background": {"ok": True, "breaks": []}})
+    broke = json.dumps({"props": [{"n": 1, "ok": False, "first_break": 0.5, "kind": "disappears", "what": "the mug is gone"}],
+                        "background": {"ok": True, "breaks": []}})
+    for i, (answers, want, axis) in enumerate((([held], "PASS", "ok"), ([broke], "FAIL", "fail"), ([broke, held, held], "REVIEW", "split"),
+                                               (["It all looks continuous."], "UNREAD", "-"), ([None], "UNREAD", "-"))):
+        calls = tmp_path / f"calls-{i}"
+        calls.mkdir()
+        stub = tmp_path / f"claude-{i}"
+        stub.write_text(f"#!{sys.executable}\nimport json, os, sys\nsys.stdin.read()\nanswers, n = {answers!r}, 0\n"
+                        f"while True:\n"
+                        f"    try:\n"
+                        f"        os.close(os.open(os.path.join({str(calls)!r}, str(n)), os.O_CREAT | os.O_EXCL))\n"
+                        f"        break\n"
+                        f"    except FileExistsError:\n"
+                        f"        n += 1\n"
+                        f"a = answers[n % len(answers)]\n"
+                        f"if a is not None:\n"
+                        f"    print(json.dumps({{'type': 'result', 'subtype': 'success', 'is_error': False, 'result': a}}))\n")
+        stub.chmod(0o755)
+        r = run([sys.executable, os.path.join(GATES, "continuity_gate.py"), str(clip), "--prop", "a ceramic mug",
+                 "--out", str(tmp_path / f"found-{i}.json")], env={"CONTINUITY_CLAUDE": str(stub)})
+        found = list(live.CONTINUITY_LINE.finditer(r.stdout))
+        assert found and found[-1]["verdict"] == want and found[-1]["props"] == axis, (want, r.stdout, r.stderr)
+        assert live.CONTINUITY_EXIT[want] == r.returncode, (want, r.returncode)
+        assert found[-1].group(0) == r.stdout.strip().splitlines()[-1], "the machine line is not the last line"
+        assert want not in ("FAIL", "REVIEW") or found[-1]["first_break"] == "0.50", found[-1].group(0)
+        assert len(os.listdir(calls)) == 3, "the gate did not ask three votes"
+
+
 def test_the_loudness_gate_line_is_the_line_live_reads(tmp_path):
     def master(name, audio):
         out = tmp_path / f"{name}.mp4"

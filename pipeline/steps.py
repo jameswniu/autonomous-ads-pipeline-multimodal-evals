@@ -27,29 +27,34 @@ class Step:
 
 STEPS = (
     Step("board", "Board",
-         "Ten mechanical checks, free, before a cent is spent (the product absent before the "
+         "Eleven mechanical checks, free, before a cent is spent (the product absent before the "
          "payoff, the escalation declared, the quirk never spoken by the narration, mouths closed "
          "under narration, the centre-crop clause present, every person in a scene written as the "
          "story's character, the narration spoken to the viewer, a chain naming the spot's own "
          "scenes once each, slots giving each of the three sentences its own shots, every "
-         "scene once, and the switching sound placed where the build knows how). The four judgment rows it "
+         "scene once, the switching sound placed where the build knows how, and any props every shot must "
+         "hold named one to a line). The four judgment rows it "
          "prints are scored when the board is written, before a run starts",
          "The board goes back",
-         "ten mechanical checks, four eye rows", "gates/board_probe.py", "process"),
+         "11 mechanical checks, 4 eye rows", "gates/board_probe.py", "process"),
     Step("render", "Render",
          "Every request and every landing appended to the ledger, the vendor's own rejection "
          "text included, and every scene read by the edge probe. A scene that shows the story's "
          "character is rendered from her face, held apart from the narrator's first, and every "
          "scene is read back against it and refused under 0.3 face similarity, or when it reads at "
-         "least as close to the narrator, who appears only in the closer. A chained spot shoots "
+         "least as close to the narrator, who appears only in the closer. Every scene is read again for "
+         "continuity by a judge that holds each prop the board names from the first frame to the last and the "
+         "background to what the scene's own line describes. A chained spot shoots "
          "its scenes in order, each from a frame, her still for the first and the last frame of "
          "the scene before for the rest, and reads each back before the next is sent. The "
          "narration is drawn three times and has to say the script",
-         "Recorded, each scene that failed to come back or came back as someone else sent once more, and a request that may have been billed stops for a person",
+         "Recorded, each scene that failed to come back, came back as someone else or broke its continuity sent once more, "
+         "and a request that may have been billed stops for a person",
          "every request and landing ledgered", "shoots/<batch>/*.jsonl", "process"),
     Step("closer", "Closer",
          "Identity pin on the voice and avatar ids before anything is paid for, the voice "
-         "included, then the jaw measured on the raw render and refused over 0.17",
+         "included, then the jaw measured on the raw render and refused over 0.17, and the render refused when "
+         "a patch behind the narrator moves over 600 px between two frames or sits 1500 px off the clip's median",
          "Stops the run, a new look is needed",
          "identity pin, jaw under 0.17", "guards/, gates/jaw_gate.py", "process"),
     Step("build", "Build",

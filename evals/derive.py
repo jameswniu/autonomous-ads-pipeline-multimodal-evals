@@ -99,6 +99,18 @@ GATES = [
     # sits inside a gap measured between strangers and the narrator's own takes, and no labelled
     # pair on the face axis is committed, so it counts AUTHORED until one is.
     ("cast_gate",        "CAST_MIN",       "face_similarity", FLOOR,   1.0,  True),
+    # gates/continuity_gate.py, the two limits on what may move behind a presenter, which refuse a
+    # closer. They came from the check the closer renders were first measured with, outside this
+    # repository, set on one night's renders where every take that moved read thousands of pixels
+    # and every still one read 0. No labelled pair on either axis is in labels.csv, so both count
+    # AUTHORED, and the gate's own --validate holds them to the author's labels on whole takes.
+    ("continuity_gate",  "PAIR_BLOB",      "background_pair_px",   CEILING, 1.0, True),
+    ("continuity_gate",  "MEDIAN_BLOB",    "background_median_px", CEILING, 1.0, True),
+    # The continuity judge's vote count. A story shot is refused only when every one of VOTES readings names
+    # its break, so the number decides which takes are refused, at the ceiling rather than above it. It was
+    # set by hand after one reading of a cut the author passed failed it and two passed it, and no labelled
+    # pair brackets it, so it counts AUTHORED.
+    ("continuity_gate",  "VOTES",          "judge_fail_votes",     CEILING, 1.0, True),
 ]
 
 # Delivery targets rather than judgements. The build masters every spot to them, and the ship

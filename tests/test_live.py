@@ -54,6 +54,37 @@ NO_FACE = (3, CG.line([]))
 APART = (1, CG.line([0.15]))
 
 
+def _continuity_gate():
+    spec = importlib.util.spec_from_file_location("continuity_gate", os.path.join(ROOT, "gates", "continuity_gate.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# The continuity gate's own line format, for the same reason. An answer is (exit, line, the findings
+# the gate would write), or a function of the gate's arguments returning one.
+CT = _continuity_gate()
+
+
+def held(args):
+    """The continuity gate finding nothing: every prop named held, and the background with it."""
+    return 0, CT.line("ok" if "--prop" in args else "-", "ok", None, "PASS"), []
+
+
+def broken(t=7.25, prop="an open laptop on the desk", what="the lid is gone and a flat keyboard is left"):
+    """A prop that changes form at t seconds, as the judge reported the Perplexity laptop."""
+    return 1, CT.line("fail", "ok", t, "FAIL"), [{"axis": "props", "prop": prop, "t": t, "kind": "changes form", "what": what}]
+
+
+MOVING = (1, CT.line("-", "fail", 2.32, "FAIL"),
+          [{"axis": "background", "t": 2.32, "kind": "moves", "measure": "pair", "what": "a patch behind the speaker moves"}])
+UNREAD = (64, CT.line(None, None, None, "UNREAD"), [])
+# One vote of three saw the laptop change form, and two saw it hold.
+SPLIT = (2, CT.line("split", "ok", 7.25, "REVIEW"),
+         [{"axis": "props", "prop": "an open laptop on the desk", "t": 7.25, "kind": "changes form",
+           "what": "one vote saw the lid go", "vote": 2}])
+
+
 def done(code=0, out="", err=""):
     return subprocess.CompletedProcess([], code, out, err)
 
@@ -119,11 +150,13 @@ class Vendor:
 
 def scripts(voice_ok=True, jaw=(0, "JAW_GATE jaw=0.11 face_cov=1.0 max=0.17 verdict=PASS"), ship=(0, "SHIP-GATE PASS"),
             loud=(0, "LOUDNESS_GATE i=-16.0 tp=-2.0 verdict=PASS"), gates=None, build=None, edge=(0, "EDGE CLEAN"),
-            match=(0, "SCRIPT-MATCH PASS"), cast=SAME, reference_ok=True, distinct=APART):
+            match=(0, "SCRIPT-MATCH PASS"), cast=SAME, reference_ok=True, distinct=APART, continuity=held):
     """Stand-ins for the repo scripts the toolkit runs, keyed on the script's path. `cast` is
     one (exit, line) for every clip, or a function of the clip's path returning one. `distinct`
     answers the read of the character's reference against the narrator's. A read asked for a
-    second face gets one, the narrator somewhere else (0.10), unless the answer already names it."""
+    second face gets one, the narrator somewhere else (0.10), unless the answer already names it.
+    `continuity` answers the continuity gate, one answer or a function of its arguments, and writes
+    the findings where the gate was told to."""
     seen = []
 
     def run(self, *args, env=None, drop=(), timeout=1800, python=None):
@@ -144,6 +177,11 @@ def scripts(voice_ok=True, jaw=(0, "JAW_GATE jaw=0.11 face_cov=1.0 max=0.17 verd
             code, out = cast(args[2]) if callable(cast) else cast
             if "--not" in args and " not=-" in out:
                 out = out.replace(" not=-", " not=nan" if "faces=0 " in out else " not=0.10")
+            return done(code, out)
+        if name == "gates/continuity_gate.py":
+            code, out, found = continuity(args[1:]) if callable(continuity) else continuity
+            with open(args[args.index("--out") + 1], "w") as fh:
+                json.dump({"findings": found}, fh)
             return done(code, out)
         if name == "gates/voice_take.sh":
             if not voice_ok:
@@ -196,7 +234,7 @@ def live(tmp_path, monkeypatch):
     her.write_bytes(b"the character's still")
     for k, v in {"FAL_KEY": "k", "ELEVENLABS_API_KEY": "k", "ELEVENLABS_VOICE_ID": VOICE, "IDENTITY_PINS": str(pins),
                  "BED": str(bed), "FILM2": str(film2), "HEYGEN_API_KEY": "k", "CLOSER_LOOK_ID": LOOK,
-                 "PRESENTER_STILL": str(still), "CHARACTER_FROM": str(her)}.items():
+                 "PRESENTER_STILL": str(still), "CHARACTER_FROM": str(her), "MATTEPY": sys.executable}.items():
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("CLOSER_FROM", raising=False)
     monkeypatch.setattr(L.time, "sleep", lambda s: None)
@@ -215,7 +253,8 @@ def ledger_text(tk):
 
 # setup
 
-@pytest.mark.parametrize("missing", ["FAL_KEY", "ELEVENLABS_VOICE_ID", "IDENTITY_PINS", "BED", "FILM2", "HEYGEN_API_KEY"])
+@pytest.mark.parametrize("missing", ["FAL_KEY", "ELEVENLABS_VOICE_ID", "IDENTITY_PINS", "BED", "FILM2", "HEYGEN_API_KEY",
+                                     "MATTEPY"])
 def test_nothing_starts_without_what_the_run_needs(live, monkeypatch, tmp_path, missing):
     monkeypatch.delenv(missing)
     with pytest.raises(L.LiveSetupError):
@@ -1955,3 +1994,211 @@ def test_a_chained_job_the_vendor_dropped_is_sent_again_from_the_same_frame(live
     a = [r for r in tk.ledger.rows() if r["kind"] == "request" and r.get("scene") == "zai-a"]
     assert len(a) == 2 and a[0]["start_sha256"] == a[1]["start_sha256"], a
     assert [r for r in tk.ledger.rows() if r.get("error") == "the vendor no longer has this job"], "the drop was not recorded"
+
+
+# continuity: every scene read for the props the board names and a background that breaks, and the
+# closer for anything moving behind the narrator
+
+MUG = "a ceramic mug on the desk beside the keyboard"
+
+
+def props_state(state, tmp_path, props=(MUG,)):
+    """The character board with props named, as the three redo boards name them."""
+    board = json.load(open(CAST_BOARD))
+    board["spots"]["zai"]["props"] = list(props)
+    path = tmp_path / "props-board.json"
+    path.write_text(json.dumps(board))
+    return cast_state(state, str(path))
+
+
+def scene_of(clip):
+    return os.path.basename(os.path.dirname(clip))
+
+
+def graph():
+    pytest.importorskip("langgraph")
+    from pipeline import graph as G
+    return G
+
+
+def test_every_scene_is_read_for_continuity_against_the_boards_props_and_its_own_line(live, monkeypatch, tmp_path):
+    """The judge is handed every prop the board names and the scene's own line with the character named
+    in words, the one the engine was sent, so a change the story asks for is not read as a break. The
+    findings go beside the take, named by its hash, and each reading goes on the ledger with the take it
+    read."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setattr(L, "http", Vendor())
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    st = props_state(state, tmp_path)
+    v = tk.render(st)
+    assert v["failed"] == [] and v["flags"] == {}, v
+    scenes = json.load(open(st["board"]))["spots"]["zai"]["scenes"]
+    reads = calls_to(run, "gates/continuity_gate.py")
+    assert [scene_of(c[0][1]) for c in reads] == ["zai-a", "zai-b", "zai-c"], reads
+    for args, _env, _drop, python in reads:
+        clip, story = args[1], args[args.index("--story") + 1]
+        assert args[args.index("--prop") + 1] == MUG and "--presenter" not in args and python is None, args
+        assert story == scenes[scene_of(clip)[-1]].replace("{character}", "the student"), story
+        out = args[args.index("--out") + 1]
+        assert os.path.dirname(out) == os.path.dirname(clip), out
+        assert os.path.basename(out) == f"continuity-{hashlib.sha256(open(clip, 'rb').read()).hexdigest()[:16]}.json"
+    rows = [r for r in tk.ledger.rows() if r.get("check") == "continuity"]
+    assert [(r["scene"], r["passed"], r["props"]) for r in rows] == [(f"zai-{s}", True, [MUG]) for s in "abc"], rows
+    assert all(r["reading"].startswith("CONTINUITY_GATE ") and os.path.isfile(os.path.join(tk.run_dir, r["findings"]))
+               and len(r["sha256"]) == 64 for r in rows), rows
+
+
+def test_a_continuity_break_fails_the_scene_which_is_sent_once_more_then_stops_the_run(live, monkeypatch, tmp_path):
+    """The Perplexity laptop, turned into a flat keyboard mid-scene, is a scene that came back broken. It
+    fails the scene with the prop and the second the judge named, and the graph sends it back once, the
+    way it sends back a scene that came back as someone else. Broken again, it stops the run."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setattr(L, "http", Vendor())
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(continuity=lambda args: broken() if "zai-b" in args[0] else held(args)))
+    G = graph()
+    config = {"configurable": {"toolkit": tk}}
+    st = dict(props_state(state, tmp_path), trail=[])
+    first = G.render(st, config)
+    v = first["verdict"]["render"]
+    assert v["failed"] == ["b"], v
+    assert v["why"]["b"] == '"an open laptop on the desk" changes form at 7.25 s: the lid is gone and a flat keyboard is left', v
+    row = [r for r in tk.ledger.rows() if r.get("check") == "continuity" and r["scene"] == "zai-b"][-1]
+    assert row["passed"] is False and "verdict=FAIL" in row["reading"] and "unreadable" not in row, row
+    st = dict(st, **first)
+    assert G.after_render(st) == "render", "a broken scene was not sent back"
+    second = G.render(st, config)
+    assert second["verdict"]["render"]["failed"] == ["b"] and second["verdict"]["render"]["fresh"] == ["b"], second
+    assert G.after_render(dict(st, **second)) == G.STOP, "a scene broken twice was sent a third time"
+
+
+def test_a_re_roll_renders_again_a_take_its_continuity_reading_failed(live, monkeypatch, tmp_path):
+    """A re-entry can resume from a checkpoint older than the reading that failed a take. The ledger
+    still says the take broke, so it is rendered again, never reused because its face was right, and
+    the scenes that held are reused."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    answers = {"zai-c": broken()}
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(continuity=lambda args: answers.get(scene_of(args[0])) or held(args)))
+    st = props_state(state, tmp_path)
+    assert tk.render(st)["failed"] == ["c"]
+    answers.clear()
+    posts = len(vendor.posts())
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(st)
+    assert again["failed"] == [] and again["fresh"] == ["c"] and len(vendor.posts()) == posts + 1, again
+    assert [r["scene"] for r in tk.ledger.rows() if r.get("status") == "REUSED"] == ["zai-a", "zai-b"]
+
+
+def test_a_take_the_continuity_gate_passed_is_not_judged_again_when_it_is_reused(live, monkeypatch, tmp_path):
+    """The judge can answer the same question two ways, so a take it passed is not put to it again on a
+    re-entry, which would pay for a reading and risk failing a take that has not changed. Props the board
+    names since are a new question, and the same takes are read against them."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setattr(L, "http", Vendor())
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    st = props_state(state, tmp_path)
+    tk.render(st)
+    reads = len(calls_to(run, "gates/continuity_gate.py"))
+    v = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(st)
+    assert v["fresh"] == [] and len(calls_to(run, "gates/continuity_gate.py")) == reads, "a take the judge passed was judged again"
+    L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(props_state(state, tmp_path, props=(MUG, "a desk lamp")))
+    assert len(calls_to(run, "gates/continuity_gate.py")) == reads + 3, "a take was not read against the props named since"
+
+
+def test_a_scene_the_cast_gate_failed_is_not_paid_to_read_for_continuity(live, monkeypatch, tmp_path):
+    """A scene that came back as someone else is rendered again whatever the judge would say of it."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setattr(L, "http", Vendor())
+    run = scripts(cast=by_scene({"zai-a": SAME, "zai-b": SAME, "zai-c": OTHER}))
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert tk.render(props_state(state, tmp_path))["failed"] == ["c"]
+    assert [scene_of(c[0][1]) for c in calls_to(run, "gates/continuity_gate.py")] == ["zai-a", "zai-b"]
+
+
+def test_a_scene_the_continuity_gate_could_not_read_goes_to_the_eye(live, monkeypatch, tmp_path):
+    """No reading, or a line its exit code contradicts, is not a pass and not a break. The scene goes to
+    the eye as a flag, and its row says the gate could not read it."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setattr(L, "http", Vendor())
+    answers = {"zai-a": UNREAD, "zai-b": (0, CT.line("fail", "ok", 1.0, "FAIL"), [])}
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(continuity=lambda args: answers.get(scene_of(args[0])) or held(args)))
+    v = tk.render(props_state(state, tmp_path))
+    assert v["failed"] == [], v
+    look = "CONTINUITY: the continuity gate could not read this scene, so it needs a look"
+    assert v["flags"] == {"a": look, "b": look}, v["flags"]
+    rows = [(r["scene"], r["passed"], r.get("unreadable", False)) for r in tk.ledger.rows() if r.get("check") == "continuity"]
+    assert rows == [("zai-a", False, True), ("zai-b", False, True), ("zai-c", True, False)], rows
+
+
+def test_a_closer_whose_background_moves_stops_the_run(live, monkeypatch, tmp_path):
+    """Behind the narrator the background is measured, under the matte's interpreter, and no prop is asked
+    about. A background that moves fails the closer with the second it first moved, its row says so, and
+    the graph stops the run for a person. A closer the gate could not read stops it too, as unreadable."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    monkeypatch.setenv("MATTEPY", "/opt/matte/bin/python")
+    run = scripts(continuity=MOVING)
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    v = tk.closer(state)
+    assert v["pass"] is False and v["why"] == "the background moves at 2.32 s: a patch behind the speaker moves", v
+    args, _env, _drop, python = calls_to(run, "gates/continuity_gate.py")[-1]
+    assert "--presenter" in args and "--prop" not in args and "--story" not in args, args
+    assert python == "/opt/matte/bin/python" and args[1] == os.path.join(tk.takes, "zai-av", "render.mp4"), (args, python)
+    row = [r for r in tk.ledger.rows() if r.get("check") == "continuity"][-1]
+    assert (row["step"], row["passed"], row["reading"]) == ("closer", False, MOVING[1]) and row["source"], row
+    G = graph()
+    assert G.after_closer(dict(state, verdict={"closer": v})) == G.STOP
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(continuity=UNREAD))
+    v = tk.closer(state)
+    assert v["pass"] is False and v["unreadable"] is True, v
+    assert G.after_closer(dict(state, verdict={"closer": v})) == G.STOP
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    assert tk.closer(state)["pass"] is True
+
+
+def test_a_split_judge_sends_the_scene_to_the_eye_with_no_re_roll_and_nothing_spent(live, monkeypatch, tmp_path):
+    """A clean take may cost the author a look, never a re-shoot. When the judge's votes split, the scene
+    keeps its take and goes to the eye as a flag naming the first break a dissenting vote saw. It is not
+    failed, so the graph goes on to the closer with no request sent again, and its row says it split."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(continuity=lambda args: SPLIT if "zai-b" in args[0] else held(args)))
+    G = graph()
+    st = dict(props_state(state, tmp_path), trail=[])
+    out = G.render(st, {"configurable": {"toolkit": tk}})
+    v = out["verdict"]["render"]
+    assert v["failed"] == [] and len(vendor.posts()) == 3, (v, vendor.posts())
+    flag = v["flags"]["b"]
+    assert flag.startswith("CONTINUITY: the judge split on this scene") and \
+        '"an open laptop on the desk" changes form at 7.25 s: one vote saw the lid go' in flag, flag
+    row = [r for r in tk.ledger.rows() if r.get("check") == "continuity" and r["scene"] == "zai-b"][-1]
+    assert row["passed"] is False and row["split"] is True and row["flag"] == flag and "unreadable" not in row, row
+    assert G.after_render(dict(st, **out)) == "closer", "a split scene was sent back for a re-roll"
+
+
+def test_a_re_entry_raises_a_split_takes_flag_again_without_asking_the_judge(live, monkeypatch, tmp_path):
+    """A take the judge split on has not changed on a re-entry, so it earns no new verdict and no new call.
+    Its flag comes back from the row that recorded it, and the eye is asked about it the same way."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    run = scripts(continuity=lambda args: SPLIT if "zai-b" in args[0] else held(args))
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    st = props_state(state, tmp_path)
+    first = tk.render(st)
+    reads, posts = len(calls_to(run, "gates/continuity_gate.py")), len(vendor.posts())
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(st)
+    assert len(calls_to(run, "gates/continuity_gate.py")) == reads, "an unchanged take was judged again"
+    assert again["flags"]["b"] == first["flags"]["b"] and again["failed"] == [] and again["fresh"] == [], again
+    assert len(vendor.posts()) == posts, "a re-entry paid for a take it held"

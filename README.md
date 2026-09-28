@@ -14,7 +14,7 @@
 <img alt="spend: every render gated first" src="https://img.shields.io/badge/spend-every_render_gated_first-55595e?style=flat-square&labelColor=18181c">
 <img alt="router: a different engine wins per audience" src="https://img.shields.io/badge/router-a_different_engine_per_audience-55595e?style=flat-square&labelColor=18181c">
 <img alt="graded by hand: 78 exemplars, 42 scenes" src="https://img.shields.io/badge/graded_by_hand-78_exemplars_%C2%B7_42_scenes-55595e?style=flat-square&labelColor=18181c">
-<img alt="thresholds traced to those grades: 10 of 13, and 10 of 13 named gating thresholds derived from labelled exemplars" src="https://img.shields.io/badge/thresholds_traced_to_grades-10%2F13_derived-55595e?style=flat-square&labelColor=18181c">
+<img alt="thresholds traced to those grades: 10 of 16, and 10 of 16 named gating thresholds derived from labelled exemplars" src="https://img.shields.io/badge/thresholds_traced_to_grades-10%2F16_derived-55595e?style=flat-square&labelColor=18181c">
 <img alt="license: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-55595e?style=flat-square&labelColor=18181c">
 
 <br/><br/>
@@ -33,14 +33,14 @@ This repository is that pipeline, released in full.
 
 ## Three questions reviewers ask about this
 
-**Is any of this mechanical, or did you type the numbers?** Mechanical, and the count is printed rather than claimed. `evals/derive.py` recomputes every named threshold from the labelled exemplars in `evals/labels.csv`, holds each one inside the interval its own labels imply, and prints what it could not derive. 10 of the 13 named gating thresholds in [`probes/`](probes/) and [`gates/`](gates/) are bracketed by a labelled pass and a labelled reject. Its report is checked in CI, so a count on this page cannot go stale:
+**Is any of this mechanical, or did you type the numbers?** Mechanical, and the count is printed rather than claimed. `evals/derive.py` recomputes every named threshold from the labelled exemplars in `evals/labels.csv`, holds each one inside the interval its own labels imply, and prints what it could not derive. 10 of the 16 named gating thresholds in [`probes/`](probes/) and [`gates/`](gates/) are bracketed by a labelled pass and a labelled reject. Its report is checked in CI, so a count on this page cannot go stale:
 
 ```
-10 of 13 NAMED gating thresholds are DERIVED from a labelled pass/reject pair on the same axis
-3 are AUTHORED: typed by hand, no exemplar pair in evals/labels.csv
+10 of 16 NAMED gating thresholds are DERIVED from a labelled pass/reject pair on the same axis
+6 are AUTHORED: typed by hand, no exemplar pair in evals/labels.csv
 ```
 
-**Ten of thirteen.** The other three were typed by hand. One is the correlation floor inside the lip-sync gate that actually blocks a master, which has passes on one side and no reject on the other. Another is the closer's jaw ceiling, 0.17, the latest dated ruling, with no labelled pair behind it yet. The third is the cast gate's face similarity floor, 0.30, set halfway across a measured gap between strangers and the narrator's own takes, which refuses a visibly different girl but cannot tell apart two girls drawn from one prompt. All three stay authored and say so. The loudness numbers the ship gate reads are a delivery spec rather than a judgement, so derive.py lists them apart and counts them in neither.
+**Ten of sixteen.** The other six were typed by hand. One is the correlation floor inside the lip-sync gate that actually blocks a master, which has passes on one side and no reject on the other. Another is the closer's jaw ceiling, 0.17, the latest dated ruling, with no labelled pair behind it yet. The third is the cast gate's face similarity floor, 0.30, set halfway across a measured gap between strangers and the narrator's own takes, which refuses a visibly different girl but cannot tell apart two girls drawn from one prompt. The fourth and fifth are the continuity gate's limits on what may move behind a presenter, 600 px between two frames and 1500 px off the take's own median, set on the night the Grok closers were caught moving. They meet the author's labels only when the gate's own `--validate` is run by hand where the takes are kept. The sixth is that gate's three judge votes on a story shot, set after one reading of a cut the author passed failed it and two passed it, so a shot fails only when all three votes name the break. All six stay authored and say so. The loudness numbers the ship gate reads are a delivery spec rather than a judgement, so derive.py lists them apart and counts them in neither.
 
 **Why probes and not ordinary tests?** A deterministic function has one right answer and gets a unit test. A generated video does not, since the same prompt returns different pixels every run, so the check is a measured property against a calibrated line, which is a probe. A judgement no measurement captures, whether an ad is worth watching, is an eval with human grades behind it. `docs/EVALS.md` classifies every file in `probes/` and `gates/` as one of those three or as a runner, and a test fails when a file is added and nobody says which.
 
@@ -64,7 +64,7 @@ The deriver then caught something real. Pointed at `gates/mouth_sync_probe.py`, 
 mouth_sync_probe.PASS_CORR = 0.25 refuses 8 labelled pass(es) (floor, worst 0.14)
 ```
 
-That is reported as refuted by its own labels rather than nudged to agree. A certificate is a claim about one version of the probe and one version of the certifier, so both hashes are recomputed before any threshold leans on it. And the margin it grants reaches no threshold today, for reasons the tool prints by name: the reference clip has no face, eleven thresholds measure something other than time, and the one certified time probe returns every dose exactly. That gap is on the page because the tool refuses to hide it.
+That is reported as refuted by its own labels rather than nudged to agree. A certificate is a claim about one version of the probe and one version of the certifier, so both hashes are recomputed before any threshold leans on it. And the margin it grants reaches no threshold today, for reasons the tool prints by name: the reference clip has no face, sixteen thresholds measure something other than time, and the one certified time probe returns every dose exactly. That gap is on the page because the tool refuses to hide it.
 
 ## Where a label comes from, and how a wrong one gets caught
 
@@ -326,7 +326,8 @@ Everything below ran.
 | `shoots/<batch>/build-*.sh` | The batch driver: normalise scenes, patch the assembly script, build every spot, master to the loudness standard |
 | `shoots/build-ad.sh` | The assembly. Scenes trimmed to the narration's sentence boundaries from measured frame counts, captions written beside the master with each cue's spoken window, the closer placed frame-exact, one music bed per brand |
 | `shoots/<batch>/requests.jsonl`, `landings.jsonl` | The append-only ledgers. Every engine request with its prompt, every landing with the vendor's own rejection text when there was one, every gated master with its caption, drift and mouth readings, every withdrawal with its reason |
-| `gates/board_probe.py` | The ten mechanical checks on a board before a cent is spent, and the four judgment rows printed for me to score |
+| `gates/board_probe.py` | The eleven mechanical checks on a board before a cent is spent, and the four judgment rows printed for me to score |
+| `gates/continuity_gate.py`, `evals/continuity-labels.json` | The check that follows a prop and the background through a take, and the author's whole-take labels its `--validate` compares it with |
 | `gates/ad_gates.sh`, `caption_gate.py`, `mouth_sync_probe.py` | The caption gate and the closer gate a master must clear before delivery |
 | `gates/edge_clip_probe.py`, `script_match.sh`, `voice_take.sh` | The frame-edge flagger for legible props, the transcription diff against the script, the three-draw voice meter whose consensus probe lives outside this repo and which now refuses to spend a draw without it |
 | `gates/source_gate.py` | The closer look path: jaw, settle and loop jump measured on the raw render. The framing checks on the look, head and body inside the crop and shot size, run in look generation, which drives the avatar vendor's account and stays out of the repo |
@@ -345,6 +346,7 @@ A mixed read is the design, not a broken run. Most probes report and do not refu
 | Closer assembly drift | **Blocks** past 40 ms between where the closer's video starts and where its audio was placed |
 | `mouth_sync_probe.py` | **Blocks** only at FAIL, which is correlation under 0.10, the mouth unrelated to the audio. REVIEW passes with a logged line and the eye decides |
 | `cast_gate.py` | **Blocks** a scene whose person is not the story's character, under 0.30 face similarity to her reference or at least as close to the narrator's. It is sent once more, and a second miss stops the run. No face, or no reading, goes to the eye |
+| `continuity_gate.py` | **Blocks** a scene when all three votes of a vision judge, each reading four frames a second, name a prop the board lists vanishing or changing form, or a background break the scene's own line does not ask for. The scene is sent once more, a second break stops the run, and a split vote or a scene it cannot read goes to the eye. Behind the narrator on a closer the background is measured instead, and a patch moving past 600 px between frames or 1500 px off the take's median stops the run |
 | `sync_probe.py` | **Speaks only.** Demoted on 2026-08-27 after controls with a known 0.4 s shift moved it 80 ms in the wrong direction |
 | `source_gate.py` | **Speaks only.** Prints jaw travel, settle ratio and loop jump as three raw numbers with no verdict, so the metric and the line can be argued separately |
 | `probes/` | **Speak only** to the panels and the gates that read them |

@@ -121,6 +121,12 @@ def chain_text(spot_def, text):
     return text.replace(PLACEHOLDER, f"the {spot_def.get('character_noun', 'person')}")
 
 
+def props_of(spot_def):
+    """What every shot of the spot has to hold from its first frame to its last, as the board names it,
+    or none. The continuity gate reads each shot back against them."""
+    return [p.strip() for p in (spot_def.get("props") or []) if isinstance(p, str) and p.strip()]
+
+
 def scene_prompt(board, scene_text):
     """The prompt the August shoots sent: the scene line, a blank line, the guard verbatim.
 

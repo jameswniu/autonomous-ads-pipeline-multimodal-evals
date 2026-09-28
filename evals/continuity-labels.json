@@ -1,0 +1,109 @@
+{
+ "about": [
+  "The author's verdicts on whole clips, the ground truth gates/continuity_gate.py is held to by --validate. A FAIL case names the",
+  "axis the break is on, props or background, and the window in seconds where the author saw it, and the gate agrees only with a",
+  "break named on that axis inside that window. A null window is the whole clip, for a break he named by what moved rather than",
+  "when. A case with a board and a spot is judged with that spot's scene lines beside it, and a span keeps a master's story apart",
+  "from its closer. A presenter case is measured by the ruler, not judged. sha256 is the file that was labelled, so a take replaced",
+  "in place is never judged under its old verdict. The masters and takes are media and stay out of git, and ADS8_TAKES names the",
+  "directory holding the ads8-real closer takes. Eight cases is a thin set: three judged on two masters, five measured."
+ ],
+ "cases": [
+  {
+   "id": "perplexity-v4-laptop",
+   "clip": "shoots/graph-perplexity-neurons/masters/perplexity-v4.mp4",
+   "sha256": "e2fc384a10062e907ccd1768b88a46dcc085e4f579619d48994632ed7b8842cb",
+   "board": "shoots/graph-perplexity-neurons/boards.json",
+   "spot": "perplexity",
+   "span": [0, 13.84],
+   "props": ["an open laptop on the desk"],
+   "label": "FAIL",
+   "axis": "props",
+   "window": [4.0, 8.0],
+   "said": "the laptop disappeared",
+   "note": [
+    "Its screen is up at 2 to 4 s, and by about 7 s only a flat keyboard slab is left, through 13 s. The window runs from the last",
+    "second he saw it whole to a second past about 7 s. The span ends where the closer starts, 13.84 s in the v4 build's captions."
+   ]
+  },
+  {
+   "id": "perplexity-v4-face",
+   "clip": "shoots/graph-perplexity-neurons/masters/perplexity-v4.mp4",
+   "sha256": "e2fc384a10062e907ccd1768b88a46dcc085e4f579619d48994632ed7b8842cb",
+   "board": "shoots/graph-perplexity-neurons/boards.json",
+   "spot": "perplexity",
+   "span": [0, 13.84],
+   "props": ["the woman's face, clearly visible and never hidden"],
+   "label": "FAIL",
+   "axis": "props",
+   "window": [0.0, 4.5],
+   "said": "the frames on Perplexity, it's not clear",
+   "note": [
+    "Flying paper hides her face and blurs the opening seconds, the first shot, which runs to about 4.3 s. Her face is written here",
+    "as a prop that must stay in view, the only way the two questions can ask about it. The Perplexity board names only the laptop,",
+    "so a run asks this only if her face is added to its props."
+   ]
+  },
+  {
+   "id": "grok-av6",
+   "clip": "$ADS8_TAKES/grok-av6/render.mp4",
+   "sha256": "c25f86617cd35ebb83664f9e6846152838958dd767283c262903feae8b782bcf",
+   "presenter": true,
+   "label": "FAIL",
+   "axis": "background",
+   "window": null,
+   "said": "the bike disappears into the sign and the car keep looping",
+   "note": "avatar_iii invented traffic the still never held. He named what moved, not when."
+  },
+  {
+   "id": "grok-av8",
+   "clip": "$ADS8_TAKES/grok-av8/render.mp4",
+   "sha256": "34249c3130f50855701ab2db4129ce4031dfe61d7b3201bc2dee288de9f722b0",
+   "presenter": true,
+   "label": "FAIL",
+   "axis": "background",
+   "window": null,
+   "said": "pulsing window lights",
+   "note": "The city lights in the window behind her pulse on their own."
+  },
+  {
+   "id": "zai-v2-mug",
+   "clip": "shoots/graph-zai-neurons/masters/zai-v2.mp4",
+   "sha256": "f9425769ee3de3fc22f3538c0084f794aeeb6df810533743c11bf4a21d29c034",
+   "board": "shoots/graph-zai-neurons/boards.json",
+   "spot": "zai",
+   "span": [0, 16.24],
+   "props": ["a ceramic mug on the desk beside the keyboard"],
+   "label": "PASS",
+   "note": [
+    "The cut he approved with the av7 presenter. The mug comes into frame as the camera pulls back at about 1.75 s and holds still",
+    "through the warehouse and the restored studio, which is the spot's own quirk. The span ends where the closer starts, 16.24 s in",
+    "the v2 build's captions."
+   ]
+  },
+  {
+   "id": "zai-v2-closer",
+   "clip": "shoots/graph-zai-neurons/takes/zai-av/render.mp4",
+   "sha256": "0e9a9dc31750a9a7b31d3c0c5772a6e464767fe2f60afebc8650398f0b015fd3",
+   "presenter": true,
+   "label": "PASS",
+   "note": "The av7 presenter take that closes the approved zai-v2 cut."
+  },
+  {
+   "id": "zai-av-v1-august",
+   "clip": "shoots/graph-zai-shots/takes/zai-av-v1-august/render.mp4",
+   "sha256": "be11059bb00603403f3203748f8382f1594dd6c318e5911a6eacec87c8bbeaa7",
+   "presenter": true,
+   "label": "PASS",
+   "note": "The Z.ai closer take shipped and approved in August."
+  },
+  {
+   "id": "grok-av7",
+   "clip": "$ADS8_TAKES/grok-av7/render.mp4",
+   "sha256": "9a64fd6156890e285985027f0d19c392b2038cdbd01f0adc78a1224ab5571c93",
+   "presenter": true,
+   "label": "PASS",
+   "note": "The Grok presenter take whose background holds still."
+  }
+ ]
+}
