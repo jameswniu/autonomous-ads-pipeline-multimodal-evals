@@ -84,9 +84,12 @@ Three words carry the page. A **probe** is a check, a **threshold** is the line 
 
 Process evals check how the work got made, before anyone looks at the result. The industry name is process supervision.
 
+Every spot ends on the closer, a presenter who speaks the brand line to camera, animated from a look, one still photo of her in a set.
+
 - Every step has a contract, the contract is checked the moment the step runs, and a failed check stops the job before the next dollar is spent.
 - The source of truth is the pipeline graph, an orchestration framework such as LangGraph in most stacks and plain scripts here. This tier moves only when the scripts move.
 - The exact scripts that ran are in this repository. Boards, batch drivers and ledgers in [`shoots/`](shoots/), the board probe, caption gate and closer checks in [`gates/`](gates/), the pixel probes in [`probes/`](probes/), the pre-spend guards in [`guards/`](guards/). The code map near the end says what each file is. Look generation stays out: it ran against the avatar vendor's account, with its own framing checks on the still, head and body inside the crop and shot size, and the closer path here starts from its output.
+
 
 | Step | What it has to prove before the next step may start | How it fails |
 |:---|:---|:---|
