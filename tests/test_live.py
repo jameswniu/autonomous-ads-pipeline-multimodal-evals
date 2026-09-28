@@ -5,8 +5,9 @@ checked here with every vendor call and every repo script replaced by a fake. A 
 the ledger before it is sent. A rejection is recorded with the vendor's own text. No identity
 id or local path reaches a ledger that gets committed, whatever a script prints. Nothing is
 spent until everything a run needs is present. A run re-entered after a failure collects what
-it already paid for instead of paying again. The closer's guards run before anything is paid,
-the voice included. A reused closer must say this spot's line. A scene that shows the story's
+it already paid for instead of paying again. The closer, the last shot of every spot, where the
+presenter speaks the brand line to camera, has its guards run before anything is paid, the voice
+included. A reused closer must say this spot's line. A scene that shows the story's
 character is rendered from her face and read back against it, and never passes as the narrator.
 And the gates' exits and
 machine lines become the causes the graph routes on. Several tests exist because a mutation of
@@ -1708,7 +1709,8 @@ def test_a_scene_that_writes_the_narrator_in_is_never_sent(live, monkeypatch, tm
 
 def test_a_different_person_fails_the_scene_and_no_face_goes_to_the_eye(live, monkeypatch, tmp_path):
     """A different person re-rolls the scene. A scene with no face, or one the gate could not
-    read, is not a pass either, so it goes to the eye as a flag."""
+    read, is not a pass either, so it goes to the eye, the person who looks at a flagged scene
+    before it ships, as a flag."""
     tk, state = live
     monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
     monkeypatch.setattr(L, "http", Vendor())
