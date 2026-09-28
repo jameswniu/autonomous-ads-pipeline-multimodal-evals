@@ -122,14 +122,16 @@ def _apply(changes, answer):
 
 
 def unseen_flags(state):
-    """Edge-clip flags on the scenes as they stand that no person has looked at yet. The probe
-    that raises them is a flagger, not a gate: it names the seconds and the eye rules. A flag is
-    seen on one scene's take, so the same words on another scene, or on a new take of the same
-    scene, are asked about again."""
-    flags = ((state.get("verdict") or {}).get("render") or {}).get("flags") or {}
+    """Edge-clip flags on the scenes as they stand, and the build's own flags such as a slow
+    open, that no person has looked at yet. What raises them is a flagger, not a gate: it names
+    what it saw and the eye rules. A flag is seen by its exact words, so the same words again, on
+    another scene, on a new take of the same scene, or on a new build, are asked about again."""
+    verdict = state.get("verdict") or {}
+    flags = dict((verdict.get("render") or {}).get("flags") or {})
+    flags.update((verdict.get("build") or {}).get("flags") or {})
     seen = (state.get("changes") or {}).get("flags_seen")
     seen = seen if isinstance(seen, dict) else {}
-    return {scene: text for scene, text in flags.items() if seen.get(scene) != text}
+    return {key: text for key, text in flags.items() if seen.get(key) != text}
 
 
 def answer_problem(packet, answer):
@@ -224,8 +226,16 @@ def closer(state, config):
 
 def build(state, config):
     v = _tools(config).build(state)
+    changes = _without(state.get("changes"), APPROVALS)
+    # A build already spent, so every visit here makes a fresh master. What was flagged and
+    # approved on the master before this one does not cover this one, the same way render()
+    # above drops a freshly rendered scene's own old seen mark. Frontload is the only flag a
+    # build raises today, so it is the only key dropped here.
+    seen = changes.get("flags_seen")
+    if isinstance(seen, dict) and "frontload" in seen:
+        changes = {**changes, "flags_seen": {k: t for k, t in seen.items() if k != "frontload"}}
     return {"verdict": _merge(state, "verdict", {"build": v}), "trail": ["build"],
-            "attempts": _bump(state, "build"), "changes": _without(state.get("changes"), APPROVALS),
+            "attempts": _bump(state, "build"), "changes": changes,
             "artifacts": _merge(state, "artifacts", v.get("artifacts", {}))}
 
 
@@ -243,8 +253,9 @@ def eye(state, config):
     in the build. Approving a replay needs a "reason", what in the scene keeps the replay from
     showing, which is the logged override the ship gate's REPLAYOK stands for. Approving a
     directional scene is the override its --arrow-ok stands for. The packet carries the
-    evidence of the gate that asked, the edge flags nobody has seen, and the fixes already in
-    force, so the person judges the flag the gate raised and not a fresh impression.
+    evidence of the gate that asked, the flags nobody has seen (an edge clip on a scene, a
+    slow open from the build), and the fixes already in force, so the person judges the flag
+    that was raised and not a fresh impression.
     """
     asked_by = (state.get("trail") or ["?"])[-1]
     evidence = (state.get("verdict") or {}).get(asked_by) or {}

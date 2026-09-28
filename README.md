@@ -13,7 +13,7 @@
 <img alt="spec ads: 10, for real products" src="https://img.shields.io/badge/spec_ads-10_for_real_products-55595e?style=flat-square&labelColor=18181c">
 <img alt="spend: every render gated first" src="https://img.shields.io/badge/spend-every_render_gated_first-55595e?style=flat-square&labelColor=18181c">
 <img alt="router: a different engine wins per audience" src="https://img.shields.io/badge/router-a_different_engine_per_audience-55595e?style=flat-square&labelColor=18181c">
-<img alt="graded by hand: 78 exemplars, 42 scenes" src="https://img.shields.io/badge/graded_by_hand-78_exemplars_%C2%B7_42_scenes-55595e?style=flat-square&labelColor=18181c">
+<img alt="graded by hand: 82 exemplars, 42 scenes" src="https://img.shields.io/badge/graded_by_hand-82_exemplars_%C2%B7_42_scenes-55595e?style=flat-square&labelColor=18181c">
 <img alt="thresholds traced to those grades: 10 of 16, and 10 of 16 named gating thresholds derived from labelled exemplars" src="https://img.shields.io/badge/thresholds_traced_to_grades-10%2F16_derived-55595e?style=flat-square&labelColor=18181c">
 <img alt="license: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-55595e?style=flat-square&labelColor=18181c">
 
@@ -68,13 +68,13 @@ That is reported as refuted by its own labels rather than nudged to agree. A cer
 
 ## Where a label comes from, and how a wrong one gets caught
 
-A threshold is only as good as the grades behind it, so the first question is what a grade actually is here. It is a person watching a clip and saying good enough or not, written down before any metric existed. I did that on the 78 labelled exemplars behind the thresholds and the 42 eye-labelled scenes behind the judge. The exemplars live in `evals/labels.csv`, and they are not all worth the same, so the file says which kind each one is and the tool checks each kind differently.
+A threshold is only as good as the grades behind it, so the first question is what a grade actually is here. It is a person watching a clip and saying good enough or not, written down before any metric existed. I did that on the 82 labelled exemplars behind the thresholds and the 42 eye-labelled scenes behind the judge. The exemplars live in `evals/labels.csv`, and they are not all worth the same, so the file says which kind each one is and the tool checks each kind differently.
 
 Seven ship their pixels. The frame is in the repository, and `derive.py` re-measures it with the probe's own function on every run. A stranger can check those without asking me anything.
 
 Thirty are withheld but attested. The render is too big to ship, but the gate that measured it wrote its verdict into a shipping ledger the day that master went out, and the ledger is committed. The number and the verdict are re-read from it every run, keyed by shoot and master together. Cite the wrong shoot, leave a master with two gated records, or drop the citation and the build fails.
 
-Forty-one are attested from the derivation notes alone, and those source renders are gone. That is the weakest tier and it is counted separately rather than folded in.
+Forty-five are attested from the derivation notes alone, and those source renders are gone. That is the weakest tier and it is counted separately rather than folded in.
 
 **How a wrong label surfaces.** Not by inspection. A label and a threshold are two claims about the same boundary, so the deriver reports when they disagree and makes somebody choose which one is wrong. That is not hypothetical here:
 
@@ -367,7 +367,7 @@ The generative side does hold models. They are vendor APIs called over the netwo
 
 - Production on this page means the pipeline ran unattended and spent real money on renders under its own gates. It does not mean a media buy, and no delivery metric is claimed anywhere here.
 - The golden set carries one labeller's judgement, mine, and it is internally consistent. A second labeller and an agreement score are the next calibration step.
-- Only what ships here is claimed, the 78 labelled rows behind the thresholds and the 42 scenes behind the judge. The production battery was calibrated on a larger labelled history that stays private.
+- Only what ships here is claimed, the 82 labelled rows behind the thresholds and the 42 scenes behind the judge. The production battery was calibrated on a larger labelled history that stays private.
 - Sample sizes are counts, never rates: 15 governed runs, 42 calibration scenes, 36 lip-sync labels.
 - Every outcome number here is measured on the creative. Hook rate, hold rate and view-through are the buy's numbers and are not on this page.
 - The spec ads are unaffiliated. None of the eight companies has seen them.

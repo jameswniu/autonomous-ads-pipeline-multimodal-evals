@@ -51,6 +51,7 @@ A board is the written plan for a spot, one line per shot with the order of the 
 | `gates/board_probe.py` | unit | The mechanical half of the board law, exact checks on a declared board |
 | `gates/caption_gate.py` | unit | Every burned caption says what is spoken, when it is spoken |
 | `gates/edge_clip_probe.py` | probe | A story prop amputated by a frame edge the engine never saw |
+| `gates/frontload_gate.py` | probe | Whether a "cuts" build's first big picture change opens the film soon enough, flagged past 1.75s |
 | `gates/jaw_gate.py` | probe | Refuses a closer whose jaw swings past what its lips explain, over 0.17 |
 | `gates/cast_gate.py` | probe | Refuses a scene whose person is not the story's character, under 0.30 face similarity to her reference or at least as close to the narrator's |
 | `gates/continuity_gate.py` | eval | Refuses a story shot when all three votes of a vision judge read a named prop or its background breaking, sends a split vote to the eye, and refuses a presenter take whose background moves past 600 or 1500 px under a matte diff, compared with the author's whole-take labels by `--validate`; `--first-frame` asks the same votes of one still, the frame a chain starts from, whether each named prop is visible in it, before any of the chain is paid for |
@@ -68,7 +69,7 @@ Verdicts come first, in plain language, on real takes. They accumulate into labe
 
 | set | size | what it holds |
 |---|---|---|
-| Labelled exemplars | 78 rows | [`../evals/labels.csv`](../evals/labels.csv), the pass and reject exemplars behind the ten gating thresholds, 7 re-measured from shipped pixels, 30 re-read from the committed landing ledgers that recorded them, and 41 attested from the derivation notes |
+| Labelled exemplars | 82 rows | [`../evals/labels.csv`](../evals/labels.csv), the pass and reject exemplars behind the ten gating thresholds, 7 re-measured from shipped pixels, 30 re-read from the committed landing ledgers that recorded them, and 45 attested from the derivation notes |
 | Judge calibration | 42 scenes | [`../evals/judge-calibration.json`](../evals/judge-calibration.json), 16 FAIL and 26 PASS, labelled by eye before the judge ran |
 | Lip-sync labels | 8 | the closer masters the mouth probe was scored against |
 | Ledgers | 15 governed runs | every request and landing under [`../shoots/`](../shoots/), append-only |

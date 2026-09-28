@@ -1212,6 +1212,60 @@ def test_a_board_that_says_nothing_about_the_switching_sound_builds_as_before(li
     assert "switch_times" not in [r for r in rows if r["kind"] == "landing" and r["step"] == "build"][-1]
 
 
+def _cuts_build(stamp):
+    def build(self, args, env):
+        out = os.path.join(env["TAKES"], f"out-{args[1]}-{args[2]}")
+        os.makedirs(out, exist_ok=True)
+        open(os.path.join(out, "ad.mp4"), "wb").write(b"ad")
+        return done(0, f"{stamp}\nbuilt ad.mp4\n")
+    return build
+
+
+def test_a_slow_open_flags_the_eye_and_never_stops_or_re_rolls_the_build(live, monkeypatch, tmp_path):
+    """A slow open is a board problem: a "cuts" build whose first switch lands past
+    gates/frontload_gate.py's FRONTLOAD_MAX only flags, naming the measured time and the limit,
+    on the landing row and in the verdict the eye reads flags from. It never fails the build
+    and never asks for another one, the same build that already spent stays."""
+    tk, state = live
+    monkeypatch.setattr(L.LiveToolkit, "join", lambda self, srcs, out: open(out, "wb").write(b"j") > 0)
+    monkeypatch.setattr(L, "has_audio", lambda path: True)
+    run = scripts(build=_cuts_build("SWITCHES mode=cuts at=2.30,14.94"))
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    v = tk.build(dict(state, board=_switches_board(tmp_path, "cuts")))
+    said = "FRONTLOAD: the first big change lands at 2.30s, later than the 1.75s limit. Look before shipping."
+    assert v["pass"] is True, "a slow open stopped or failed the build"
+    assert v["flags"] == {"frontload": said}, v
+    landing = [r for r in tk.ledger.rows() if r["kind"] == "landing" and r["step"] == "build"][-1]
+    assert landing["switch_times"] == [2.3, 14.94] and landing["flag"] == said, landing
+
+
+def test_a_fast_open_never_flags(live, monkeypatch, tmp_path):
+    tk, state = live
+    monkeypatch.setattr(L.LiveToolkit, "join", lambda self, srcs, out: open(out, "wb").write(b"j") > 0)
+    monkeypatch.setattr(L, "has_audio", lambda path: True)
+    run = scripts(build=_cuts_build("SWITCHES mode=cuts at=1.00,14.94"))
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    v = tk.build(dict(state, board=_switches_board(tmp_path, "cuts")))
+    assert v["pass"] is True and "flags" not in v, v
+    landing = [r for r in tk.ledger.rows() if r["kind"] == "landing" and r["step"] == "build"][-1]
+    assert landing["switch_times"] == [1.0, 14.94] and "flag" not in landing, landing
+
+
+def test_a_slots_build_never_frontload_flags_even_past_the_limit(live, monkeypatch, tmp_path):
+    """Break test. A "slots" build's switch_times are the narration's own sentence boundaries,
+    not a measured picture change, so a first one later than FRONTLOAD_MAX is never read as a
+    slow open. Only a "cuts" build's first switch means the first big picture change."""
+    tk, state = live
+    monkeypatch.setattr(L.LiveToolkit, "join", lambda self, srcs, out: open(out, "wb").write(b"j") > 0)
+    monkeypatch.setattr(L, "has_audio", lambda path: True)
+    run = scripts(build=_cuts_build("SWITCHES mode=slots at=4.52,13.96"))
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    v = tk.build(dict(state, board=_switches_board(tmp_path, "slots")))
+    assert v["pass"] is True and "flags" not in v, v
+    landing = [r for r in tk.ledger.rows() if r["kind"] == "landing" and r["step"] == "build"][-1]
+    assert landing["switch_times"] == [4.52, 13.96] and "flag" not in landing, landing
+
+
 def test_a_sentence_whose_shots_cannot_be_joined_stops_the_build(live, monkeypatch, tmp_path):
     """A failed join is recorded and the builder never runs, and so is a board whose slots do not
     come to the three sentences the builder cuts, which the board gate refuses before a run."""

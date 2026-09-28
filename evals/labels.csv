@@ -109,3 +109,7 @@ mouth_sync_probe,ads7-metaai-final-v1.mp4,pass,0.36,mouth_corr,withheld,"shipped
 mouth_sync_probe,ads7-metaai-final-v1.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads7-real/landings.jsonl records PASS"
 mouth_sync_probe,ads7-pics-final-v1.mp4,pass,0.23,mouth_corr,withheld,"shipped master, ads7-real/landings.jsonl records REVIEW"
 mouth_sync_probe,ads7-pics-final-v1.mp4,pass,0.0,mouth_lag_abs_s,withheld,"shipped master, ads7-real/landings.jsonl records REVIEW"
+frontload_gate,graph-grok-hook,pass,0.0,first_switch_s,withheld,"the Grok hook cut the author picked, its shoots/graph-grok-hook/ledger.jsonl not committed to this repository"
+frontload_gate,graph-perplexity-neurons,pass,1.14,first_switch_s,withheld,"the Perplexity cut the author approved, its shoots/graph-perplexity-neurons/ledger.jsonl not committed to this repository"
+frontload_gate,graph-zai-neurons,pass,1.22,first_switch_s,withheld,"the Z.ai cut the author picked, its shoots/graph-zai-neurons/ledger.jsonl not committed to this repository"
+frontload_gate,graph-grok-neurons,reject,2.3,first_switch_s,withheld,"the Grok cut the author sent back for a slow open, its shoots/graph-grok-neurons/ledger.jsonl not committed to this repository"

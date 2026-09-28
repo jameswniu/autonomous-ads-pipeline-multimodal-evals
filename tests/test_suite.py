@@ -104,6 +104,20 @@ def test_derive_json_shape():
         assert row.get("ok"), f"{row['item']} did not reproduce"
 
 
+def test_frontload_gate_is_registered_and_derived():
+    """gates/frontload_gate.py's FRONTLOAD_MAX is registered the way every other named threshold
+    is, and the four exemplars in evals/labels.csv bracket it: DERIVED, and never counted as a
+    gate, since a flag never refuses a clip on its own."""
+    data = derive_json()
+    entries = [g for g in data["gates"] if g["module"] == "frontload_gate" and g["constant"] == "FRONTLOAD_MAX"]
+    assert len(entries) == 1, entries
+    g = entries[0]
+    assert g["axis"] == "first_switch_s" and g["polarity"] == "ceiling", g
+    assert g["status"] == "DERIVED", g
+    assert g["pass_edge"] == 1.22 and g["reject_edge"] == 2.3, g
+    assert g["gating"] is False, "a slow-open flag never refuses a clip on its own"
+
+
 def _label_rows(blob):
     """The DATA rows only. The prose above them is documentation, not evidence."""
     return [ln for ln in blob.splitlines(True)

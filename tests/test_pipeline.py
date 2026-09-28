@@ -418,6 +418,41 @@ def test_an_edge_flag_goes_to_the_eye_once_and_a_new_one_goes_again(tmp_path):
     assert out["trail"].count("eye") == 2, out["trail"]
 
 
+FRONTLOAD_FLAG = "FRONTLOAD: the first big change lands at 2.30s, later than the 1.75s limit. Look before shipping."
+
+
+def test_a_frontload_flag_from_the_build_reaches_the_eye_and_never_re_rolls(tmp_path):
+    """The build is a flagger too, not a gate: a slow open is a board problem, so it never fails
+    or repeats the build, it only reaches the eye, merged with the render's own flags the same
+    unseen_flags dict carries."""
+    built = {"pass": True, "artifacts": {"master": os.path.join(str(tmp_path), "masters", "m.mp4")},
+             "flags": {"frontload": FRONTLOAD_FLAG}}
+    out, tk = run(tmp_path, eye=[APPROVE], build=[built])
+    assert out["outcome"] == "delivered", out["trail"]
+    assert out["trail"].count("build") == 1, "a frontload flag re-rolled or repeated the build"
+    assert tk.packets[0]["asked_by"] == "ad_gates" and tk.packets[0]["flags"] == {"frontload": FRONTLOAD_FLAG}, tk.packets[0]
+
+
+def test_a_build_with_no_flags_never_visits_the_eye_for_one(tmp_path):
+    out, _ = run(tmp_path)
+    assert out["outcome"] == "delivered" and "eye" not in out["trail"], out["trail"]
+
+
+def test_a_rebuilt_frontload_flag_is_asked_again_even_with_the_same_words(tmp_path):
+    """A withdrawal back to build makes a new master, so an approval on the master before it
+    must not cover this one, even when the rebuild's flag reads exactly the same, the way a
+    freshly rendered scene drops its own old seen mark rather than trusting a stale approval."""
+    built = {"pass": True, "artifacts": {"master": os.path.join(str(tmp_path), "masters", "m.mp4")},
+             "flags": {"frontload": FRONTLOAD_FLAG}}
+    out, tk = run(tmp_path, eye=[APPROVE, APPROVE], build=[built, built], review=[withdraw("build"), KEEP])
+    assert out["trail"].count("eye") == 2, out["trail"]
+    assert out["outcome"] == "delivered", out["trail"]
+    eyed = [p for p in tk.packets if p["kind"] == "eye"]
+    assert len(eyed) == 2, tk.packets
+    assert eyed[0]["flags"] == {"frontload": FRONTLOAD_FLAG}, eyed[0]
+    assert eyed[1]["flags"] == {"frontload": FRONTLOAD_FLAG}, "the rebuild's flag was treated as already seen"
+
+
 def test_a_seen_flag_is_seen_on_one_scene_and_one_take(tmp_path):
     """Approving a flag clears it for the take it was raised on. The same words on another
     scene, or on a new take of the same scene, go to the eye again. A take reused as it stood

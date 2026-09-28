@@ -147,7 +147,7 @@ The first batch landed fifteen scenes on fifteen requests with zero content reje
 
 Quality evals are the tier everyone argues about, so I made them the most mechanical of the three.
 
-- A quality check, in practice, is a person watching a clip and saying good enough or not. I did that first, on the 78 labelled exemplars behind the thresholds and the 42 eye-labelled scenes behind the judge. Then the verdicts were compiled into numbers a scheduler can enforce.
+- A quality check, in practice, is a person watching a clip and saying good enough or not. I did that first, on the 82 labelled exemplars behind the thresholds and the 42 eye-labelled scenes behind the judge. Then the verdicts were compiled into numbers a scheduler can enforce.
 - The source of truth is that golden set plus the market's own bar. The vendor's premium baseline sits in the race as the A0 column.
 - Change the audience and the tier is re-derived, because what good means has flipped.
 - One probe battery for everything. A category picks which rows gate and which merely report, and that pick is what defines the category. The direction of good is set per audience. A coffee ad reads gesture energy upward and a sleep ad flips the same instrument, because calm sells.

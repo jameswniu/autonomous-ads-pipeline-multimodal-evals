@@ -55,6 +55,8 @@ What a live run needs in its environment, all checked before the graph starts:
                                 from a web plan's credits.
 """
 import base64
+import functools
+import importlib.util
 import json
 import os
 import re
@@ -212,6 +214,21 @@ def grab_frame(src, out, last=False):
 
 SWITCH_LINE = re.compile(r"^SWITCHES mode=(slots|off|cuts) at=([\d.,]*)$", re.M)   # shoots/switches.sh
 SHOT_HEAD = 0.4   # what shoots/build-ad.sh drops from the head of every scene before it cuts it
+
+
+@functools.lru_cache(maxsize=1)
+def _frontload_rules():
+    spec = importlib.util.spec_from_file_location("frontload_gate", os.path.join(ROOT, "gates", "frontload_gate.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def frontload_flag(first_switch_s):
+    """gates/frontload_gate.py's flag for a "cuts" build's first placed switch time, or None when
+    it lands in time. Only a "cuts" build's first switch time means "first big picture change", so
+    the caller passes this only that number, from a "cuts" build with one to give."""
+    return _frontload_rules().flag(first_switch_s)
 
 
 def has_audio(path):
@@ -1468,9 +1485,18 @@ class LiveToolkit(Toolkit):
             return {"pass": False}
         heard = SWITCH_LINE.search(r.stdout or "")
         placed = {"switch_times": [float(t) for t in heard.group(2).split(",") if t]} if switches and heard else {}
+        # Only a "cuts" build's first switch time is the first big picture change. A "slots"
+        # build's times are narration sentence boundaries and mean nothing about pacing. Never a
+        # re-roll: a slow open is a board problem, so this only flags, for the eye to read.
+        first = placed["switch_times"][0] if switches == "cuts" and placed.get("switch_times") else None
+        flag = frontload_flag(first)
+        extra = {"flag": flag} if flag else {}
         self.ledger.append("landing", "build", spot=spot, status="OK", file=self.rel(master), sha256=sha256(master),
-                           seconds=duration(master), log=self.lines(r.stdout, 6), **placed)
-        return {"pass": True, "artifacts": {"master": master, "captions": captions, "srt": srt}}
+                           seconds=duration(master), log=self.lines(r.stdout, 6), **placed, **extra)
+        v = {"pass": True, "artifacts": {"master": master, "captions": captions, "srt": srt}}
+        if flag:
+            v["flags"] = {"frontload": flag}
+        return v
 
     # Ad gates and ship gate: the repo's gates, read off their machine lines.
 

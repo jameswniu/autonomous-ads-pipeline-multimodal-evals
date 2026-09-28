@@ -1800,3 +1800,29 @@ def test_a_first_frame_prop_most_votes_miss_refuses_the_board_even_with_one_vote
     assert c.first_frame_tally(["fail", None, None]) == "split"
     assert c.first_frame_tally(["ok", "ok", None]) == "ok"
     assert c.first_frame_tally([None, None, "ok"]) is None
+
+
+# --------------------------------------------------------------------------------------
+# frontload_gate.py
+
+
+def test_frontload_flag_fires_only_past_the_limit():
+    """FRONTLOAD_MAX brackets the labelled exemplars in evals/labels.csv: 1.22 is the slowest
+    open the author approved and 2.3 is the one sent back, so it flags past itself and not at
+    or under it, naming the measured time and the limit."""
+    fg = load("frontload_gate.py")
+    assert fg.flag(fg.FRONTLOAD_MAX) is None
+    assert fg.flag(1.22) is None
+    assert fg.flag(0.0) is None
+    assert fg.flag(2.3) == "FRONTLOAD: the first big change lands at 2.30s, later than the 1.75s limit. Look before shipping."
+    assert fg.flag(fg.FRONTLOAD_MAX + 0.01) is not None
+
+
+def test_frontload_flag_never_crashes_on_nothing_measured():
+    """An empty read is not a late one. A build with no cuts-mode measurement, or a broken one,
+    passes None, NaN or a non-number here, and none of them ever flags or raises."""
+    fg = load("frontload_gate.py")
+    assert fg.flag(None) is None
+    assert fg.flag(float("nan")) is None
+    assert fg.flag("not a number") is None
+    assert fg.flag([]) is None
