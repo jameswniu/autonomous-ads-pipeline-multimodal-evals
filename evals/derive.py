@@ -68,6 +68,8 @@ FLOOR = "floor"       # value >= C passes; rejects sit BELOW the constant
 # module,           constant,         axis,              polarity, scale, gating
 GATES = [
     ("bg_detail",        "MAX_DETAIL",     "bg_gradient",     CEILING, 1.0,  True),
+    # III_MAX is the ceiling on background detail for a look rendered on avatar_iii, the avatar
+    # vendor's engine that freezes the background into a still photo while it animates her.
     ("scene_simplicity", "III_MAX",        "scene_gradient",  CEILING, 1.0,  True),
     ("eye_eval",         "BG_MAX",         "eye_gradient",    CEILING, 1.0,  True),
     ("level_probe",      "SCENE_MAX",      "scene_level",     CEILING, 1.0,  True),

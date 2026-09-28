@@ -38,7 +38,8 @@ from pipeline.steps import BY_NODE
 # a person directed up to seven builds of one spot by hand. MAX_BUILDS bounds the rebuilds
 # the eye can ask for with a nudge, so a lag three builds have not fixed stops for a
 # person, since it is not a nudge's to fix. Rebuilds after delivery are counted as
-# withdrawals instead: three is what ads7 took to land its v4 cuts, each one a person's
+# withdrawals instead: three is what ads7, the seventh batch of ads shot in August 2026, took to
+# land its v4 cuts, each one a person's
 # call, so the bound admits the worst run on the record and stops a fourth.
 MAX_SCENE_REROLLS = 1
 MAX_BUILDS = 3
