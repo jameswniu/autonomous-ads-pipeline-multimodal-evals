@@ -1787,3 +1787,15 @@ def test_board_probe_holds_props_to_lines_of_plain_words(tmp_path):
     assert props([LAPTOP, "a ceramic mug on the desk beside the keyboard"]) == (True, 0)
     for bad in ([], [""], ["  "], [3], ["a mug", "A mug"], LAPTOP, {"laptop": True}):
         assert props(bad) == (False, 1), bad
+
+
+def test_a_first_frame_prop_most_votes_miss_refuses_the_board_even_with_one_vote_unread():
+    """Before any spend a missing prop is refused when most votes miss it and none sees it, so one unreadable
+    vote cannot wave through the board that cost six paid takes on the Grok redo."""
+    c = _gate_module("continuity_gate")
+    assert c.first_frame_tally(["fail", "fail", None]) == "fail"
+    assert c.first_frame_tally(["fail", "fail", "fail"]) == "fail"
+    assert c.first_frame_tally(["fail", "ok", "fail"]) == "split"
+    assert c.first_frame_tally(["fail", None, None]) == "split"
+    assert c.first_frame_tally(["ok", "ok", None]) == "ok"
+    assert c.first_frame_tally([None, None, "ok"]) is None

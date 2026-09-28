@@ -63,8 +63,9 @@ A board names its props before anything is shot, and a chain starts its first sc
 of its character, so that frame can be read before any of the chain is paid for. --first-frame <image>
 asks a narrower question of that one still: is each named prop visible in it? The same votes and the
 same strict JSON discipline apply, and a vote that does not account for every prop exactly once is no
-reading for any of them. A prop is absent when every vote reads it and every vote says it is not
-visible, split when the votes disagree, and otherwise visible. The verdict is FAIL when any prop is
+reading for any of them. A prop is absent when most votes read it as not visible and no vote sees it,
+since refusing a board before any spend costs a person one look while letting it through costs a paid
+scene on every take. It is split when the votes disagree or a lone vote misses it, and otherwise visible. The verdict is FAIL when any prop is
 absent, REVIEW when none is absent and any is split, UNREAD when none is absent or split and any has no
 reading, and PASS when every prop reads visible, with the gate's own exit codes throughout. The machine
 line is CONTINUITY_FIRST_FRAME props=<visible>/<named> absent=<comma joined numbers or a dash>
@@ -807,6 +808,18 @@ def unread_first_frame(reason, n):
     return 64
 
 
+def first_frame_tally(states):
+    """One prop's answer across the first-frame votes, looser than a scene's: "fail" (absent) when most votes
+    read it as missing and none sees it, "split" when any vote misses it otherwise, "ok" when most see it,
+    else None. One unreadable vote must not wave a missing prop through, since that costs a paid scene."""
+    fails, oks = states.count("fail"), states.count("ok")
+    if fails > len(states) // 2 and not oks:
+        return "fail"
+    if fails:
+        return "split"
+    return "ok" if oks > len(states) // 2 else None
+
+
 def run_first_frame(o):
     """Read one still image and ask whether every named prop is visible in it, before any render request
     is sent for it. Returns the exit code."""
@@ -828,7 +841,7 @@ def run_first_frame(o):
     findings, tallied = [], []
     for i in range(len(props)):
         column = [states[i] for states, _ in per_vote]
-        tallied.append(tally(column))
+        tallied.append(first_frame_tally(column))
         for n_vote, (_states, found) in enumerate(per_vote, 1):
             findings += [dict(f, vote=n_vote) for f in found if f["n"] - 1 == i]
     absent = [i + 1 for i, s in enumerate(tallied) if s == "fail"]
