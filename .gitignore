@@ -45,23 +45,3 @@ tools/pii_names.txt
 !samples/
 !samples/**
 .pytest_cache/
-
-# Coverage data. The report is a CI artifact, the raw files are per-machine.
-.coverage
-.coverage.*
-.ruff_cache/
-# make targets write their reports and dry-run ledgers here
-.reports/
-
-# A kept graph run commits its ledger and run.json. The takes, masters and deliveries are
-# media, and the checkpoint is the run's working state.
-shoots/*/takes/
-shoots/*/masters/
-shoots/*/delivered/
-shoots/*/checkpoint.sqlite*
-
-# The ship gate's slit-scan evidence is a PNG, so the blanket *.png ignore above would
-# catch it too. Re-admit just this directory, the same last-match-wins escape assets/
-# and samples/ get.
-!shoots/*/evidence/
-!shoots/*/evidence/*.png

@@ -18,58 +18,13 @@ The pipeline is autonomous. It renders on a schedule with nobody watching, and t
 label  ->  derive  ->  gate  ->  render  ->  relabel
 ```
 
-## 0. Which of the three a check is
-
-The question a reviewer asks first is why any of this is a probe rather than an ordinary test. The answer is a rule, and the rule is applied file by file below rather than asserted.
-
-**A deterministic function gets a unit test.** One input, one right answer, assert equality. Text normalisation and caption-to-speech comparison are in this class: the same words in and the same verdict out, every run, forever.
-
-**A generative output gets a probe with a calibrated threshold.** The same prompt returns different pixels every run, so there is no equality to assert. What survives is a measured property and a line drawn on it, and the line has to come from somewhere, which is what the rest of this document is about.
-
-**A judgement no measurement captures gets an eval with human labels behind it.** Whether an ad is worth watching is not a number. It is a verdict, and the only honest way to enforce it later is to have recorded enough of them.
-
-**A runner is none of the three.** It orders the others and spends money; it decides nothing itself.
-
-Every executable in `probes/` and `gates/` is classified here, and `tests/test_suite.py` fails if one is missing, if a row names a file that does not exist, or if a class outside these four appears. A check that nobody has decided the shape of is the thing this table exists to make impossible.
-
-A board is the written plan for a spot, one line per shot with the order of the shots, the narration and the props. The board law is the set of rules it must satisfy before any money is spent, checked here on a declared board, a board file already on disk.
-
-| File | Class | What it settles |
-|---|---|---|
-| `probes/bg_detail.py` | probe | Background busyness against a calibrated ceiling |
-| `probes/coherence_probe.py` | probe | Whether a scene holds together or drifts |
-| `probes/graph_verdict.py` | probe | Whether movement is there at all, crossed with whether it arrives with the speech, reported for the eye |
-| `probes/eye_eval.py` | eval | Reproduces the human's own recorded verdicts, validated by accuracy against them |
-| `probes/hand_probe.py` | probe | Gesture energy against a floor |
-| `probes/level_probe.py` | probe | One lighting level held all the way through, at any level |
-| `probes/lipsync_probe.py` | probe | Mouth against audio, onset and correlation |
-| `probes/mirror_probe.py` | probe | A frozen or mirrored span inside a clip that should be moving |
-| `probes/scene_simplicity.py` | probe | Scene complexity against the engine's own ceiling |
-| `probes/spasm_probe.py` | probe | Motion that jerks rather than moves |
-| `probes/sync_probe.py` | probe | Audio lag inside a two-sided band |
-| `gates/ad_gates.sh` | runner | Orders the caption and closer gates and writes the receipt |
-| `gates/board_probe.py` | unit | The mechanical half of the board law, exact checks on a declared board |
-| `gates/caption_gate.py` | unit | Every burned caption says what is spoken, when it is spoken |
-| `gates/edge_clip_probe.py` | probe | A story prop amputated by a frame edge the engine never saw |
-| `gates/frontload_gate.py` | probe | Whether a "cuts" build's first big picture change opens the film soon enough, flagged past 1.75s |
-| `gates/jaw_gate.py` | probe | Refuses a closer whose jaw swings past what its lips explain, over 0.17 |
-| `gates/cast_gate.py` | probe | Refuses a scene whose person is not the story's character, under 0.30 face similarity to her reference or at least as close to the narrator's |
-| `gates/continuity_gate.py` | eval | Refuses a story shot when all three votes of a vision judge read a named prop or its background breaking, sends a split vote to the eye, and refuses a presenter take whose background moves past 600 or 1500 px under a matte diff, compared with the author's whole-take labels by `--validate`; `--first-frame` asks the same votes of one still, the frame a chain starts from, whether each named prop is visible in it, before any of the chain is paid for |
-| `gates/loudness_gate.py` | unit | Integrated loudness and true peak on the master against the delivery target |
-| `gates/mouth_sync_probe.py` | probe | The lip-sync check that actually blocks a master |
-| `gates/script_match.sh` | unit | The spoken read-back against the written script |
-| `gates/source_gate.py` | probe | Jaw stretch and end-of-clip robotics on the flat render |
-| `gates/textnorm.py` | unit | One normaliser, so two gates cannot disagree about what a word is |
-| `gates/voice_probe.py` | probe | Which draw of the same text drifted off the presenter's vowel space |
-| `gates/voice_take.sh` | runner | Draws N narrations and keeps the one that sounds like her |
-
 ## 1. Label
 
 Verdicts come first, in plain language, on real takes. They accumulate into labelled sets:
 
 | set | size | what it holds |
 |---|---|---|
-| Labelled exemplars | 82 rows | [`../evals/labels.csv`](../evals/labels.csv), the pass and reject exemplars behind the ten gating thresholds, 7 re-measured from shipped pixels, 30 re-read from the committed landing ledgers that recorded them, and 45 attested from the derivation notes |
+| Labelled exemplars | 48 rows | [`../evals/labels.csv`](../evals/labels.csv), the pass and reject exemplars behind the ten gating thresholds, 7 re-measured from shipped pixels and 41 attested from the derivation notes |
 | Judge calibration | 42 scenes | [`../evals/judge-calibration.json`](../evals/judge-calibration.json), 16 FAIL and 26 PASS, labelled by eye before the judge ran |
 | Lip-sync labels | 8 | the closer masters the mouth probe was scored against |
 | Ledgers | 15 governed runs | every request and landing under [`../shoots/`](../shoots/), append-only |
@@ -78,7 +33,7 @@ Nothing in this repository treats a label as noise to be smoothed. The labels ar
 
 ## 2. Derive
 
-Ten of the sixteen named gating thresholds in [`../probes/`](../probes/) and [`../gates/`](../gates/) are computed from a labelled pass exemplar and a labelled fail exemplar, and [`../evals/derive.py`](../evals/derive.py) holds every one inside the interval its own labels imply.
+Ten of the ten named gating thresholds in [`../probes/`](../probes/) are computed from a labelled pass exemplar and a labelled fail exemplar, and [`../evals/derive.py`](../evals/derive.py) holds every one inside the interval its own labels imply.
 
 The count is generated by the tool and checked by `tests/test_suite.py`, so it cannot go stale the way a hand-written sentence does. It counts NAMED constants; `lipsync_probe.py` still refuses clips on nine inline numbers, which cannot be bracketed until they are named. Where intuition was tried against the labels, it lost:
 

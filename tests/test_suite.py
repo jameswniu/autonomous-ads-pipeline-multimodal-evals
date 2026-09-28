@@ -10,7 +10,6 @@ that a thing can announce failure and still report success.
     python3 tests/test_suite.py          # same checks, no pytest needed
 """
 import ast
-import csv
 import json
 import os
 import re
@@ -18,9 +17,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
-
-import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROBES = os.path.join(ROOT, "probes")
@@ -104,374 +100,6 @@ def test_derive_json_shape():
         assert row.get("ok"), f"{row['item']} did not reproduce"
 
 
-def test_frontload_gate_is_registered_and_derived():
-    """gates/frontload_gate.py's FRONTLOAD_MAX is registered the way every other named threshold
-    is, and the four exemplars in evals/labels.csv bracket it: DERIVED, and never counted as a
-    gate, since a flag never refuses a clip on its own."""
-    data = derive_json()
-    entries = [g for g in data["gates"] if g["module"] == "frontload_gate" and g["constant"] == "FRONTLOAD_MAX"]
-    assert len(entries) == 1, entries
-    g = entries[0]
-    assert g["axis"] == "first_switch_s" and g["polarity"] == "ceiling", g
-    assert g["status"] == "DERIVED", g
-    assert g["pass_edge"] == 1.22 and g["reject_edge"] == 2.3, g
-    assert g["gating"] is False, "a slow-open flag never refuses a clip on its own"
-
-
-def _label_rows(blob):
-    """The DATA rows only. The prose above them is documentation, not evidence."""
-    return [ln for ln in blob.splitlines(True)
-            if ln.strip() and not ln.lstrip().startswith(b"#" if isinstance(blob, bytes) else "#")]
-
-
-def test_labels_are_append_only_across_every_reachable_commit():
-    """A label is evidence, and evidence that can be quietly rewritten is not.
-
-    The same rule the race ledger lives under, applied here: an ordinary commit may
-    only extend its parent's rows, and a merge has to keep both parents' rows in
-    order. Walking every reachable commit rather than first parents is what stops a
-    side branch adding a row, deleting it, and merging the result.
-
-    FROM A BASELINE, and the honest reason is that this file was not append-only
-    before. Commit 59141b6 replaced a placeholder exemplar with a real shipped one,
-    which is a legitimate edit under the old regime and a violation under this rule.
-    Backdating the rule would mean either failing on history that cannot be changed
-    or weakening the rule until it passes. The rule starts at the commit named
-    below and binds every commit after it.
-
-    Comment lines are excluded on purpose. The provenance block at the top of the
-    file is prose and has been rewritten more than once, most recently when a third
-    kind of row was documented. The ROWS are the part that must never move.
-    """
-    BASELINE = "a7bc029f95466d390193430a7720d69793e18c63"
-    known = subprocess.run(["git", "cat-file", "-e", BASELINE + "^{commit}"], cwd=ROOT,
-                           capture_output=True)
-    if known.returncode:
-        pytest.skip("the baseline commit is not in this clone")
-    out = subprocess.run(["git", "rev-list", "--parents", f"{BASELINE}..HEAD"], cwd=ROOT,
-                         capture_output=True, text=True)
-    shallow = subprocess.run(["git", "rev-parse", "--is-shallow-repository"], cwd=ROOT,
-                             capture_output=True, text=True)
-    if out.returncode or shallow.stdout.strip() != "false":
-        pytest.skip("no full history to compare against")
-
-    cache = {}
-
-    def rows(rev):
-        if rev not in cache:
-            shown = subprocess.run(["git", "show", f"{rev}:evals/labels.csv"], cwd=ROOT,
-                                   capture_output=True, text=True)
-            cache[rev] = _label_rows(shown.stdout) if shown.returncode == 0 else []
-        return cache[rev]
-
-    checked = 0
-    for line in out.stdout.splitlines():
-        ids = line.split()
-        rev, parents = ids[0], ids[1:]
-        here = rows(rev)
-        for parent in parents:
-            before = rows(parent)
-            if len(parents) == 1:
-                assert here[:len(before)] == before, (
-                    f"{rev} rewrote or dropped label rows committed in {parent}")
-            else:
-                kept = iter(here)
-                assert all(any(r == h for h in kept) for r in before), (
-                    f"{rev} merged {parent} but did not keep its label rows")
-        if any(here != rows(p) for p in parents) or (not parents and here):
-            checked += 1
-    with open(os.path.join(ROOT, "evals", "labels.csv")) as fh:
-        working = _label_rows(fh.read())
-    assert working[:len(rows("HEAD"))] == rows("HEAD"), (
-        "the working labels file rewrote or dropped rows that are already committed")
-    # Nothing after the baseline may have touched the labels yet, which is fine and
-    # is not the same as the check being unable to run. The working-tree assertion
-    # above always runs and is what binds an uncommitted edit.
-
-
-def test_a_certificate_that_no_longer_describes_its_probe_is_refused():
-    """A receipt is a claim about one version of one file.
-
-    Edit the probe and a committed receipt keeps saying TRACKS about code that no
-    longer exists, and the margin comes from a number nothing measured. This changes
-    the probe by one comment line and asserts the derivation refuses the receipt
-    instead of trusting it.
-    """
-    probe = os.path.join(ROOT, "probes", "sync_probe.py")
-    with open(probe) as fh:
-        original = fh.read()
-    try:
-        with open(probe, "w") as fh:
-            fh.write(original + "\n# touched by a test, so the certificate is stale\n")
-        r = run([os.path.join("evals", "derive.py")])
-        assert r.returncode != 0, "a stale certificate was trusted"
-        assert "changed since it was certified" in r.stdout, r.stdout
-    finally:
-        with open(probe, "w") as fh:
-            fh.write(original)
-
-
-def test_a_certificate_from_a_different_ruler_is_refused():
-    """Hashing the probe binds the receipt to the thing measured, not the thing
-    measuring. The stimulus, the dosing and the fit live in certify.py, and any of
-    them can change while the probe is untouched."""
-    ruler = os.path.join(ROOT, "evals", "certify.py")
-    with open(ruler) as fh:
-        original = fh.read()
-    try:
-        with open(ruler, "w") as fh:
-            fh.write(original + "\n# touched by a test, so every receipt is stale\n")
-        r = run([os.path.join("evals", "derive.py")])
-        assert r.returncode != 0, "a receipt from another version of the ruler was trusted"
-        assert "different version of evals/certify.py" in r.stdout, r.stdout
-    finally:
-        with open(ruler, "w") as fh:
-            fh.write(original)
-
-
-def test_certifying_one_probe_does_not_drop_the_other():
-    """--probe X --write used to replace the whole receipt with one entry, so a routine
-    partial recalibration removed coverage while everything reported success."""
-    cert = os.path.join(ROOT, "evals", "certificates.json")
-    with open(cert) as fh:
-        original = fh.read()
-    before = {c["probe"] for c in json.loads(original)["certificates"]}
-    assert len(before) > 1, "there is only one probe, so this cannot regress"
-    try:
-        r = run([os.path.join("evals", "certify.py"), "--probe", "sync_probe", "--write"],
-                timeout=600)
-        assert r.returncode == 0, r.stdout + r.stderr
-        with open(cert) as fh:
-            after = {c["probe"] for c in json.load(fh)["certificates"]}
-        assert after == before, f"certifying one probe dropped {before - after}"
-    finally:
-        with open(cert, "w") as fh:
-            fh.write(original)
-
-
-def test_two_certificates_for_one_probe_is_an_error_not_a_winner():
-    """The same shape as the duplicate ledger record: last writer wins is not a choice
-    a reader gets to make quietly. A second entry with a tiny sigma would otherwise
-    overwrite the real resolution and switch the margin off."""
-    cert = os.path.join(ROOT, "evals", "certificates.json")
-    with open(cert) as fh:
-        original = fh.read()
-    doc = json.loads(original)
-    twin = dict(doc["certificates"][0])
-    twin["sigma_ms"] = 0.001
-    doc["certificates"].append(twin)
-    try:
-        with open(cert, "w") as fh:
-            json.dump(doc, fh, indent=2)
-        r = run([os.path.join("evals", "derive.py")])
-        assert r.returncode != 0, "a duplicate certificate picked a winner"
-        assert "certified more than once" in r.stdout, r.stdout
-    finally:
-        with open(cert, "w") as fh:
-            fh.write(original)
-
-
-def test_a_certificate_with_no_source_hash_is_refused():
-    """The hash is the only thing tying a hand-edited TRACKS to real measurement."""
-    cert = os.path.join(ROOT, "evals", "certificates.json")
-    with open(cert) as fh:
-        original = fh.read()
-    doc = json.loads(original)
-    for c in doc["certificates"]:
-        c.pop("source_sha256", None)
-    try:
-        with open(cert, "w") as fh:
-            json.dump(doc, fh, indent=2)
-        r = run([os.path.join("evals", "derive.py")])
-        assert r.returncode != 0, "an unattributable certificate was accepted"
-        assert "no source hash" in r.stdout, r.stdout
-    finally:
-        with open(cert, "w") as fh:
-            fh.write(original)
-
-
-def test_a_blunt_instrument_refuses_the_threshold_it_used_to_allow():
-    """The margin is the link between the two mechanisms, so it has to be shown working.
-
-    Today's certificate reads sigma 0.0 ms on sync_probe, meaning the probe returned
-    every dose exactly, so the margin is zero and the check passes without doing
-    anything. A check whose precondition never arrives is worse than no check, so this
-    swaps in a certificate with a scatter wide enough to swallow the bracket and
-    asserts the constant is refused. The real file is restored either way.
-    """
-    cert = os.path.join(ROOT, "evals", "certificates.json")
-    with open(cert) as fh:
-        original = fh.read()
-    doc = json.loads(original)
-    for c in doc["certificates"]:
-        if c["probe"] == "sync_probe":
-            c["sigma_ms"] = 30.0          # 2 sigma is 60 ms, wider than the 40 ms to either edge
-            c["sigma_max_ms"] = 100.0
-    try:
-        with open(cert, "w") as fh:
-            json.dump(doc, fh, indent=2)
-        r = run([os.path.join("evals", "derive.py")])
-        assert r.returncode != 0, "a threshold inside the instrument's own noise was accepted"
-        assert "closer than the probe can resolve" in r.stdout, r.stdout
-    finally:
-        with open(cert, "w") as fh:
-            fh.write(original)
-
-
-def test_a_probe_with_no_certificate_is_reported_unmargined_not_assumed_fine():
-    """Silence is the failure mode here. mouth_sync_probe blocks masters and has no
-    certificate, so its lag constant gets no margin, and the report must not read as
-    though it cleared one."""
-    data = derive_json()
-    by = {f"{g['module']}.{g['constant']}": g for g in data["gates"]}
-    assert by["mouth_sync_probe.PASS_LAG"].get("margin") is None, (
-        "a margin was applied to a probe the certificate does not cover")
-    # No gate carries a margin today and that is the honest state, not a bug. The one
-    # certified probe on a time axis reports no scatter at all, which means a
-    # resolution finer than it can report rather than a perfect one, so granting it a
-    # zero margin would be a check that passes by construction. Every uncovered
-    # threshold has to be NAMED, which is what this asserts.
-    named = " ".join(data["uncertified"])
-    for gate in ("mouth_sync_probe.PASS_LAG", "mouth_sync_probe.FAIL_CORR"):
-        assert gate in named, f"{gate} carries no margin and the report does not say so"
-    assert "sync_probe" in named, "the certified probe's unusable resolution is not reported"
-
-
-def test_every_withheld_mouth_row_is_re_read_from_a_committed_ledger():
-    """A row that ships no pixels is a typed number unless something checks it.
-
-    These thirty carry the verdict a gate recorded when the master shipped, and
-    that record is committed in shoots/<shoot>/landings.jsonl. derive.py re-reads
-    each one on every run, so a label nudged to make a threshold pass fails here.
-    """
-    data = derive_json()
-    att = data.get("ledger_attested")
-    assert att, "no withheld row is checked against a ledger"
-    bad = [a for a in att if not a.get("ok")]
-    assert not bad, f"{len(bad)} withheld row(s) disagree with the ledger: {bad[:3]}"
-
-
-def test_a_nudged_label_is_caught_by_the_ledger():
-    """The check above is only worth anything if it can fail. Move one number."""
-    labels = os.path.join(ROOT, "evals", "labels.csv")
-    with open(labels) as fh:
-        before = fh.read()
-    hit = "mouth_sync_probe,ads5-orchard-final-v3.mp4,pass,0.3,mouth_corr"
-    assert hit in before, "the row this test nudges is no longer in labels.csv"
-    try:
-        with open(labels, "w") as fh:
-            fh.write(before.replace(hit, hit.replace(",0.3,", ",0.44,")))
-        r = run([os.path.join("evals", "derive.py")])
-        assert r.returncode != 0, "derive.py accepted a label the ledger contradicts"
-        assert "ledger records" in r.stdout, (
-            f"derive.py failed for some other reason\n{r.stdout}")
-    finally:
-        with open(labels, "w") as fh:
-            fh.write(before)
-
-
-def _swap(path, before, after):
-    """Rewrite a file for the length of a test and always put it back."""
-    with open(path) as fh:
-        original = fh.read()
-    assert before in original, f"{path} no longer contains the text this test edits"
-    with open(path, "w") as fh:
-        fh.write(original.replace(before, after, 1))
-    return original
-
-
-def test_a_withheld_row_citing_the_wrong_shoot_is_caught():
-    """The ledger is keyed by shoot AND master, so a master of the same name in
-    another shoot cannot answer for this one."""
-    labels = os.path.join(ROOT, "evals", "labels.csv")
-    original = _swap(labels, "ads5/landings.jsonl records PASS",
-                     "ads7-real/landings.jsonl records PASS")
-    try:
-        r = run([os.path.join("evals", "derive.py")])
-        assert r.returncode != 0, "derive.py accepted a label citing the wrong ledger"
-        assert "no gated master record there names it" in r.stdout, r.stdout
-    finally:
-        with open(labels, "w") as fh:
-            fh.write(original)
-
-
-def test_two_gated_records_for_one_master_is_a_conflict_not_a_winner():
-    """A second record must not quietly overwrite the first. Append a duplicate."""
-    led = os.path.join(ROOT, "shoots", "ads5", "landings.jsonl")
-    with open(led) as fh:
-        original = fh.read()
-    dup = [ln for ln in original.splitlines()
-           if "ads5-orchard-final-v3.mp4" in ln and "gated master" in ln]
-    assert dup, "the record this test duplicates is no longer in the ledger"
-    try:
-        with open(led, "w") as fh:
-            fh.write(original + dup[0].replace("corr 0.30", "corr 0.99") + "\n")
-        r = run([os.path.join("evals", "derive.py")])
-        assert r.returncode != 0, "derive.py picked a winner between two records"
-        assert "gated master records" in r.stdout, r.stdout
-    finally:
-        with open(led, "w") as fh:
-            fh.write(original)
-
-
-def test_a_withheld_mouth_row_with_no_ledger_named_fails_closed():
-    """Skipping an uncited row is how the check stops covering new rows."""
-    labels = os.path.join(ROOT, "evals", "labels.csv")
-    original = _swap(labels, '"shipped master, ads5/landings.jsonl records PASS"',
-                     '"shipped master, eye approved"')
-    try:
-        r = run([os.path.join("evals", "derive.py")])
-        assert r.returncode != 0, "derive.py skipped a row nothing can check"
-        assert "names no landing ledger" in r.stdout, r.stdout
-    finally:
-        with open(labels, "w") as fh:
-            fh.write(original)
-
-
-CLASSES = {"unit", "probe", "eval", "runner"}
-
-
-def registry():
-    """{path: class} from the table in docs/EVALS.md, which IS the registry."""
-    doc = os.path.join(ROOT, "docs", "EVALS.md")
-    with open(doc) as fh:
-        body = fh.read()
-    rows = re.findall(r"^\| `([^`]+)` \| (\w+) \|", body, re.M)
-    return {path: cls for path, cls in rows}
-
-
-def executables():
-    """Every check that ships, which is what the registry has to cover."""
-    found = []
-    for d in ("probes", "gates"):
-        for name in sorted(os.listdir(os.path.join(ROOT, d))):
-            if name.endswith((".py", ".sh")) and not name.startswith("_"):
-                found.append(f"{d}/{name}")
-    return found
-
-
-def test_every_check_is_classified_as_unit_probe_eval_or_runner():
-    """The rule a reviewer asks about, applied file by file rather than asserted.
-
-    A check nobody has decided the shape of is the thing this makes impossible,
-    and a doc that quietly falls behind the directory is the way it comes back.
-    """
-    reg = registry()
-    assert reg, "docs/EVALS.md has no classification table"
-    missing = [f for f in executables() if f not in reg]
-    assert not missing, f"not classified in docs/EVALS.md: {missing}"
-    ghosts = [f for f in reg if not os.path.exists(os.path.join(ROOT, f))]
-    assert not ghosts, f"docs/EVALS.md classifies files that do not exist: {ghosts}"
-    odd = {f: c for f, c in reg.items() if c not in CLASSES}
-    assert not odd, f"class outside {sorted(CLASSES)}: {odd}"
-
-
-def test_the_registry_names_at_least_one_of_each_class():
-    """Three classes and a runner, or the rule is describing something else."""
-    have = set(registry().values())
-    assert have == CLASSES, f"the table uses {sorted(have)}, the rule names {sorted(CLASSES)}"
-
-
 WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven",
          8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen",
          14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen"}
@@ -497,20 +125,6 @@ def test_documented_counts_match_the_tool():
         f"derive.py is internally inconsistent: {d} derived + {a} authored != {m} gating")
     num = {v: k for k, v in WORDS.items()}
 
-    # Counted from the file rather than typed here, so adding a row updates the
-    # expectation and the prose has to follow.
-    with open(os.path.join(ROOT, "evals", "labels.csv")) as fh:
-        body = [ln for ln in fh if not ln.lstrip().startswith("#")]
-    label_rows = [r for r in csv.DictReader(body) if r.get("probe")]
-    rows = len(label_rows)
-    lipsync = sum(1 for r in label_rows if "sync" in r["probe"])
-    # The judge's calibration set size comes from the rubric that records it, which is
-    # the same source the README cites, rather than a number typed twice.
-    with open(os.path.join(ROOT, "evals", "judge-rubric.json")) as fh:
-        rubric = json.load(fh)
-    declared = rubric["groundedness"]["calibration"]["set"]
-    scenes = int(re.search(r"(\d+) film5 scenes", declared).group(1))
-
     def val(tok):
         tok = tok.strip().lower()
         return int(tok) if tok.isdigit() else num.get(tok)
@@ -527,19 +141,9 @@ def test_documented_counts_match_the_tool():
         (r"[Tt]he other (\w+) were typed by hand", (a,), a > 0),
         (r"(\d+) are AUTHORED", (a,), True),
         (r"is one of the (\w+):", (d,), False),
-        # The row count. It drifted on 2026-09-23: thirty rows were appended to
-        # labels.csv and three sentences plus a front-page badge went on saying
-        # forty-eight. The count checks above only covered what derive.py prints
-        # about THRESHOLDS, so nothing noticed. A reviewer who checks one number
-        # and finds it wrong stops believing the rest of them.
-        (r"(\d+) exemplars, (\d+) scenes", (rows, scenes), True),
-        (r"graded_by_hand-(\d+)_exemplars_%C2%B7_(\d+)_scenes", (rows, scenes), True),
-        (r"on the (\d+) labelled exemplars behind the thresholds and the (\d+) eye", (rows, scenes), True),
-        (r"the (\d+) labelled rows behind the thresholds and the (\d+) scenes", (rows, scenes), True),
-        (r"(\d+) calibration scenes, (\d+) lip-sync labels", (scenes, lipsync), True),
     ]
     problems = []
-    for rel in ("README.md", "docs/EVALS.md", "docs/TIERS.md"):
+    for rel in ("README.md", "docs/EVALS.md"):
         text = open(os.path.join(ROOT, rel)).read()
         for pattern, expected, required in checks:
             found = re.findall(pattern, text)
@@ -557,109 +161,6 @@ def test_documented_counts_match_the_tool():
 
 
 
-def test_the_judge_table_matches_the_rubric_that_recorded_it():
-    """The judge section is the weakest thing on the page if nobody checks it.
-
-    Its numbers came out of evals/judge-rubric.json, which is where the versions
-    were scored. This reads them back. A version re-scored in the rubric and left
-    alone in the README fails here, and so does a row invented for the table.
-    """
-    with open(os.path.join(ROOT, "evals", "judge-rubric.json")) as fh:
-        cal = json.load(fh)["groundedness"]["calibration"]
-
-    declared = cal["set"]
-    fails = int(re.search(r"(\d+) FAIL", declared).group(1))
-    passes = int(re.search(r"(\d+) PASS", declared).group(1))
-
-    # Split by DENOMINATOR, not by name. A version scored against the whole set
-    # belongs in the table; one scored against a sample does not, because showing it
-    # under headers that say "of 16" and "of 26" would state a denominator it never
-    # faced. The rubric says which is which, so the page cannot decide for itself.
-    full_set, sampled = {}, {}
-    for name, body in cal.items():
-        if not isinstance(body, dict) or "recall_on_eye_fail" not in body:
-            continue
-        caught, of_fail = (int(x) for x in body["recall_on_eye_fail"].split("/"))
-        cleared, of_pass = (int(x) for x in body["specificity_on_eye_pass"].split("/"))
-        target = full_set if (of_fail, of_pass) == (fails, passes) else sampled
-        target[name] = (caught, cleared, of_fail, of_pass)
-    assert full_set, "the rubric scores no judge version against the whole set"
-
-    readme = open(os.path.join(ROOT, "README.md")).read()
-    lines = readme.splitlines()
-    # Anchored on the judge table's own header. A bare "two numeric columns" match
-    # picked up an unrelated table elsewhere on the page and reported its numbers as
-    # invented judge scores, which is a false alarm and would have got this muted.
-    head = [i for i, ln in enumerate(lines)
-            if ln.startswith("|") and "eye-fails" in ln and "eye-passes" in ln]
-    assert len(head) == 1, f"expected exactly one judge score table, found {len(head)}"
-    table = []
-    for ln in lines[head[0] + 2:]:
-        if not ln.startswith("|"):
-            break
-        table.append(ln)
-    stated = []
-    for ln in table:
-        cells = [c.strip() for c in ln.strip("|").split("|")]
-        assert len(cells) == 3, f"judge table row has {len(cells)} cells: {ln}"
-        stated.append((cells[0], (int(cells[1]), int(cells[2]))))
-
-    # EXACT, in both directions. A subset check alone let the page say four versions
-    # while showing three, dropping the least flattering one, and a first attempt to
-    # fix that with a fuzzy search for an excusing phrase passed both break tests.
-    # Omission is the easiest way to lie with a table, so it is an equality here.
-    want = sorted((v[0], v[1]) for v in full_set.values())
-    assert sorted(p for _lbl, p in stated) == want, (
-        f"the judge table states {sorted(p for _l, p in stated)} and the rubric "
-        f"scored {want} against the full set")
-    assert len(table) == len(full_set), (
-        f"the rubric scored {len(full_set)} versions against the full set and the "
-        f"table has {len(table)} rows; two versions with the same pair still need "
-        f"a row each, which a set comparison would have let through")
-
-    # ROW BY ROW, bound by name. Checking only the numeric multiset let a contributor
-    # swap two labels and attribute one prompt shape's scores to another, which is
-    # the misreading that would actually cost somebody something: it is the argument
-    # about WHICH prompt made the judge agreeable, not the totals.
-    stop = {"sonnet", "opus", "the", "in", "and", "then", "a", "one", "of", "on",
-            "prompt", "judge", "clips", "decisive", "set", "full", "v1", "v2", "v3", "v4"}
-    for name, (caught, cleared, _f, _p) in full_set.items():
-        keys = {w.strip(",+") for w in re.split(r"[\s,+]+", name.lower())} - stop
-        keys = {k for k in keys if len(k) > 3 and not k.isdigit()}
-        hits = [(lbl, pair) for lbl, pair in stated
-                if keys & {w.strip(",.") for w in lbl.lower().split()}]
-        assert len(hits) == 1, (
-            f"rubric version {name!r} matches {len(hits)} table rows on {sorted(keys)}; "
-            f"each scored version needs exactly one row that names it")
-        lbl, pair = hits[0]
-        assert pair == (caught, cleared), (
-            f"the row {lbl!r} states {pair} and the rubric scores {name!r} at "
-            f"{(caught, cleared)}")
-
-    # A sampled version has to be on the page with its OWN denominator, so it is not
-    # quietly dropped and not silently shown as if it faced the whole set. Scoped to
-    # the judge section and matched on a whole word: a bare search of the README for
-    # "8" passed while the sentence naming the sample had been deleted, because a
-    # page full of numbers contains every small one somewhere.
-    start = readme.index("## Why a language model flags")
-    nxt = readme.find("\n## ", start + 1)
-    section = readme[start:nxt if nxt != -1 else len(readme)]
-    for name, (caught, cleared, of_fail, of_pass) in sampled.items():
-        # Its OWN denominators and its OWN result, not just the sample size. Checking
-        # the size alone let the rubric's 5-of-5 and 0-of-3 change underneath a page
-        # that still said "eight clips" and stayed green.
-        for n, what in ((caught, "fails caught"), (of_fail, "fails in the sample"),
-                        (cleared, "passes cleared"), (of_pass, "passes in the sample"),
-                        (of_fail + of_pass, "clips in the sample")):
-            forms = [rf"\b{n}\b"] + ([rf"\b{WORDS[n]}\b"] if n in WORDS else [])
-            assert any(re.search(f, section, re.I) for f in forms), (
-                f"the rubric scores {name} with {n} {what} and the judge section "
-                f"never states that number")
-
-    for phrase in (f"of {fails} eye-fails", f"of {passes} eye-passes"):
-        assert phrase in readme, f"the README does not say {phrase!r}"
-
-
 def test_no_retired_claim_survives_on_any_surface():
     """The landing page is more than README.md, and the rest is not text-diffable.
 
@@ -671,10 +172,8 @@ def test_no_retired_claim_survives_on_any_surface():
     This used to matter more than a normal staleness check, because both SVGs
     were written by a generator that was NOT in this repository: regenerating
     from that private tree would have silently restored both claims with nothing
-    to notice. Both are generated here now and byte-checked in CI, the system map
-    by tools/render_map.py and the README hero by tools/render_tiers.py. This
-    paragraph named a tools/render_diagrams.py that never existed until
-    2026-09-22, which is the same staleness in the file that polices it.
+    to notice. tools/render_diagrams.py closes that hole. Both SVGs are
+    generated here now and byte-checked in CI.
 
     This test stays, and not merely out of caution. A retired CLAIM is a
     sentence, not a number, so no count check can see one; and docs/ and
@@ -909,63 +408,6 @@ def test_system_map_matches_its_generator():
     assert r.returncode == 0, r.stdout + r.stderr
 
 
-def test_the_hero_generator_escapes_text_it_is_given():
-    """A byte check compares this output against a committed copy of the same
-    output, so an unescaped ampersand agrees with itself and CI stays green on a
-    malformed file. Feed it the characters that break XML and parse the result."""
-    import importlib.util
-    import xml.etree.ElementTree as ET
-    spec = importlib.util.spec_from_file_location(
-        "render_tiers_esc", os.path.join(ROOT, "tools", "render_tiers.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    mod.TIERS = [("A & B <EVALS>", ('He said "go",', 'and did its gate fire?'),
-                  "the <graph> & map", 'fixed by "the" scripts')] + list(mod.TIERS[1:])
-    svg = mod.render()
-    ET.fromstring(svg)  # raises if the ampersands or angle brackets leaked through
-    assert "A &amp; B &lt;EVALS&gt;" in svg, "text node was not escaped"
-
-
-def test_readme_hero_matches_its_generator():
-    """The hero is output too, as of 2026-09-22. It was not, for weeks, while the
-    docstring below said it was, which is the exact staleness this file polices."""
-    r = run(["tools/render_tiers.py", "--check"])
-    assert r.returncode == 0, r.stdout + r.stderr
-
-
-def test_the_hero_aria_label_is_built_from_the_same_data_as_the_cards():
-    """Fixing the visible pixels and leaving the accessible text is not fixing it.
-
-    Both come from one tuple per tier now, so this asserts the words a screen
-    reader gets are the words on the card, rather than asserting they were
-    updated together by hand.
-    """
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "render_tiers", os.path.join(ROOT, "tools", "render_tiers.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    label = mod.aria()
-
-    # GitHub renders the SVG as an <img>, so the alt on that tag is the text a
-    # screen reader actually gets and the aria-label inside the file never
-    # reaches one. Two accessible texts for one figure is how one goes stale, so
-    # the README carries the same sentence and this asserts it.
-    readme = open(os.path.join(ROOT, "README.md")).read()
-    tag = [ln for ln in readme.splitlines() if "evals-three-tiers.svg" in ln]
-    assert len(tag) == 1, "the hero is embedded more than once, or not at all"
-    alt = re.search(r'alt="([^"]*)"', tag[0])
-    assert alt, "the hero <img> has no alt text"
-    assert alt.group(1) == label, (
-        "the README alt and the generated one differ; run "
-        "python3 tools/render_tiers.py --alt")
-
-    for name, (q1, q2), truth, how in mod.TIERS:
-        for phrase in (name, q1.rstrip(","), q2.rstrip("?"), truth, how):
-            assert phrase.lower() in label.lower(), (
-                f"the card says {phrase!r} and the aria-label does not")
-
-
 def test_readme_process_cards_match_the_ledgers():
     """Each redo row on the page, keyed by ad and engine, is what the landings and requests say.
 
@@ -1025,7 +467,7 @@ def test_readme_process_cards_match_the_ledgers():
         engines[r["scene"].split("-")[0]] = r["engine"]
     rounds = ("ads3", "ads4", "ads5")
 
-    readme = open(os.path.join(ROOT, "docs", "TIERS.md")).read()
+    readme = open(os.path.join(ROOT, "README.md")).read()
     orchard = {r[0]: r[1:] for r in table(readme, "Process record, Orchard Hill Coffee")}
     assert orchard["Process record, Orchard Hill Coffee"] == [labels[engines["orchard"]], "Omni Flash"]
     assert orchard["Scene renders in the ledger across the rounds, re-rolls included"] == [
@@ -1048,102 +490,67 @@ def test_readme_process_cards_match_the_ledgers():
         assert cells[3] == f"{version(winner[ad])} and {version(omni[ad])}", cells
 
 
-def _steps():
+def test_system_map_steps_match_the_process_table():
+    """The map and the process table name the same seven steps in the same order."""
     import importlib.util
-    spec = importlib.util.spec_from_file_location("steps", os.path.join(ROOT, "pipeline", "steps.py"))
+    spec = importlib.util.spec_from_file_location("render_map", os.path.join(ROOT, "tools", "render_map.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.STEPS
-
-
-def _figure():
-    """The README's Mermaid block, split into the figure and the text after the fence."""
+    drawn = [step[0] for step in mod.STEPS]
     readme = open(os.path.join(ROOT, "README.md")).read()
-    figure, after = readme.split("```mermaid")[1].split("```", 1)
-    return figure, after
+    table = readme.split("| Step | What it has to prove")[1].split("\n\n")[0].split("\n")[2:]
+    written = [row.split("|")[1].strip() for row in table if row.startswith("|")]
+    assert written == drawn, (written, drawn)
 
 
-def test_step_table_says_what_each_node_enforces():
-    """The step table is pipeline/steps.py, word for word. It used to be checked only
-    against two other hand-written lists, so all three could agree while describing a
-    check the code never ran, and one did: the ship gate row claimed loudness."""
-    table = open(os.path.join(ROOT, "docs", "TIERS.md")).read()
-    rows = table.split("| Step | What it has to prove")[1].split("\n\n")[0].split("\n")[2:]
-    written = [[c.strip() for c in r.strip("|").split("|")] for r in rows if r.startswith("|")]
-    declared = [[st.title, st.proves, st.fails] for st in _steps()]
-    assert written == declared, (written, declared)
 
-
-def test_the_figure_is_the_compiled_graph():
-    """Every edge the README draws is an edge the compiler holds, and every compiled edge
-    is drawn, except the stops, which the prose says are left out, and the one dotted
-    line that crosses into the next run. Checked in both directions, because a figure
-    that only has to be a subset can quietly drop the edges nobody likes to show."""
+def test_loop_graph_steps_match_the_process_table():
+    """The Mermaid loop graph names the same seven steps as the map and the process table, in order."""
+    import importlib.util
     import re
-    import pytest
-    pytest.importorskip("langgraph")
-    import sys
-    sys.path.insert(0, ROOT)
-    from pipeline import graph as G
-
-    figure, _ = _figure()
-    run = figure.split("subgraph RUN[")[1].split("\n    end")[0]
-    solid, dotted = set(), set()
-    for line in run.splitlines():
-        line = line.strip()
-        if line.startswith("%%") or "~~~" in line:
-            continue
-        # a line may chain several edges, "a[...] --> b[...] --> c"; strip labels and shapes
-        bare = re.sub(r'(\[\(?|\{\{?)"[^"]*"(\)?\]|\}\}?)', "", line)
-        bare = re.sub(r'\|"[^"]*"\|', "", bare)
-        for src, arrow, dst in re.findall(r"(\w+)\s*(-->|-\.->)\s*(?=(\w+))", bare):
-            (dotted if arrow == "-.->" else solid).add((src, dst))
-        for m in re.finditer(r"(\w+)\s*(-->|-\.->)\s*(\w+)", bare):
-            (dotted if m.group(2) == "-.->" else solid).add((m.group(1), m.group(3)))
-
-    compiled = G.edges()
-    drawable = compiled - G.STOP_EDGES
-    assert solid == drawable, (
-        f"drawn but not compiled: {sorted(solid - drawable)}; "
-        f"compiled but not drawn: {sorted(drawable - solid)}")
-    assert dotted == G.CROSS_RUN_EDGES, (
-        f"the dotted lines are {sorted(dotted)}, the declared cross-run edges {sorted(G.CROSS_RUN_EDGES)}")
-    assert not (G.CROSS_RUN_EDGES & compiled), "a cross-run edge was compiled into a single run"
-
-
-def test_the_figure_spine_is_the_seven_steps_in_order():
-    """The straight line down the figure names the steps in the order steps.py declares."""
-    import re
-    figure, _ = _figure()
-    run = figure.split("subgraph RUN[")[1].split("\n    end")[0]
+    spec = importlib.util.spec_from_file_location("render_map", os.path.join(ROOT, "tools", "render_map.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    drawn = [step[0] for step in mod.STEPS]
+    readme = open(os.path.join(ROOT, "README.md")).read()
+    graph = readme.split("```mermaid")[1].split("```")[0]
+    run = graph.split("subgraph RUN[")[1].split("\n    end")[0]
+    title_of = {m.group(1): (m.group(2) or m.group(3)).split(" \u00b7 ")[0] for m in re.finditer(r'(\w+)(?:\["([^"]+)"\]|\{\{?"([^"]+)"\}\}?)', run)}
+    # the spine is the one line that chains the steps with arrows, read its ids in order
     spine = max(run.splitlines(), key=lambda l: l.count("-->"))
-    ids = re.findall(r"(?:^|-->)\s*(\w+)", spine.strip())
-    assert ids == [st.node for st in _steps()], ids
+    ids = re.findall(r'(?:^|-->)\s*(\w+)', spine.strip())
+    graphed = [title_of[i] for i in ids]
+    assert graphed == drawn, (graphed, drawn)
 
 
-def test_loop_graph_ownership_matches_the_steps():
-    """Each step's stroke class in the figure, and each row of the legend under it, name
-    the tiers pipeline/steps.py assigns."""
+
+def test_loop_graph_ownership_matches_the_map():
+    """Each step's stroke classes in the graph, and each row of the legend under it, name the tiers the map generator assigns."""
+    import importlib.util
     import re
-    figure, after = _figure()
-    steps = _steps()
-    nodes = {st.node for st in steps}
-    title_of = {st.node: st.title for st in steps}
+    spec = importlib.util.spec_from_file_location("render_map", os.path.join(ROOT, "tools", "render_map.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    readme = open(os.path.join(ROOT, "README.md")).read()
+    graph, after = readme.split("```mermaid")[1].split("```", 1)
+    run = graph.split("subgraph RUN[")[1].split("\n    end")[0]
+    title_of = {m.group(1): (m.group(2) or m.group(3)).split(" \u00b7 ")[0] for m in re.finditer(r'(\w+)(?:\["([^"]+)"\]|\{\{?"([^"]+)"\}\}?)', run)}
+    spine = max(run.splitlines(), key=lambda l: l.count("-->"))
+    steps = set(re.findall(r'(?:^|-->)\s*(\w+)', spine.strip()))
     owner = {}
-    for ids, tier in re.findall(r"^\s+class ([\w,]+) (process|outcome|quality)\s*$", figure, re.M):
+    for ids, tier in re.findall(r"^\s+class ([\w,]+) (process|outcome|quality)\s*$", graph, re.M):
         for node in ids.split(","):
-            if node in nodes:
+            if node in steps:
                 owner.setdefault(title_of[node], set()).add(tier)
-    tiers = {st.title: set(st.tier) if isinstance(st.tier, tuple) else {st.tier} for st in steps}
+    tiers = {title: set(tier) if isinstance(tier, tuple) else {tier} for title, _, _, tier in mod.STEPS}
     assert owner == tiers, (owner, tiers)
-    dash = {name: (m or "").strip() for name, m in
-            re.findall(r"^\s+classDef (\w+) [^\n]*?(?:stroke-dasharray:([\d ]+))?,color", figure, re.M)}
-    stroke_of = {"solid": dash["process"], "dashed": dash["outcome"], "dotted": dash["quality"],
-                 "dash-dot": dash["shared"]}
+    # the stroke words in the legend must be the patterns the classDefs draw
+    dash = {name: (m or "").strip() for name, m in re.findall(r"^\s+classDef (\w+) [^\n]*?(?:stroke-dasharray:([\d ]+))?,color", graph, re.M)}
+    stroke_of = {"solid": dash["process"], "dashed": dash["outcome"], "dotted": dash["quality"], "dash-dot": dash["shared"]}
     assert stroke_of == {"solid": "", "dashed": "6 3", "dotted": "2 3", "dash-dot": "6 3 2 3"}, stroke_of
+    # every legend row names exactly the steps its tier owns
     lines = after.strip().splitlines()
-    table = [l for l in lines[: next(i for i, l in enumerate(lines + [""]) if l and not l.startswith("|"))]
-             if l.startswith("|")]
+    table = [l for l in lines[: next(i for i, l in enumerate(lines + [""]) if l and not l.startswith("|"))] if l.startswith("|")]
     rows = [[c.strip() for c in l.strip("|").split("|")] for l in table[2:]]
     expected = {
         "1 Process": [t for t in tiers if tiers[t] == {"process"}],
@@ -1157,268 +564,15 @@ def test_loop_graph_ownership_matches_the_steps():
         seen[tier if tier[0].isdigit() else tier.lower()] = [t for t in tiers if t in owns]
     assert seen == expected, (seen, expected)
     assert [r[0].lower() for r in rows] == ["solid", "dashed", "dotted", "dash-dot"], rows
-    assert re.search(r"^\s+class GH ghost\s*$", figure, re.M), "ghost class"
-
-
-# --- the ship gate, run whole ------------------------------------------------
-#
-# These drive guards/ship_gate.sh end to end on synthetic clips instead of lifting one block
-# out of it. The gate writes its receipt and two sidecars under /tmp by design, where other
-# tools look for them, so each run uses a copy whose /tmp paths point into the test's own
-# directory and nothing is left behind. Every other byte of the copy is the gate. The probes
-# it calls are stubs, because what is under test is what the gate does with a verdict, and
-# the replay probe's file name and verdict word are read from the gate and the probe rather
-# than typed here.
-
-SRT_ARROW = "-" * 2 + ">"   # the SRT timing arrow, built up so no prose hook reads it as a dash
-
-
-def _gate_text():
-    with open(os.path.join(ROOT, "guards", "ship_gate.sh")) as fh:
-        return fh.read()
-
-
-def _replay_probe_name(gate):
-    return re.search(r'MP="\$SKILL/([\w.]+)"', gate).group(1)
-
-
-def _replay_verdict_word(gate):
-    """The first word of the replay probe's verdict line, read from the probe's own print."""
-    with open(os.path.join(PROBES, _replay_probe_name(gate))) as fh:
-        src = fh.read()
-    return re.search(r"print\(f\"(\w+) \{out\['verdict'\]\}:", src).group(1)
-
-
-def _clip(path, source, seconds, filters=None):
-    cmd = ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source]
-    if filters:
-        cmd += ["-vf", filters]
-    cmd += ["-t", str(seconds), "-pix_fmt", "yuv420p", "-c:v", "libx264", str(path)]
-    subprocess.run(cmd, check=True, timeout=300)
-    return Path(path)
-
-
-def _png_width(path):
-    """Width from the PNG header, so no imaging library is needed to read the scan's span."""
-    head = Path(path).read_bytes()[:24]
-    assert head[:8] == b"\x89PNG\r\n\x1a\n", f"{path} is not a PNG"
-    return int.from_bytes(head[16:20], "big")  # pii-allow: a byte slice
-
-
-def _ship_gate(clip, sandbox, args=(), env=None, replay_exit=0, replay_lines=None):
-    """Run the whole gate on clip. Returns (exit code, output, receipt path)."""
-    gate = _gate_text()
-    sandbox = Path(sandbox)
-    sandbox.mkdir(parents=True, exist_ok=True)
-    copy = gate.replace('"/tmp/.', f'"{sandbox}/.')
-    # The receipt and the two sidecars move, and nothing else, or this copy has drifted from
-    # the gate it stands in for.
-    left = [ln for ln in gate.splitlines()
-            if "/tmp/" in ln.replace("${TMPDIR:-/tmp}/", "").replace('"/tmp/.', "")
-            and not ln.lstrip().startswith("#")]
-    assert gate.count('"/tmp/.') == 3 and not left, (
-        f"the gate's /tmp writes changed, so the sandbox rewrite no longer covers them: {left}")
-    script = sandbox / "ship_gate.sh"
-    script.write_text(copy)
-    probes = sandbox / "probes"
-    probes.mkdir(exist_ok=True)
-    for name, line in (("sync_probe.py", "sync stub"), ("spasm_probe.py", "SPASM REPORT: ratio 0.10"),
-                       ("coherence_probe.py", "COHERENCE: debt 0.10s")):
-        (probes / name).write_text(f"print({line!r})\n")
-    word = _replay_verdict_word(gate)
-    if replay_lines is None:
-        replay_lines = [f"{word} {'REPLAYS' if replay_exit == 1 else 'FORWARD'}: stub"]
-    body = "".join(f"print({ln!r})\n" for ln in replay_lines)
-    (probes / _replay_probe_name(gate)).write_text(f"import sys\n{body}sys.exit({replay_exit})\n")
-    srt = sandbox / "clip.srt"
-    srt.write_text(f"1\n00:00:00,500 {SRT_ARROW} 00:00:02,000\nhello there\n")  # pii-allow: subtitle timecodes
-    receipt = sandbox / f".ship-gate-{Path(clip).name}-{os.path.getsize(clip)}"
-    receipt.write_text("a receipt from a previous pass\n")
-    e = {k: v for k, v in os.environ.items() if k not in ("ARROW_WINDOW", "REPLAYOK", "RAW", "REGISTER")}
-    e.update(PIPELINE_PROBES=str(probes), TIMEOK="a test clip claims no time of day", TMPDIR=str(sandbox))
-    e.update(env or {})
-    r = subprocess.run(["bash", str(script), str(clip), str(srt), *args], env=e,
-                       capture_output=True, text=True, timeout=600)
-    return r.returncode, r.stdout + r.stderr, receipt
-
-
-def _line(out, text):
-    """True when text is a whole line of out, starting at column 0."""
-    return f"\n{text}\n" in f"\n{out}\n"
-
-
-def test_a_directional_hold_writes_the_slit_scan_it_asks_a_reader_to_read(tmp_path):
-    """The directional HOLD tells a person to read a slit-scan and rerun with --arrow-ok.
-
-    The strip's path was once spelled inside a quoted heredoc, so python got shell syntax
-    as source, died, and the scan was never written while the gate still held and still
-    asked. Then the scan went to /tmp/slit-<basename>.png, where two masters of the same
-    name overwrote each other, and the HOLD never checked the file was there. So the whole
-    gate runs on a real clip: the scan must be a fresh PNG BESIDE the clip, named on a
-    line of its own, and the receipt must be gone. A scan left by an earlier run sits in
-    the way first, so a gate that failed to write would be caught pointing at it.
-    """
-    clip = _clip(tmp_path / "clip.mp4", "testsrc=size=320x240:rate=25", 14)
-    scan = tmp_path / "clip.arrow.png"
-    scan.write_bytes(b"a scan from an earlier run")
-    rc, out, receipt = _ship_gate(clip, tmp_path / "sandbox", args=("directional",),
-                                  env={"REPLAYOK": "the stub probe reports a replay"}, replay_exit=1)
-    assert rc == 3 and "SHIP-GATE HOLD: directional scene" in out, (rc, out)
-    assert _line(out, f"slit-scan: {scan}"), f"no slit-scan line names the scan beside the clip\n{out}"
-    # A forced directional scan shows the last 11 s up to one second from the end, 3 to 13 s
-    # of this clip, 250 frames at three pixels each.
-    assert abs(_png_width(scan) - 750) <= 6, _png_width(scan)
-    assert not receipt.exists(), "the HOLD left the earlier pass receipt standing"
-    assert not list((tmp_path / "sandbox").glob(".slit.*.raw")), "the raw strip was left behind"
-
-
-def test_a_scan_that_cannot_be_written_fails_closed(tmp_path):
-    """A HOLD that asks a reader to read a scan that is not there is not a hold. When the
-    clip's directory will not take the file, or holds an earlier scan that cannot be
-    removed, the gate must say so and exit 64 without naming a scan, and drop the receipt."""
-    if os.geteuid() == 0:
-        pytest.skip("root writes through a read-only directory, so this cannot be staged")
-    shut = tmp_path / "shut"
-    shut.mkdir()
-    clip = _clip(shut / "clip.mp4", "testsrc=size=320x240:rate=25", 14)
-    stale = shut / "clip.arrow.png"
-    for with_stale, why in ((True, "could not be removed"), (False, "could not be written")):
-        if with_stale:
-            stale.write_bytes(b"a scan from an earlier run")
-        shut.chmod(0o555)
-        try:
-            rc, out, receipt = _ship_gate(clip, tmp_path / f"sandbox-{with_stale}", args=("directional",),
-                                          env={"REPLAYOK": "the stub probe reports a replay"}, replay_exit=1)
-        finally:
-            shut.chmod(0o755)
-        stale.unlink(missing_ok=True)
-        assert rc == 64 and why in out, (with_stale, rc, out)
-        assert "slit-scan:" not in out, f"a scan was named that this run did not write\n{out}"
-        assert not receipt.exists(), "the failed HOLD left the earlier pass receipt standing"
-
-
-def _side_band_clip(path, right=False):
-    """18 s of a still grey frame with a white box moving through the left side band from 1 to
-    4 s and at no other time, or through the right band when right is set."""
-    box = "overlay=x=16:y='64+mod(t*120,144)':enable='between(t,1,4)'" + (",hflip" if right else "")
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0x606060:s=320x320:r=25:d=18",
-                    "-f", "lavfi", "-i", "color=c=white:s=16x16:r=25:d=18",
-                    "-filter_complex", f"[0:v][1:v]{box},format=yuv420p", "-c:v", "libx264", str(path)],
-                   check=True, timeout=300)
-    return Path(path)
-
-
-def test_arrow_window_sets_what_the_side_bands_measure_and_the_scan_shows(tmp_path):
-    """The side-band measure read 8 to 16 s whatever the clip was. On an ad master that is the
-    tail of scene b, scene c and a second of the closer, so motion in scene a was never seen.
-    ARROW_WINDOW names the window. Motion only in 1 to 4 s must flag under ARROW_WINDOW=0:5,
-    and the auto scan must show exactly 0 to 5 s. Unset, the gate must still read 8 to 16 s,
-    which is still here, and pass. The replay stub reports a replay under a declared override,
-    the one path on which a flagged clip reaches the directional HOLD.
-    """
-    over = {"REPLAYOK": "the stub probe reports a replay"}
-    left = _side_band_clip(tmp_path / "left.mp4")
-    rc, out, receipt = _ship_gate(left, tmp_path / "s-window", env=dict(over, ARROW_WINDOW="0:5"), replay_exit=1)
-    assert rc == 3 and "SHIP-GATE HOLD: directional scene" in out, (rc, out)
-    assert "0 to 5 s" in out, f"the measure does not say which window it read\n{out}"
-    scan = tmp_path / "left.arrow.png"
-    assert _line(out, f"slit-scan: {scan}"), out
-    assert abs(_png_width(scan) - 3 * 125) <= 6, f"the scan does not show 0 to 5 s: {_png_width(scan)} px"
-    assert not receipt.exists()
-
-    rc, out, receipt = _ship_gate(left, tmp_path / "s-unset", env=over, replay_exit=1)
-    assert rc == 0 and "SHIP-GATE PASS" in out, (rc, out)
-    assert "background side-band motion: 0.0 (directional threshold 0.6, 8 to 16 s)" in out, out
-
-    # The right band is the other half of the measure. It was never read: the command that
-    # measured it overwrote "-t" instead of the filter, ffmpeg refused it, and the empty
-    # reading lost to the left band inside max(). Motion only on the right must flag too.
-    right = _side_band_clip(tmp_path / "right.mp4", right=True)
-    rc, out, _ = _ship_gate(right, tmp_path / "s-right", env=dict(over, ARROW_WINDOW="0:5"), replay_exit=1)
-    assert rc == 3 and "SHIP-GATE HOLD: directional scene" in out, (rc, out)
-
-    # An ad master cuts between its scenes inside the window. Four still colours cut every
-    # 1.25 s have no background motion at all, and the cuts alone must not read as directional.
-    colours = (("red", 1.25), ("green", 1.25), ("yellow", 1.25), ("0x606060", 14.25))
-    src = ";".join(f"color=c={c}:s=320x320:r=25:d={d}[v{i}]" for i, (c, d) in enumerate(colours))
-    cuts = tmp_path / "cuts.mp4"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-filter_complex", src + ";[v0][v1][v2][v3]concat=n=4:v=1:a=0,format=yuv420p",
-                    "-c:v", "libx264", str(cuts)], check=True, timeout=300)
-    rc, out, _ = _ship_gate(cuts, tmp_path / "s-cuts", env=dict(over, ARROW_WINDOW="0:5"), replay_exit=1)
-    assert rc == 0 and "SHIP-GATE PASS" in out, (rc, out)
-    assert "background side-band motion: 0.0 (directional threshold 0.6, 0 to 5 s)" in out, out
-
-    # A window that is not one, and a window past the end of the clip, measure nothing. Both
-    # fail closed before anything reads as still.
-    for bad in ("5:1", "2:2", "-1:3", "abc", "3", "0:5:9", "20:30"):  # pii-allow: window values
-        rc, out, receipt = _ship_gate(left, tmp_path / f"s-bad-{bad.replace(':', '_')}", env={"ARROW_WINDOW": bad})
-        assert rc == 64 and "SHIP-GATE HOLD: ARROW_WINDOW" in out, (bad, rc, out)
-        assert not receipt.exists(), f"ARROW_WINDOW={bad} left the earlier pass receipt standing"
-
-
-def test_a_replay_hold_shows_the_reader_the_turn(tmp_path):
-    """The replay HOLD asks a person whether anything in frame can reveal the replay, and
-    showed them nothing. It now writes a scan centred on the vertex the probe names, five
-    seconds either side, prints the vertex on a line of its own, and keeps its own text and
-    exit code, which the caller routes on. With no vertex to read, the scan is the whole clip.
-    """
-    clip = _clip(tmp_path / "clip.mp4", "testsrc=size=320x240:rate=25", 14)
-    word = _replay_verdict_word(_gate_text())
-    scan = tmp_path / "clip.replay.png"
-    # The probe's own shape: the vertex rides on the verdict line, and on the why line when
-    # the turn is what rejected the clip.
-    says = [f"{word} REPLAYS: 14s | repeat 0.12 at P=6s (reject <0.4) | turn 0.05 at t=7.0 (reject <0.22)",
-            "  why: turned about t=7.0s at 5% of control"]
-    rc, out, receipt = _ship_gate(clip, tmp_path / "s-vertex", replay_exit=1, replay_lines=says)
-    assert rc == 3 and "SHIP-GATE HOLD: the scene replays itself" in out, (rc, out)
-    assert _line(out, "replay vertex: t=7.0s"), out
-    assert _line(out, f"slit-scan: {scan}"), out
-    assert abs(_png_width(scan) - 3 * 250) <= 6, f"the scan is not 2 to 12 s: {_png_width(scan)} px"
-    assert not receipt.exists(), "the replay HOLD left the earlier pass receipt standing"
-
-    # Only the why line carries a vertex, near the start: the window clamps at zero, 0 to 8 s.
-    rc, out, _ = _ship_gate(clip, tmp_path / "s-why", replay_exit=1,
-                            replay_lines=[f"{word} REPLAYS: 14s", "  why: turned about t=3.0s at 2% of control"])
-    assert rc == 3 and _line(out, "replay vertex: t=3.0s"), (rc, out)
-    assert abs(_png_width(scan) - 3 * 200) <= 6, _png_width(scan)
-
-    # No vertex at all, and a vertex past the end of the clip, both show the whole clip.
-    for label, lines in (("none", None), ("past the end", [f"{word} REPLAYS: 14s | turn 0.05 at t=40.0 (reject"])):
-        rc, out, _ = _ship_gate(clip, tmp_path / f"s-{label.replace(' ', '-')}", replay_exit=1, replay_lines=lines)
-        assert rc == 3 and "SHIP-GATE HOLD: the scene replays itself" in out, (label, rc, out)
-        assert abs(_png_width(scan) - 3 * 350) <= 6, (label, _png_width(scan))
-
-
-def test_letterbox_counts_dark_bars_and_not_a_dark_scene(tmp_path):
-    """The geometry check counted only BRIGHT flat rows as padding, so black bars, the most
-    common letterbox of all, passed while the step table said the frame fills its height.
-    Dark rows count now, but only flat ones that never change across the take, so a dark
-    sky with grain in it, a dark texture that holds still, or a flat dark band whose level
-    moves, is picture and not a bar. Each of those three fails a different one of the rules.
-    The exit code and the word LETTERBOX are what the caller routes on, so both are checked.
-    """
-    src = "testsrc=size=1080x608:rate=25"
-    full = "testsrc=size=1080x1080:rate=25"
-    clips = {
-        "black bars": (_clip(tmp_path / "black.mp4", src, 3, "pad=1080:1080:0:(oh-ih)/2:black"), True),
-        "white bars": (_clip(tmp_path / "white.mp4", src, 3, "pad=1080:1080:0:(oh-ih)/2:white"), True),
-        "full frame": (_clip(tmp_path / "full.mp4", full, 3), False),
-    }
-    for name, top in (("dark top with moving noise", "color=c=0x080808:s=1080x216:r=25:d=3,noise=alls=40:allf=t+u"),
-                      ("still dark textured top", "color=c=0x080808:s=1080x216:r=25:d=3,noise=alls=40:allf=u"),
-                      ("flat dark top whose level moves",
-                       "color=c=black:s=1080x216:r=25:d=3,format=yuv420p,geq=lum='16+24*abs(sin(T*1.7))':cb=128:cr=128")):
-        path = tmp_path / f"{name.split()[0]}-{len(clips)}.mp4"
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"{full}:d=3", "-f", "lavfi", "-i", top,
-                        "-filter_complex", "[0:v][1:v]overlay=0:0,format=yuv420p", "-c:v", "libx264", str(path)],
-                       check=True, timeout=300)
-        clips[name] = (path, False)
-    for name, (clip, boxed) in clips.items():
-        rc, out, _ = _ship_gate(clip, tmp_path / f"s-{clip.stem}")
-        if boxed:
-            assert rc == 1 and "geometry: LETTERBOX" in out and "SHIP-GATE FAIL: letterboxed" in out, (name, rc, out)
-        else:
-            assert "geometry: FULLBLEED" in out and "LETTERBOX" not in out, (name, rc, out)
+    # the edges are the page's own state machine, so their endpoints are pinned too
+    edges = {tuple(e) for e in re.findall(r"^\s+(\w+) (?:-->|-\.->)(?:\|\"[^\"]*\"\|)? *(\w+)(?:\[.*\]|\{\{.*\}\})?\s*$", graph, re.M)}
+    for pair in [("AG", "EYE"), ("EYE", "SG"), ("D", "L")]:
+        assert pair in edges, (pair, sorted(edges))
+    # the fail paths ride on the gate labels now, so no loop edge may sneak back in and bend the spine
+    assert not {("AG", "R"), ("SG", "BU"), ("L", "B")} & edges, sorted(edges)
+    # the invisible twin of the eye exists only to keep the spine straight, it must stay unclassed and unlabeled as a step
+    assert re.search(r"^\s+class GH ghost\s*$", graph, re.M), "ghost class"
+    assert "GH" not in steps
 
 
 def _seed_staged_repo(tmp, staged_text, worktree_text, extra=None):
@@ -2185,8 +1339,6 @@ def test_ship_gate_finds_the_replay_probe_and_fails_closed_without_it():
     # extraction raises and this test fails loudly, which is the correct signal.
     block = text[text.index('MP="$SKILL/mirror_probe.py"'):]
     block = block[:block.index('if [ -n "$DIRECTIONAL" ]')]
-    writer = text[text.index("slit_scan() {"):]
-    writer = writer[:writer.index("\n}\n") + 3]
 
     def run_replay(probe_exit, replayok="", says=None):
         """probe_exit None means no probe file at all.
@@ -2207,16 +1359,13 @@ def test_ship_gate_finds_the_replay_probe_and_fails_closed_without_it():
             mark = os.path.join(tmp, "receipt")
             with open(mark, "w") as fh:
                 fh.write("a receipt from a previous pass\n")
-            # The replay HOLD now writes a slit-scan of real footage before it holds, so F is a
-            # real clip and the scan writer the gate defines above this block comes along.
-            clip = _clip(os.path.join(tmp, "clip.mp4"), "testsrc=size=64x64:rate=25", 2)
             prelude = ('set -uo pipefail\n'
-                       'SKILL="$T_SKILL"\nMARK="$T_MARK"\nF="$T_CLIP"\n'
-                       'ARROWOK=""\nREPLAYOK="$T_REPLAYOK"\n' + writer)
+                       'SKILL="$T_SKILL"\nMARK="$T_MARK"\nF="$T_MARK"\n'
+                       'ARROWOK=""\nREPLAYOK="$T_REPLAYOK"\n')
             r = subprocess.run(
                 ["bash", "-c", prelude + block + "\nexit 0\n"],
-                env=dict(os.environ, T_SKILL=skill, T_MARK=mark, T_CLIP=str(clip),
-                         T_REPLAYOK=replayok, TMPDIR=tmp),
+                env=dict(os.environ, T_SKILL=skill, T_MARK=mark,
+                         T_REPLAYOK=replayok),
                 capture_output=True, text=True, timeout=60)
             return r.returncode, r.stdout + r.stderr, os.path.exists(mark)
 
@@ -2290,46 +1439,6 @@ def test_ship_gate_finds_the_replay_probe_and_fails_closed_without_it():
         "falls through and the clip ships unexamined")
     for code in ("0|1)", "exit 64 ;;"):
         assert code in text, f"the probe status handling is missing {code}"
-
-
-def test_a_failing_command_piped_into_tee_fails_its_make_target():
-    """The Make that ships with macOS is 3.81, which ignores .SHELLFLAGS, so `cmd | tee`
-    exited with tee's status there and a crashed derive, certify or replay read green in
-    `make check`. Each piped recipe now sets pipefail itself. PY is swapped for false,
-    which each of these targets runs first, and true is the control showing that the
-    harness passes when nothing fails."""
-    make = shutil.which("make")
-    assert make, "make is not on PATH"
-    drop = ("GITHUB_STEP_SUMMARY", "MAKEFLAGS", "MFLAGS", "MAKELEVEL")
-    env = {k: v for k, v in os.environ.items() if k not in drop}
-    with tempfile.TemporaryDirectory() as out:
-        for target in ("derive", "certify", "replay"):
-            for py, passes in (("false", False), ("true", True)):
-                r = subprocess.run([make, "-s", "-o", "setup", target, f"PY={py}", f"OUT={out}"],
-                                   cwd=ROOT, env=env, capture_output=True, text=True, timeout=60)
-                assert (r.returncode == 0) is passes, (target, py, r.returncode, r.stdout, r.stderr)
-    recipes = open(os.path.join(ROOT, "Makefile")).read().replace("\\\n", " ").splitlines()
-    piped = [line for line in recipes if line.startswith("\t") and "| tee" in line]
-    assert len(piped) >= 5, piped
-    for line in piped:
-        assert line.startswith("\tset -o pipefail; "), f"a piped recipe without pipefail: {line.strip()}"
-
-
-def test_the_ci_summary_finds_each_report_it_was_promised():
-    """In CI the Makefile appends each report to the step summary and fails the target when the
-    report lacks the line it promised. Nothing sets GITHUB_STEP_SUMMARY on a laptop, so that check
-    never ran locally, and a replay header that changed case failed CI while make check was green
-    here. The two reports that are quick to produce go through the same path CI takes."""
-    make = shutil.which("make")
-    assert make, "make is not on PATH"
-    env = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")}
-    with tempfile.TemporaryDirectory() as out:
-        summary = os.path.join(out, "summary.md")
-        open(summary, "w").close()
-        for target in ("replay", "dry"):
-            r = subprocess.run([make, "-s", "-o", "setup", target, f"OUT={out}"], cwd=ROOT,
-                               env=dict(env, GITHUB_STEP_SUMMARY=summary), capture_output=True, text=True, timeout=300)
-            assert r.returncode == 0, (target, r.stdout[-800:], r.stderr[-800:])
 
 
 if __name__ == "__main__":

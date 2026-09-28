@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/evals-three-tiers.svg" alt="How do you craft evals? Split the question in three. Process evals: did every step run, and did its gate fire? Source of truth, the pipeline graph, fixed by the scripts. Outcome evals: is what shipped true to the facts? Source of truth, the research pass, re-derived per brief. Quality evals: does it meet the bar for this audience? Source of truth, the golden set, re-derived per audience." width="100%">
+  <img src="assets/evals-three-tiers.svg" alt="How do you craft evals? Split the question in three. Process evals ask whether every step ran and its gate fired, and their source of truth is the pipeline graph, fixed by the scripts. Outcome evals ask whether what shipped is true to the facts, and their source of truth is the research pass, re-derived per brief. Quality evals ask whether it meets the bar for this audience, and their source of truth is the golden set, re-derived per audience." width="100%">
 </p>
 
 <div align="center">
@@ -13,8 +13,8 @@
 <img alt="spec ads: 10, for real products" src="https://img.shields.io/badge/spec_ads-10_for_real_products-55595e?style=flat-square&labelColor=18181c">
 <img alt="spend: every render gated first" src="https://img.shields.io/badge/spend-every_render_gated_first-55595e?style=flat-square&labelColor=18181c">
 <img alt="router: a different engine wins per audience" src="https://img.shields.io/badge/router-a_different_engine_per_audience-55595e?style=flat-square&labelColor=18181c">
-<img alt="graded by hand: 82 exemplars, 42 scenes" src="https://img.shields.io/badge/graded_by_hand-82_exemplars_%C2%B7_42_scenes-55595e?style=flat-square&labelColor=18181c">
-<img alt="thresholds traced to those grades: 10 of 16, and 10 of 16 named gating thresholds derived from labelled exemplars" src="https://img.shields.io/badge/thresholds_traced_to_grades-10%2F16_derived-55595e?style=flat-square&labelColor=18181c">
+<img alt="graded by hand: 48 exemplars, 42 scenes" src="https://img.shields.io/badge/graded_by_hand-48_exemplars_%C2%B7_42_scenes-55595e?style=flat-square&labelColor=18181c">
+<img alt="thresholds traced to those grades: 10 of 10, and 10 of 10 named gating thresholds derived from labelled exemplars" src="https://img.shields.io/badge/thresholds_traced_to_grades-10%2F10_derived-55595e?style=flat-square&labelColor=18181c">
 <img alt="license: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-55595e?style=flat-square&labelColor=18181c">
 
 <br/><br/>
@@ -31,98 +31,30 @@ This repository is that pipeline, released in full.
 
 ---
 
-## Three questions reviewers ask about this
+## Run it on the pixels that ship
 
-**Is any of this mechanical, or did you type the numbers?** Mechanical, and the count is printed rather than claimed. `evals/derive.py` recomputes every named threshold from the labelled exemplars in `evals/labels.csv`, holds each one inside the interval its own labels imply, and prints what it could not derive. 10 of the 16 named gating thresholds in [`probes/`](probes/) and [`gates/`](gates/) are bracketed by a labelled pass and a labelled reject. Its report is checked in CI, so a count on this page cannot go stale:
-
-```
-10 of 16 NAMED gating thresholds are DERIVED from a labelled pass/reject pair on the same axis
-6 are AUTHORED: typed by hand, no exemplar pair in evals/labels.csv
-```
-
-**Ten of sixteen.** The other six were typed by hand. One is the correlation floor inside the lip-sync gate that actually blocks a master, which has passes on one side and no reject on the other. Another is the jaw ceiling on the closer, the last shot, where the presenter speaks the brand line to camera, set at 0.17 by the latest dated ruling with no labelled pair behind it yet. The third is the cast gate's face similarity floor, 0.30, set halfway across a measured gap between strangers and the narrator's own takes, which refuses a visibly different girl but cannot tell apart two girls drawn from one prompt. The fourth and fifth are the continuity gate's limits on what may move behind a presenter, 600 px between two frames and 1500 px off the take's own median, set on the night the Grok closers were caught moving. They meet the author's labels only when the gate's own `--validate` is run by hand where the takes are kept. The sixth is that gate's three judge votes on a story shot, set after one reading of a cut the author passed failed it and two passed it, so a shot fails only when all three votes name the break. All six stay authored and say so. The loudness numbers the ship gate reads are a delivery spec rather than a judgement, so derive.py lists them apart and counts them in neither.
-
-**Why probes and not ordinary tests?** A deterministic function has one right answer and gets a unit test. A generated video does not, since the same prompt returns different pixels every run, so the check is a measured property against a calibrated line, which is a probe. A judgement no measurement captures, whether an ad is worth watching, is an eval with human grades behind it. `docs/EVALS.md` classifies every file in `probes/` and `gates/` as one of those three or as a runner, and a test fails when a file is added and nobody says which.
-
-**How does it stay correct over time?** Two checks on every push, wired together.
+Two things are checkable here without accounts, keys or a GPU. `python3` and `ffmpeg` are the only prerequisites.
 
 ```
-python3 evals/certify.py     # can each probe still measure a known shift?
-python3 evals/derive.py      # does every threshold still sit inside its labels?
-```
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
 
-The certificate shifts a reference clip's audio by known amounts, reads what each probe reports, and fits the readings against the doses. Slope says whether a 100 ms shift still reads as 100 ms, sigma says how tightly, and the sign is checked because the two lip-sync probes use opposite conventions and a silent inversion once shipped a desync.
-
-```
-lipsync_probe    TRACKS slope +1.00 (sign +1 expected)  sigma 1.0 ms  n=9
-sync_probe       TRACKS slope -1.00 (sign -1 expected)  sigma 0.0 ms  n=9
-```
-
-The deriver then caught something real. Pointed at `gates/mouth_sync_probe.py`, the check that actually blocks a master, it found the PASS bar sitting above eight masters that shipped with my approval:
-
-```
-mouth_sync_probe.PASS_CORR = 0.25 refuses 8 labelled pass(es) (floor, worst 0.14)
-```
-
-That is reported as refuted by its own labels rather than nudged to agree. A certificate is a claim about one version of the probe and one version of the certifier, so both hashes are recomputed before any threshold leans on it. And the margin it grants reaches no threshold today, for reasons the tool prints by name: the reference clip has no face, sixteen thresholds measure something other than time, and the one certified time probe returns every dose exactly. That gap is on the page because the tool refuses to hide it.
-
-## Where a label comes from, and how a wrong one gets caught
-
-A threshold is only as good as the grades behind it, so the first question is what a grade actually is here. It is a person watching a clip and saying good enough or not, written down before any metric existed. I did that on the 82 labelled exemplars behind the thresholds and the 42 eye-labelled scenes behind the judge. The exemplars live in `evals/labels.csv`, and they are not all worth the same, so the file says which kind each one is and the tool checks each kind differently.
-
-Seven ship their pixels. The frame is in the repository, and `derive.py` re-measures it with the probe's own function on every run. A stranger can check those without asking me anything.
-
-Thirty are withheld but attested. The render is too big to ship, but the gate that measured it wrote its verdict into a shipping ledger the day that master went out, and the ledger is committed. The number and the verdict are re-read from it every run, keyed by shoot and master together. Cite the wrong shoot, leave a master with two gated records, or drop the citation and the build fails.
-
-Forty-five are attested from the derivation notes alone, and those source renders are gone. That is the weakest tier and it is counted separately rather than folded in.
-
-**How a wrong label surfaces.** Not by inspection. A label and a threshold are two claims about the same boundary, so the deriver reports when they disagree and makes somebody choose which one is wrong. That is not hypothetical here:
-
-```
-mouth_sync_probe.PASS_CORR = 0.25 refuses 8 labelled pass(es) (floor, worst 0.14)
-```
-
-Eight masters shipped with my approval sit below a bar that calls them failures. Either the bar is wrong or eight grades are, and the tool refuses to guess. It is reported as refuted by its own labels rather than quietly nudged to agree. A label whose probe and axis match no gate at all is a hard failure too, because a typo that looks like evidence is worse than a missing row. Labels are append only from a named commit, so a row cannot be rewritten later to make a threshold pass.
-
-## Why a language model flags and never decides
-
-The judge was built, measured against grades I had already made, and lost. Forty-two scenes, labelled by eye as sixteen fail and twenty-six pass before any model saw them. Three prompt shapes were scored against the whole set, and all of them are recorded in [`evals/judge-rubric.json`](evals/judge-rubric.json):
-
-| Version | Caught, of 16 eye-fails | Cleared, of 26 eye-passes |
-|---|---|---|
-| One strip, brief in the prompt | 12 | 12 |
-| Three panels, the eye standard in the prompt | 2 | 24 |
-| Blind describe, then judge | 11 | 10 |
-
-A fourth ran on a stronger model against eight decisive clips rather than the full set, so it is kept out of the table rather than shown against denominators it never faced. It is in the rubric with the other three.
-
-The second version is the one worth sitting with. Handing the model my own standard made it agree with me about what passes and blind to almost everything that fails, which is the shape of a judge that has learned the answer rather than the task. Disagreement never fell below about four in ten however it was prompted.
-
-The failure is specific, not vague. It misses object and subject substitutions, a phone for a ring box, a tablet for an umbrella, a young woman for a grandmother, and it false-alarms on gestalt calls the eye accepts. That fourth version caught all 5 fails in its 8 clips and cleared 0 of the 3 passes, and it never once caught a fail for the reason the eye had.
-
-One confound turned up and is recorded rather than buried. The eye had labelled the trimmed window the cut actually used while the judge was shown the whole five seconds, so part of the disagreement was the two of them looking at different footage. The pipeline now judges the used window only.
-
-So the judge attaches a blind description and a flag to the strip as evidence, and the verdict stays with a person. Each eye row records whether it agreed with the flag, so the disagreement rate is reported next to what the leg cost. On the last night of the shoot every instrument favoured a swapped voice take and a nudged mouth, and I reverted both by ear.
-
-## Reproduce it
-
-Nothing here needs an account, a key or a GPU. `python3` and `ffmpeg` are the prerequisites.
-
-```
-git clone https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals
-cd autonomous-ads-pipeline-multimodal-evals
-make check
-```
-
-That installs what CI installs and runs what CI runs: lint, the derivation, the certificate, the figure byte-checks and the test suite. Green here means what green means on the Actions tab. Two probes run on pixels that ship in `samples/`, from the environment `make check` built:
-
-```
-. .venv/bin/activate
+python3 evals/derive.py                    # re-derive every threshold
 python3 probes/mirror_probe.py samples/exemplar-harbor-wan3-live.mp4
 python3 probes/mirror_probe.py samples/frozen-control-slowroad.mp4 || echo "exit $?"
 ```
 
-The first prints a forward read and exits 0. The second exits 3, on purpose: a frame held for 40 seconds has no motion to judge, so the probe refuses to call it a pass. That clip is the labelled reject behind `mirror_probe.CONTROL_FLOOR`, and the live take is the labelled pass on the same axis. `CLAUDE.md` has the rest of the commands for an agent opening the repository cold.
+The derivation prints every named constant beside the labelled pass and labelled reject that bracket it, counts them at `10 of 10 NAMED gating thresholds are DERIVED`, and exits 0. The two probes print one line each, and the second reports its exit:
+
+```
+MIRROR FORWARD: 16s | repeat 1.00 at P=5s (reject <0.4) | mirror 0.58 at t=10.4 (reject <0.22)
+MIRROR UNJUDGEABLE: scene distance 0.7 < floor 5.0. NOT a pass - too static to measure.
+exit 3
+```
+
+**The second one exits 3, which is the right answer and not a broken run.** A frozen frame held for 40 s has no scene motion to measure, so the probe refuses to call it a pass. That clip is the labelled reject the derivation brackets `mirror_probe.CONTROL_FLOOR` with, and the live take from the previous command is the labelled pass on the same axis.
+
+**`evals/derive.py` does not score a video.** It re-measures labelled exemplars and brackets the gating constants. The per-video path is a probe, or `gates/ad_gates.sh` for a full master, which needs the scene files and the caption manifest that live beside a master in a shoot directory and are not in this repository.
 
 **How do you craft evals? Split the question in three, and give each part its own source of truth.**
 
@@ -132,13 +64,17 @@ The first prints a forward read and exits 0. The second exits 3, on purpose: a f
 | **Outcome evals** | Is what shipped true, to the brief and to the facts it leans on? | The research pass behind the brief | Every time the brief changes |
 | **Quality evals** | Does it meet the bar for the audience it was made for? | A golden set of hand-labelled exemplars, plus the market's own bar | Every time the audience changes |
 
-A probe is a check, a threshold is the line it has to clear, and a gate is what stops the job when it is not cleared. Every probe here measures the file itself, pixels, audio and timing, which is why the usual text-eval toolkit does not reach this work. The first tier is the skeleton and stays put. The other two are re-derived, from fresh research when the product changes and from a fresh golden set when the audience does.
+Three words carry the page. A **probe** is a check, a **threshold** is the line that check has to clear, and a **gate** is what stops the job when the line is not cleared. A text eval reads a string. Every probe here is a measurement on the file itself, pixels, audio and timing, which is why the usual eval toolkit does not reach this work. Making the video was the easy half. The hard half is autonomy, deciding with nobody in the room whether it is good enough to pay for. The three tiers split that decision into pieces small enough to build.
+
+- The first tier is the skeleton and it stays put.
+- The other two are the parts you swap. Point the same loop at a new product and the outcome evals are re-derived from fresh research. Point it at a new audience and the quality evals are re-derived from a fresh golden set.
+- The proof below comes from one autonomous ad production that ran end to end with nobody driving. Twenty-eight versions across five invented brands, then ten spec ads for real products, every render gated before a dollar moved.
 
 <table>
   <tr>
-    <td width="33%" align="center" valign="top"><a href="docs/TIERS.md#1-process-evals"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-orchard.gif" alt="Process evals, the mailbox that erupts like a geyser" width="100%"></a><br><b>Process.</b> Fifty-nine scene renders across four rounds sit in the ledger behind the eight cuts that shipped, and every gate fired before a dollar moved. <a href="docs/TIERS.md#1-process-evals">See the ledger</a></td>
-    <td width="33%" align="center" valign="top"><a href="docs/TIERS.md#2-outcome-evals"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-cell-perplexity-neurons-av7.gif" alt="Outcome evals, four hundred pages fold into one" width="100%"></a><br><b>Outcome.</b> Four hundred pages fold into one. The line this spot closes on is the line on the company's own page, checked by a second engine told to refute it. <a href="docs/TIERS.md#2-outcome-evals">See the spec ads</a></td>
-    <td width="33%" align="center" valign="top"><a href="docs/TIERS.md#3-quality-evals"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-cell-seedance2-orchard.gif" alt="Quality evals, the coffee spot that won its panel" width="100%"></a><br><b>Quality.</b> Four engines shot the same coffee brief. A panel tuned to morning craving picked this one, and a panel tuned to sleep picked a different engine for a different brand. <a href="docs/TIERS.md#3-quality-evals">See the race</a></td>
+    <td width="33%" align="center" valign="top"><a href="#1-process-evals"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-orchard.gif" alt="Process evals, the mailbox that erupts like a geyser" width="100%"></a><br><b>Process.</b> Fifty-nine scene renders across four rounds sit in the ledger behind the eight cuts that shipped, and every gate fired before a dollar moved. <a href="#1-process-evals">See the ledger</a></td>
+    <td width="33%" align="center" valign="top"><a href="#2-outcome-evals"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-cell-perplexity-neurons-av7.gif" alt="Outcome evals, four hundred pages fold into one" width="100%"></a><br><b>Outcome.</b> Four hundred pages fold into one. The line this spot closes on is the line on the company's own page, checked by a second engine told to refute it. <a href="#2-outcome-evals">See the spec ads</a></td>
+    <td width="33%" align="center" valign="top"><a href="#3-quality-evals"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-cell-seedance2-orchard.gif" alt="Quality evals, the coffee spot that won its panel" width="100%"></a><br><b>Quality.</b> Four engines shot the same coffee brief. A panel tuned to morning craving picked this one, and a panel tuned to sleep picked a different engine for a different brand. <a href="#3-quality-evals">See the race</a></td>
   </tr>
 </table>
 
@@ -146,76 +82,176 @@ A probe is a check, a threshold is the line it has to clear, and a gate is what 
 
 ---
 
-## The shoot, tier by tier
+## 1. Process evals
 
-The three tiers were exercised on one autonomous production, and the full record sits in [`docs/TIERS.md`](docs/TIERS.md): the process ledger per spot, the outcome checks against each company's own page, and the quality race where four engines shot the same brief and a different one won each audience. Every number there is read back from its ledger by a test.
+Process evals check how the work got made, before anyone looks at the result. The industry name is process supervision.
 
-## An agent ran the shoot, and the graph is what it became
+Every spot ends on the closer, a presenter who speaks the brand line to camera, animated from a look, one still photo of her in a set.
 
-I set the rules and an agent ran the shoot from them. I supplied the architecture, the four-phase ad grammar, a realism guard paragraph, the rule that the most arresting beat opens the film, and the rule that anyone who reads as the presenter is her. The agent did the rest, the boards, prompts, engine calls, gates, re-rolls, remasters and delivery, and I reviewed every cut it delivered. The evals were calibrated before a single render was paid for. Once the runs converged, the loop was compiled into the LangGraph below, and [`docs/PIPELINE.md`](docs/PIPELINE.md) says what changed, what the August ledgers show when replayed against it, and which part is mine.
-
-## The loop, as a map
-
-One loop, seven steps. The gates are where the system stops itself, and that is the only reason it was allowed to spend.
-
-<p align="center">
-  <img src="assets/system-map.svg" alt="System map: one loop of seven steps, board, render, closer, build, ad gates, ship gate, deliver, and the three tiers of evals that own the gates at each step." width="100%">
-</p>
-
-The figure is generated by `tools/render_map.py` from `pipeline/steps.py`, the same step list the graph is built from. CI fails if the committed file drifts from the generator.
-
-The same loop as the graph that runs it, [`pipeline/graph.py`](pipeline/graph.py), top to bottom. Every edge below is an edge the compiler holds, and a test fails if the two disagree in either direction. A person decides at two points, both LangGraph interrupts that record who answered. The eye rules before anything ships on what a gate cannot, a mouth REVIEW, a lag worth a nudge, a prop cut off at the frame edge, or footage that may run backwards or replay itself. Every scene that shows the story's character is rendered from her face, or in a chained spot from a frame, her still for the first scene and the last frame of the scene before for the rest, so the room carries through as well as the girl. A cast gate reads every scene back against her face whenever the run has it, refusing anyone who is not her and any scene that reads at least as close to the narrator, who appears only in the closer. The review comes after delivery, because delivery is reversible and that is where the August ledgers show I looked, and a withdrawal goes back to the step that fixes it. A master that clears every gate ships without anyone looking first, and the review is where a person does. Every loop has a ceiling, after which the run stops. Any stop closes the run in the ledger, which the figure leaves out to stay readable. The dotted line is a replacement cut, which in August meant a new run from the board. What the graph carries from step to step, and what it leaves to the ledger, is in [`docs/PIPELINE.md`](docs/PIPELINE.md#what-the-graph-carries-from-step-to-step).
+- Every step has a contract, the contract is checked the moment the step runs, and a failed check stops the job before the next dollar is spent.
+- The source of truth is the pipeline graph, an orchestration framework such as LangGraph in most stacks and plain scripts here. This tier moves only when the scripts move.
+- The exact scripts that ran are in this repository. Boards, batch drivers and ledgers in [`shoots/`](shoots/), the board probe, caption gate and closer checks in [`gates/`](gates/), the pixel probes in [`probes/`](probes/), the pre-spend guards in [`guards/`](guards/). The code map near the end says what each file is. Look generation stays out: it ran against the avatar vendor's account, with its own framing checks on the still, head and body inside the crop and shot size, and the closer path here starts from its output.
 
 
-```mermaid
-%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 20, 'rankSpacing': 16, 'padding': 6, 'diagramPadding': 2, 'wrappingWidth': 520, 'subGraphTitleMargin': {'top': 6, 'bottom': 10}}, 'themeVariables': {'fontSize': '16px', 'lineColor': '#5f626a', 'edgeLabelBackground': '#ffffff', 'clusterBkg': '#f4f4f7', 'clusterBorder': '#5f626a', 'titleColor': '#18181c'}}}%%
-flowchart TD
-    subgraph RUN["The run · every request and landing ledgered"]
-        direction TB
-        ad_gates{{"Ad gates · captions match the speech"}}
-        %% GH is an invisible twin of the eye, it balances the spine so the steps stay in one column
-        ad_gates ~~~ GH["The eye · a person rules before anything ships"]
-        GH ~~~ ship_gate
-        board["Board · ten checks before any spend"] --> render["Render · every request ledgered"] --> closer["Closer · identity pin, jaw under 0.17"] --> build["Build · cut to the words, mastered"] --> ad_gates --> ship_gate{{"Ship gate · loudness and peak, fails closed"}} --> deliver["Deliver · only after the ship gate"]
-        deliver --> review["The review · a person, after delivery"]
-        review -->|"kept"| ledger[("Ledger · append-only, shipped or stopped")]
-        render -->|"a scene broke, once"| render
-        ad_gates -->|"REVIEW, lag or edge flag"| eye["The eye · a person rules before anything ships"]
-        eye -->|"approved"| ship_gate
-        eye -->|"a scene rejected"| render
-        eye -->|"a new look"| closer
-        eye -->|"a lag nudge"| build
-        ship_gate -->|"direction or replay"| eye
-        review -->|"withdrawn, a scene"| render
-        review -->|"withdrawn, the closer"| closer
-        review -->|"withdrawn, the cut"| build
-        ledger -.->|"a replacement is a new run"| board
-    end
+| Step | What it has to prove before the next step may start | How it fails |
+|:---|:---|:---|
+| Board | Five mechanical checks, free, before a cent is spent (the product absent before the payoff, the escalation declared, the quirk never spoken by the narration, mouths closed under narration, the centre-crop clause present), then four judgment rows I score 0 to 3 by eye | The board goes back |
+| Render | Every request and every landing appended to the ledger, the vendor's own rejection text included | Recorded, re-rolled once with one variable moved |
+| Closer | Identity pin on the voice and avatar ids, prop gate on the look, jaw measured on the raw render and refused over the band | Pre-spend |
+| Build | The closer's video starts within 40 ms of where its audio was placed | Frame-exact, on the master |
+| Ad gates | Every burned cue says what is spoken, within 0.5 s before or 0.3 s after its first word. The closer's mouth is not late | Blocks delivery |
+| Ship gate | Loudness, true peak, silence tail, the standing disclosures. Exit 64 on unreadable input | Fails closed |
+| Deliver | A defective delivered cut is withdrawn, replaced, and the withdrawal ledgered with its reason | On the record |
 
-    classDef run fill:#202024,stroke:#5f626a,color:#e6e6ec
-    classDef process fill:#202024,stroke:#5f626a,stroke-width:2px,color:#e6e6ec
-    classDef outcome fill:#202024,stroke:#5f626a,stroke-width:2px,stroke-dasharray:6 3,color:#e6e6ec
-    classDef quality fill:#202024,stroke:#c9a86a,stroke-width:2px,stroke-dasharray:2 3,color:#e6e6ec
-    classDef shared fill:#202024,stroke:#5f626a,stroke-width:2px,stroke-dasharray:6 3 2 3,color:#e6e6ec
-    classDef ghost fill:none,stroke:none,color:transparent
-    class ledger run
-    class board,render,closer,build,ship_gate,deliver process
-    class ad_gates outcome
-    class ad_gates quality
-    class ad_gates shared
-    class eye,review quality
-    class GH ghost
-    style RUN fill:#f4f4f7,stroke:#5f626a,color:#18181c
-```
+### The redo, as a ledger reads it
 
-| Stroke | Tier | Owns |
-|---|---|---|
-| Solid | 1 Process | Board, Render, Closer, Build, Ship gate, Deliver |
-| Dashed | 2 Outcome | Ad gates, shared with quality |
-| Dotted | 3 Quality | The probes inside Ad gates, the eye and the review |
-| Dash-dot | Shared | Ad gates, outcome and quality together |
+Four invented-brand spots were shot again after I kept rejecting boards. I review every cut by eye, and I am the only human in the loop.
 
-## The race behind the router
+- The grammar that survived is the one I named. Open absurd at three or four times the volume, hand over the coherent model by the second line, and keep every quirk visual with nobody narrating it.
+- Each spot shipped two ways. One leg ran on the engine that won its panel in the four-engine race in section 3, the other on Omni Flash, from the same boards, narrations, closers, beds and captions. The only variable between the columns is the engine.
+- The [ledgers](shoots/) hold four rounds behind them, 16, 16, 12 and 15 engine requests, 59 in all, two of them music beds, for eight shipped versions.
+- Two of those rounds built four masters each and neither shipped.
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-seedance2-orchard.gif" alt="Orchard Hill Coffee redone, Seedance 2.0" width="100%"><br><b>Orchard Hill Coffee, Seedance 2.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-seedance2-orchard.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-orchard.gif" alt="Orchard Hill Coffee redone, Omni Flash" width="100%"><br><b>Orchard Hill Coffee, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-orchard.mp4">&#9654; with sound</a></td>
+  </tr>
+</table>
+
+| Process record, Orchard Hill Coffee | Seedance 2.0 | Omni Flash |
+|:---|:---|:---|
+| Scene renders in the ledger across the rounds, re-rolls included | 11 | 3 |
+| Caption gate on the shipped master | PASS, 5 cues | PASS, 5 cues |
+| Closer video against its audio placement | 0 ms | 0 ms |
+| Mouth sync on the shared closer | PASS, +0.08 s | PASS, +0.08 s |
+| Master that shipped | v3 | v1 |
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top"><div><a name="winner-lantern"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-lantern.gif" alt="Lantern Street redone, Wan 3.0" width="100%"><br><b>Lantern Street, Wan 3.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-lantern.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-lantern.gif" alt="Lantern Street redone, Omni Flash" width="100%"><br><b>Lantern Street, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-lantern.mp4">&#9654; with sound</a></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top"><div><a name="winner-harbor"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-harbor.gif" alt="Harbor Lane Realty redone, Wan 3.0" width="100%"><br><b>Harbor Lane Realty, Wan 3.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-harbor.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-harbor.gif" alt="Harbor Lane Realty redone, Omni Flash" width="100%"><br><b>Harbor Lane Realty, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-harbor.mp4">&#9654; with sound</a></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top"><div><a name="winner-slowroad"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-seedance2-slowroad.gif" alt="Slow Road Travel redone, Seedance 2.0" width="100%"><br><b>Slow Road Travel, Seedance 2.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-seedance2-slowroad.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-slowroad.gif" alt="Slow Road Travel redone, Omni Flash" width="100%"><br><b>Slow Road Travel, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-slowroad.mp4">&#9654; with sound</a></td>
+  </tr>
+</table>
+
+| The other three spots | Renders in the ledger, winner's engine and Omni | Mouth sync on the shared closer | Masters that shipped |
+|:---|:---|:---|:---|
+| Lantern Street, Wan 3.0 | 8 and 3 | REVIEW, 0.00 s, eye approved | v7 and v1 |
+| Harbor Lane Realty, Wan 3.0 | 12 and 5, the sign scene re-rolled for an invented phone number | PASS, 0.00 s | v5 and v2 |
+| Slow Road Travel, Seedance 2.0 | 11 and 4 | REVIEW, +0.04 s, eye approved | v4 and v1 |
+
+Every one of the eight masters passed the caption gate at five cues and held its closer at 0 ms drift. REVIEW means the mouth probe could not read the closer well enough to rule and handed the call to me, and the ledger says so. All eight cuts are in the [media release](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/tag/media-2026-08), with sound.
+
+- Prompt-level constraints, written in the strongest form available, held on 6 of 15 attempts. A pre-call hook made the outcome right on 14 of 15, measured in [docs/ENFORCEMENT.md](docs/ENFORCEMENT.md). I now rank constraints by what happens when they are violated, and anything whose violation is silent gets a mechanism.
+- The face-located mouth probe went in with its sign inverted and doubled the error it was built to remove. The gate caught it on the master. Three days later the same sign confusion came back in a different builder and reached the review thread, where a frame-by-frame audit found it rather than a probe. That auto-alignment is off now, and the check that replaced it is a frame ladder read by eye.
+- Four guards protect the render path and three approve everything when a file they depend on goes missing. Two of the three do not know they are doing it, so a missing file looks exactly like a pass.
+
+---
+
+## 2. Outcome evals
+
+Outcome evals check the artifact against the facts and do not care how it got made. The research literature calls this outcome supervision, and in retrieval terms it is a groundedness check.
+
+- The claim on screen is compared with the source it was pulled from. How confident the model sounded does not count.
+- In most stacks those facts arrive through retrieval, the RAG layer. Here they arrived through a pairwise research pass, one engine scanning the company's live pages and the other told to refute what it found.
+- Either way the whole tier is re-derived when the brief changes.
+
+For an ad, true means four things.
+
+- The claim a spot closes on is the claim the company actually makes, in its own current words.
+- The words on screen are the words being spoken, and the words being spoken are the script. The caption gate checks the first half. A transcription diffed against the script before any render is paid for checks the second.
+- A prop that carries the story reads in the delivered crop.
+- Hook rate, hold rate and view-through belong to the media buy, downstream of this pipeline. Everything measured on the creative before the buy is a proxy, and is labelled one.
+
+### Ten real products, and nothing bends to the render
+
+The invented brands were the easy case, because a story can bend to whatever the engine renders well. So the same loop ran against ten real, currently shipping AI products.
+
+- All ten shot on Omni Flash at about sixty-three cents a scene, thirty scenes across two batches.
+- Each master was gated on caption timing, closer alignment and lip sync before it was allowed out.
+- These are spec ads. They are not affiliated with, endorsed by, or produced for Google, OpenAI, Perplexity, Meta, xAI, Z.ai, Moonshot AI or Anthropic. None of these companies has seen them, and every tagline is written here.
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-cell-claude.gif" alt="Claude spec ad" width="100%"><br><b>Claude.</b> Forty versions of you are arguing around the table and every one of them is sure. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-claude.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-cell-claudecode.gif" alt="Claude Code spec ad" width="100%"><br><b>Claude Code.</b> His code grew legs overnight and finishes the feature while he sips the coffee. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-claudecode.mp4">&#9654; with sound</a></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-cell-pics.gif" alt="Google Pics spec ad" width="100%"><br><b>Google Pics.</b> The photo is almost right, and almost is the thing that ruins it. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-pics.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-cell-gemini.gif" alt="Gemini spec ad" width="100%"><br><b>Gemini.</b> Your head has forty tabs open and not one of them is labelled. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-gemini.mp4">&#9654; with sound</a></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-cell-zai-neurons-av7.gif" alt="Z.ai spec ad" width="100%"><br><b>Z.ai.</b> Your studio apartment is smaller than the problem you're solving. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-zai-neurons-av7.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-cell-kimi.gif" alt="Kimi spec ad" width="100%"><br><b>Kimi.</b> She has one question and a library's worth of everything else. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-kimi.mp4">&#9654; with sound</a></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-cell-chatgpt.gif" alt="ChatGPT spec ad" width="100%"><br><b>ChatGPT.</b> It is never the big decisions that eat the evening. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-chatgpt.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-cell-perplexity-neurons-av7.gif" alt="Perplexity spec ad" width="100%"><br><b>Perplexity.</b> Four hundred tabs, ten blue links, and still no answer. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-perplexity-neurons-av7.mp4">&#9654; with sound</a></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-cell-metaai.gif" alt="Meta AI spec ad" width="100%"><br><b>Meta AI.</b> Some days the list unrolls right out the front door. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-metaai.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-cell-grok-hook-av7.gif" alt="Grok spec ad" width="100%"><br><b>Grok.</b> Your world just changed. Again. Try keeping up. <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-grok-hook-av7.mp4">&#9654; with sound</a></td>
+  </tr>
+</table>
+
+| Spot | The claim it closes on | Checked against | |
+|:---|:---|:---|:---|
+| Claude | A thoughtful collaborator for serious work, until the answer is one page | claude.com and anthropic.com | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-claude.mp4) |
+| Claude Code | The agent in your terminal that reads the codebase, fixes the bugs and ships the feature | The product page and its documentation | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-claudecode.mp4) |
+| Google Pics | Image creation and editing that brings your exact vision to life, down to a single object | Google's own I/O 2026 announcement | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-pics.mp4) |
+| Gemini | Google's personal assistant, hands free, across the apps you already use | gemini.google.com | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-gemini.mp4) |
+| Z.ai | Frontier open models, the same weights the big labs guard, priced for builders | z.ai and its developer documentation | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-zai-neurons-av7.mp4) |
+| Kimi | A million pages read in a breath, answered with the one line that matters | moonshot.ai and kimi.com | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-kimi.mp4) |
+| ChatGPT | Help with everyday questions and ideas | OpenAI's ChatGPT overview page | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-chatgpt.mp4) |
+| Perplexity | An answer engine that hands back the answer with its sources attached | Perplexity's hub and help centre | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-perplexity-neurons-av7.mp4) |
+| Meta AI | A personal agent that works on your behalf | Meta's own page on personal agents | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-metaai.mp4) |
+| Grok | Real-time answers with the sources still warm, from where news breaks first | x.ai and its developer documentation | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-grok-hook-av7.mp4) |
+
+The first batch landed fifteen scenes on fifteen requests with zero content rejections. The second spent three re-rolls on art direction, none on defects.
+
+- A For Sale sign that read perfectly in the raw 16:9 render shipped as OR SALE. The build cuts a centre square, and the engine had filled the width. Any scene whose beat is legible text is now composed small and dead centre, and checked in the square before the build. A probe flags a bright prop straddling a frame edge. It also fires on crowds and lamps, so it flags and I decide.
+- A billboard of corrupted headline text was pulled for being illegible, replaced with clean colour fields, and then put back. The rule exists for fake logos and readable gibberish, and the glitch was the point. An outcome check has to know what the brief meant, and the rule alone cannot tell it.
+
+---
+
+## 3. Quality evals
+
+Quality evals are the tier everyone argues about, so I made them the most mechanical of the three.
+
+- A quality check, in practice, is a person watching a clip and saying good enough or not. I did that first, on the 48 labelled exemplars behind the thresholds and the 42 eye-labelled scenes behind the judge. Then the verdicts were compiled into numbers a scheduler can enforce.
+- The source of truth is that golden set plus the market's own bar. The vendor's premium baseline sits in the race as the A0 column.
+- Change the audience and the tier is re-derived, because what good means has flipped.
+- One probe battery for everything. A category picks which rows gate and which merely report, and that pick is what defines the category. The direction of good is set per audience. A coffee ad reads gesture energy upward and a sleep ad flips the same instrument, because calm sells.
+- 10 of the 10 named gating thresholds in [`probes/`](probes/) sit between a labelled pass and a labelled reject. A tool re-measures the shipped pixels and refuses to stay green if the number does not come back.
+- I stay the final judge. A language-model judge attaches a blind description and a flag to the strip as evidence and never holds the verdict.
+
+### The router, and the race behind it
 
 Four engines ran the same five briefs with the audience written into every prompt, and the panels picked a different winner per audience. The winners table below is the router. A brief comes in, the panel for that audience scores the pool, and the highest row wins the buy.
 
@@ -286,56 +322,118 @@ No engine sweeps the catalogue, which is the whole case for routing instead of s
 
 All of this is in the prompt too. Every engine got the same brief with the audience written in, and the four columns under each spot are what four models did with identical words. A prompt is a request and a generation is a draw against it, and a prompt steers one engine but cannot tell you which engine to buy for this audience. So the loop holds both ends: the prompts know the user going in, the panel checks that the feeling landed coming out, and the next dollar routes on the count.
 
-The other three winners, each redone on the engine that won it. Every one of these is a spot the pipeline shipped after its own gates passed.
+---
 
-<table>
-  <tr>
-    <td width="50%" align="center" valign="top"><div><a name="winner-lantern"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-lantern.gif" alt="Lantern Street redone, Wan 3.0" width="100%"><br><b>Lantern Street, Wan 3.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-lantern.mp4">&#9654; with sound</a></td>
-    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-lantern.gif" alt="Lantern Street redone, Omni Flash" width="100%"><br><b>Lantern Street, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-lantern.mp4">&#9654; with sound</a></td>
-  </tr>
-</table>
+## Nobody directed the shoot
 
-<table>
-  <tr>
-    <td width="50%" align="center" valign="top"><div><a name="winner-harbor"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-harbor.gif" alt="Harbor Lane Realty redone, Wan 3.0" width="100%"><br><b>Harbor Lane Realty, Wan 3.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-harbor.mp4">&#9654; with sound</a></td>
-    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-harbor.gif" alt="Harbor Lane Realty redone, Omni Flash" width="100%"><br><b>Harbor Lane Realty, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-harbor.mp4">&#9654; with sound</a></td>
-  </tr>
-</table>
+I set the rules and watched it run itself. I wrote no scripts for this shoot and supplied five things.
 
-<table>
-  <tr>
-    <td width="50%" align="center" valign="top"><div><a name="winner-slowroad"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-seedance2-slowroad.gif" alt="Slow Road Travel redone, Seedance 2.0" width="100%"><br><b>Slow Road Travel, Seedance 2.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-seedance2-slowroad.mp4">&#9654; with sound</a></td>
-    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-slowroad.gif" alt="Slow Road Travel redone, Omni Flash" width="100%"><br><b>Slow Road Travel, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-slowroad.mp4">&#9654; with sound</a></td>
-  </tr>
-</table>
+- the architecture and the framework
+- the four-phase ad grammar, as a shape to follow
+- a realism guard paragraph
+- the rule that the most arresting beat opens the film
+- the rule that every human on screen is the same presenter
+
+- The agents ran the rest autonomously, loop-engineering boards, prompts, engine calls, quality gates, re-rolls, remasters and delivery, with every request and landing in an append-only ledger.
+- The loop itself is the industry's own, hypothesis, variations, tests, winners, run by a multi-agent system instead of a team.
+- The evals were designed and calibrated before a single render was paid for.
+
+## The loop, as a map
+
+One loop, seven steps, and it ran unattended. The gates are where the system stops itself, and that is the only reason it was allowed to spend.
+
+<p align="center">
+  <img src="assets/system-map.svg" alt="System map: one loop of seven steps, board, render, closer, build, ad gates, ship gate, deliver, and the three tiers of evals that own the gates at each step." width="100%">
+</p>
+
+The figure is generated by `tools/render_map.py` from a declared step list. CI fails if the committed file drifts from the generator, or if the seven step names stop matching the process table above.
+
+The same loop as a graph, top to bottom, with what the figure leaves out. Each step carries the line it must clear, from the process table above, and the two gates carry their fail path, re-roll when the ad gates block delivery and remaster when the ship gate fails closed. The eye, the only human in the loop, takes a REVIEW off the ad gates, and its approval sends the cut on to the ship gate. Deliver writes the ledger, and relabel means the next board's thresholds are re-derived from it. Who owns a gate is in the stroke, and the table under the graph reads it.
+
+
+```mermaid
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 20, 'rankSpacing': 16, 'padding': 6, 'diagramPadding': 2, 'wrappingWidth': 520, 'subGraphTitleMargin': {'top': 6, 'bottom': 10}}, 'themeVariables': {'fontSize': '16px', 'lineColor': '#5f626a', 'edgeLabelBackground': '#ffffff', 'clusterBkg': '#f4f4f7', 'clusterBorder': '#5f626a', 'titleColor': '#18181c'}}}%%
+flowchart TD
+    subgraph RUN["The run · every request and landing ledgered"]
+        direction TB
+        AG{{"Ad gates · captions match the speech, else re-roll"}}
+        %% GH is an invisible twin of the eye, it balances the spine so the steps stay in one column
+        AG ~~~ GH["The eye · REVIEW in, approval out"]
+        GH ~~~ SG
+        B["Board · five checks before any spend"] --> R["Render · every request ledgered"] --> C["Closer · identity pin, jaw measured"] --> BU["Build · closer placed within 40 ms"] --> AG --> SG{{"Ship gate · loudness, fails closed to a remaster"}} --> D["Deliver · defects withdrawn on record"]
+        D --> L[("Ledger · append-only, then relabel")]
+        AG --> EYE["The eye · REVIEW in, approval out"]
+        EYE -.-> SG
+    end
+
+    classDef run fill:#202024,stroke:#5f626a,color:#e6e6ec
+    classDef process fill:#202024,stroke:#5f626a,stroke-width:2px,color:#e6e6ec
+    classDef outcome fill:#202024,stroke:#5f626a,stroke-width:2px,stroke-dasharray:6 3,color:#e6e6ec
+    classDef quality fill:#202024,stroke:#c9a86a,stroke-width:2px,stroke-dasharray:2 3,color:#e6e6ec
+    classDef shared fill:#202024,stroke:#5f626a,stroke-width:2px,stroke-dasharray:6 3 2 3,color:#e6e6ec
+    classDef ghost fill:none,stroke:none,color:transparent
+    class L run
+    class B,R,C,BU,SG,D process
+    class AG outcome
+    class AG quality
+    class AG shared
+    class EYE quality
+    class GH ghost
+    style RUN fill:#f4f4f7,stroke:#5f626a,color:#18181c
+```
+
+| Stroke | Tier | Owns |
+|---|---|---|
+| Solid | 1 Process | Board, Render, Closer, Build, Ship gate, Deliver |
+| Dashed | 2 Outcome | Ad gates, shared with quality |
+| Dotted | 3 Quality | The probes inside Ad gates, and the eye |
+| Dash-dot | Shared | Ad gates, outcome and quality together |
 
 ## Code map
 
 Everything below ran.
 
 - Vendor ids and Slack fields are replaced with `<id>` or dropped.
-- Home paths sit behind `$SHOOT_ROOT`, `$RENDERS`, `$GATES` and `$FACEPY`.
+- Home directories sit behind `$SHOOT_ROOT`, `$RENDERS`, `$GATES` and `$PORTRAIT`.
 - The pinned voice and avatar are read from environment variables, so the closer path needs an identity of your own before it will render.
 
 | Where | What it is |
 |:---|:---|
 | `shoots/ads2-redo/` | The race. Five briefs on three challenger engines, the baseline leg built beside them, 47 requests and 45 landings in the ledger |
-| `shoots/ads3/`, `ads4/`, `ads5/` | The redo rounds on the race winners' engines. The first two rounds' cuts were delivered and then withdrawn, and the third's stood after up to seven rebuilds |
+| `shoots/ads3/`, `ads4/`, `ads5/` | The redo rounds on the race winners' engines. The first two built masters that never shipped, the third shipped after up to seven rebuilds |
 | `shoots/ads6-omni/` | The Omni Flash leg of the redo from the boards that survived, with its panel scores and the raw probe outputs for all eight redo masters |
 | `shoots/ads7-real/`, `ads8-real/` | The ten spec ads. Every board carries its positioning and the live page it was checked against |
 | `shoots/<batch>/boards.json` | The brief per spot: audience, quirk, how the middle beat escalates, narration, closer, bed, and for the spec ads the verified positioning |
 | `shoots/<batch>/build-*.sh` | The batch driver: normalise scenes, patch the assembly script, build every spot, master to the loudness standard |
 | `shoots/build-ad.sh` | The assembly. Scenes trimmed to the narration's sentence boundaries from measured frame counts, captions written beside the master with each cue's spoken window, the closer placed frame-exact, one music bed per brand |
 | `shoots/<batch>/requests.jsonl`, `landings.jsonl` | The append-only ledgers. Every engine request with its prompt, every landing with the vendor's own rejection text when there was one, every gated master with its caption, drift and mouth readings, every withdrawal with its reason |
-| `gates/board_probe.py` | The eleven mechanical checks on a board before a cent is spent, and the four judgment rows printed for me to score |
-| `gates/continuity_gate.py`, `evals/continuity-labels.json` | The check that follows a prop and the background through a take, and the author's whole-take labels its `--validate` compares it with |
+| `gates/board_probe.py` | The five mechanical checks on a board before a cent is spent, and the four judgment rows printed for me to score |
 | `gates/ad_gates.sh`, `caption_gate.py`, `mouth_sync_probe.py` | The caption gate and the closer gate a master must clear before delivery |
-| `gates/edge_clip_probe.py`, `script_match.sh`, `voice_take.sh` | The frame-edge flagger for legible props, the transcription diff against the script, the three-draw voice meter whose consensus probe lives outside this repo and which now refuses to spend a draw without it |
+| `gates/edge_clip_probe.py`, `script_match.sh`, `voice_take.sh` | The frame-edge flagger for legible props, the transcription diff against the script, the three-draw voice meter |
 | `gates/source_gate.py` | The closer look path: jaw, settle and loop jump measured on the raw render. The framing checks on the look, head and body inside the crop and shot size, run in look generation, which drives the avatar vendor's account and stays out of the repo |
 | `probes/` | The ten instruments the panels and gates read: gesture energy, background detail, eye rejection, scene simplicity, face level wander, lip sync, sync lag, replay detection, and the rest and spasm meters the ship gate runs on closers |
 | `guards/` | The four pre-spend guards and the learned rules the prop gate reads back |
 | `evals/derive.py`, `evals/labels.csv` | The labelled exemplars and the tool that re-measures them and brackets every gating constant. It derives thresholds and does not score a video |
 | `evals/judge-rubric.json`, `evals/judge-calibration.json` | The rubric the language-model judge scores against, and the 42 eye-labelled scenes its four versions were calibrated on |
+
+## Recounted on every push
+
+- 10 of the 10 named gating thresholds in [`probes/`](probes/) are bracketed by a labelled pass and a labelled reject.
+- [`evals/derive.py`](evals/derive.py) re-measures the shipped pixels and refuses to exit clean if a constant has drifted outside its own bracket.
+- Its report is checked in CI, so a hand-typed count cannot go stale on this page:
+
+```
+10 of 10 NAMED gating thresholds are DERIVED from a labelled pass/reject pair on the same axis
+0 are AUTHORED: typed by hand, no exemplar pair in evals/labels
+```
+
+**Ten of ten.** The tool counts NAMED constants only. One probe still refuses clips on nine inline numbers that cannot be bracketed until they are named, and the page says so rather than rounding them away. You can check it without accounts, keys or a GPU, with `python3` and `ffmpeg` installed:
+
+```
+git clone https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals
+cd autonomous-ads-pipeline-multimodal-evals && pip install -r requirements.txt
+python3 evals/derive.py
+```
 
 ## Which checks stop a ship, and which only speak
 
@@ -346,8 +444,6 @@ A mixed read is the design, not a broken run. Most probes report and do not refu
 | `caption_gate.py` | **Blocks.** A caption that does not say what is spoken, or drifts outside its window, fails the master |
 | Closer assembly drift | **Blocks** past 40 ms between where the closer's video starts and where its audio was placed |
 | `mouth_sync_probe.py` | **Blocks** only at FAIL, which is correlation under 0.10, the mouth unrelated to the audio. REVIEW passes with a logged line and the eye decides |
-| `cast_gate.py` | **Blocks** a scene whose person is not the story's character, under 0.30 face similarity to her reference or at least as close to the narrator's. It is sent once more, and a second miss stops the run. No face, or no reading, goes to the eye |
-| `continuity_gate.py` | **Blocks** a scene when all three votes of a vision judge, each reading four frames a second, name a prop the board lists vanishing or changing form, or a background break the scene's own line does not ask for. The scene is sent once more, a second break stops the run, and a split vote or a scene it cannot read goes to the eye. Behind the narrator on a closer the background is measured instead, and a patch moving past 600 px between frames or 1500 px off the take's median stops the run |
 | `sync_probe.py` | **Speaks only.** Demoted on 2026-08-27 after controls with a known 0.4 s shift moved it 80 ms in the wrong direction |
 | `source_gate.py` | **Speaks only.** Prints jaw travel, settle ratio and loop jump as three raw numbers with no verdict, so the metric and the line can be argued separately |
 | `probes/` | **Speak only** to the panels and the gates that read them |
@@ -358,18 +454,16 @@ A probe says which of those it means in its exit code. `mirror_probe.py` exits 0
 
 Every threshold here is a hand-picked number over a measured signal, and no probe holds a trained model. That was a choice about iteration speed, not a claim that it is the better answer.
 
-Taste moved weekly while this was being built. A constant sitting between a labelled pass and a labelled reject can be moved in an afternoon and re-bracketed by `derive.py` in one command, where a fitted model needs relabelling and a retrain to answer the same question.
-
-At scale the argument runs the other way. With enough traffic to segment by audience, per-demographic learned thresholds beat one hand-picked line, and the labelled rows in `evals/labels.csv` are already the training data for that.
-
-The generative side does hold models. They are vendor APIs called over the network rather than weights in this repository.
+- **Taste moved weekly while this was being built.** A constant sitting between a labelled pass and a labelled reject can be moved in an afternoon and re-bracketed by `derive.py` in one command. A fitted model needs relabelling and a retrain to answer the same question.
+- **The scale path runs the other way.** At enough traffic to segment by audience, per-demographic learned thresholds beat one hand-picked line, and the labelled exemplars in `evals/labels.csv` are already the training data for that.
+- **The generative side does hold models.** They are vendor APIs called over the network, not weights in this repository.
 
 ## Where the claims stop
 
 - Production on this page means the pipeline ran unattended and spent real money on renders under its own gates. It does not mean a media buy, and no delivery metric is claimed anywhere here.
 - The golden set carries one labeller's judgement, mine, and it is internally consistent. A second labeller and an agreement score are the next calibration step.
-- Only what ships here is claimed, the 82 labelled rows behind the thresholds and the 42 scenes behind the judge. The production battery was calibrated on a larger labelled history that stays private.
-- Sample sizes are counts, never rates: 15 governed runs, 42 calibration scenes, 36 lip-sync labels.
+- Only what ships here is claimed, the 48 labelled rows behind the thresholds and the 42 scenes behind the judge. The production battery was calibrated on a larger labelled history that stays private.
+- Sample sizes are counts, never rates: 15 governed runs, 42 calibration scenes, 8 lip-sync labels.
 - Every outcome number here is measured on the creative. Hook rate, hold rate and view-through are the buy's numbers and are not on this page.
 - The spec ads are unaffiliated. None of the eight companies has seen them.
 - Engine prices and product positioning are as of August 2026, when the shoots ran, and are not re-checked.

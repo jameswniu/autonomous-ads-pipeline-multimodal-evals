@@ -4,15 +4,6 @@
 # minimum that might work. Nothing here is pinned exactly, because the probes
 # use long-stable APIs (VideoCapture, absdiff, matchTemplate, ndarray math) and
 # an exact pin would age worse than the code does.
-# PyYAML is a TEST dependency, and it is here because two workflow-wiring tests degrade to
-# nothing without it. One of them passed vacuously in CI for months because its import sat
-# above every assertion in the function (2026-09-21).
-PyYAML>=6.0
 opencv-python>=4.8
 numpy>=1.24
 Pillow>=10.0
-# The orchestration. pipeline/graph.py is written against the 1.2 line; a major bump
-# changes the StateGraph and interrupt APIs it uses, so the ceiling is deliberate.
-langgraph>=1.2,<1.3
-# A live run checkpoints to SQLite so it can wait days at the review for a person.
-langgraph-checkpoint-sqlite>=3.1,<4

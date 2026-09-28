@@ -1,39 +1,17 @@
 #!/usr/bin/env bash
 # build-ad.sh <ad> [avatar-slug]: three vignette scenes cut to the narration's sentence boundaries, the avatar closer, the brand card.
-#   ad          one of orchard lantern harbor quiet slowroad, or any spot with BRAND, TAG and BED set.
-#               BRAND, TAG and BED override a named spot too, which keeps its August values when they are unset.
+#   ad          one of orchard lantern harbor quiet slowroad
 #   avatar-slug defaults to <ad>-av (harbor uses harbor-maya-av etc.)
-# TAKES is the directory holding <ad>-vo, <ad>-a/b/c and the avatar slug; it defaults to the August
-# layout under SHOOT_ROOT. FILM2 holds the beds and the two hits. pipeline/live.py sets all three.
-# SWITCHES says where the switching sound, hit2.mp3, plays: slots (the default, under the second and
-# third sentences), off, or cuts (where the picture changes most). shoots/switches.sh has the detail.
-# SCENE_A, SCENE_B and SCENE_C name the clip for each of the three sentences when it is not
-# <ad>-a/b/c. pipeline/live.py sets them for a spot whose sentence holds more than one shot, joined
-# into one clip before this script cuts it to the sentence.
 set -euo pipefail
-AD=$1; AV=${2:-$AD-av}; S=${SHOOT_ROOT:-}; T=${TAKES:-$S/takes/ads2}
-# Absolute, because the concat list near the end names every segment by path, and ffmpeg
-# resolves a relative entry against the list's own directory, not the working directory. A
-# relative TAKES built every scene and then failed at the join. FILM2 is only ever an ffmpeg
-# input, which resolves against the working directory, so it needs no change.
-case $T in /*) ;; *) T=$PWD/$T ;; esac
-V=$T/out-$AD-${AV}; mkdir -p "$V"; F2=${FILM2:-$S/takes/film2}
-GATES=${GATES:-$(cd "$(dirname "$0")/../gates" && pwd)}
-. "$(dirname "$0")/switches.sh"
+AD=$1; AV=${2:-$AD-av}; S=$SHOOT_ROOT; T=$S/takes/ads2; V=$T/out-$AD-${AV}; mkdir -p "$V"; F2=$S/takes/film2
 FN='/System/Library/Fonts/Supplemental/Arial.ttf'
 enc=(-c:v libx264 -crf 18 -preset medium -pix_fmt yuv420p -r 25)
-# A named spot supplies its August brand, tag and bed only where the caller set none. It used to
-# overwrite them, so pipeline/live.py passed a board's BRAND, TAG and BED and a named spot shipped
-# the August values anyway, with nothing said.
 case $AD in
-  orchard)  BRAND=${BRAND:-"Orchard Hill Coffee"}; TAG=${TAG:-"Roasted the week it lands."}; BED=${BED:-$F2/bed3.mp3} ;;
-  lantern)  BRAND=${BRAND:-"Lantern Street"}; TAG=${TAG:-"The page that opens the right screen."}; BED=${BED:-$F2/bed4.mp3} ;;
-  harbor)   BRAND=${BRAND:-"Harbor Lane Realty"}; TAG=${TAG:-"One agent. One street."}; BED=${BED:-$F2/bed3.mp3} ;;
-  quiet)    BRAND=${BRAND:-"Quiet Hours"}; TAG=${TAG:-"Sleep, not stats."}; BED=${BED:-$F2/bed2.mp3} ;;
-  slowroad) BRAND=${BRAND:-"Slow Road Travel"}; TAG=${TAG:-"Go slower, see more."}; BED=${BED:-$F2/bed3.mp3} ;;
-  *)        BRAND=${BRAND:?set BRAND for a spot this script does not name}
-            TAG=${TAG:?set TAG, the line under the brand}
-            BED=${BED:?set BED, the path of the music bed} ;;
+  orchard)  BRAND="Orchard Hill Coffee"; TAG="Roasted the week it lands."; BED=$F2/bed3.mp3 ;;
+  lantern)  BRAND="Lantern Street"; TAG="The page that opens the right screen."; BED=$F2/bed4.mp3 ;;
+  harbor)   BRAND="Harbor Lane Realty"; TAG="One agent. One street."; BED=$F2/bed3.mp3 ;;
+  quiet)    BRAND="Quiet Hours"; TAG="Sleep, not stats."; BED=$F2/bed2.mp3 ;;
+  slowroad) BRAND="Slow Road Travel"; TAG="Go slower, see more."; BED=$F2/bed3.mp3 ;;
 esac
 # sentence boundaries from the narration read-back: three sentences, one scene each
 read -r S1 E1 S2 E2 S3 E3 VOEND < <(python3 - "$T/$AD-vo/stt.json" "$T/$AD-vo/script.txt" <<'PY'
@@ -88,17 +66,8 @@ f = os.path.join(tempfile.gettempdir(), "adcap-" + hashlib.md5((t + str(F)).enco
 open(f, "w").write(t); print(f)
 PYW
 ); echo "drawtext=fontfile='$FN':textfile='$capf':fontsize=${CAPSZ:-46}:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=10:line_spacing=8:x=(w-text_w)/2:y=h-170-th$2"; }
-# Scenes are cropped to the centre square of whatever frame they arrive in and scaled to 1080.
-# The crop used to be a fixed 1080 at x=420, which only fits 1920x1080, and Omni returns 1280x720
-# since its request schema dropped the resolution field, so that crop failed the first graph run
-# (2026-09-23). Its replacement took the frame's HEIGHT as the side, which fails on a portrait
-# frame, taller than it is wide. The side is now the shorter of the two, centred on both axes,
-# so a landscape scene gets exactly the crop it got before and a 1920x1080 scene the old fixed
-# crop and a no-op scale. The escaped commas keep min() whole inside a filtergraph. One
-# definition, used by all three scene paths below.
-SQ='crop=min(iw\,ih):min(iw\,ih):(iw-ow)/2:(ih-oh)/2,scale=1080:1080'
 vig() { local src=$1 t0=$2 dur=$3 out=$4 captext=$5 en=${6:-}
-  local vf="trim=${t0}:$(echo "$t0+$dur"|bc),setpts=PTS-STARTPTS,$SQ"
+  local vf="trim=${t0}:$(echo "$t0+$dur"|bc),setpts=PTS-STARTPTS,crop=1080:1080:420:0"
   [ -n "$captext" ] && vf="$vf,$(cap "$captext" "$en")"
   ffmpeg -v error -y -i "$src" -filter_complex "[0:v]$vf,setsar=1[v]" -map "[v]" -an "${enc[@]}" "$out"; }
 esc() { printf '%s' "$1"; }   # captions go through a textfile, which is literal; drawtext escaping here leaks backslashes on screen
@@ -109,10 +78,10 @@ scene() { local src=$1 dur=$2 out=$3 captext=$4 en=$5 label=$6
   if [ "$(echo "$dur > $avail"|bc)" = 1 ]; then
     local rate; rate=$(echo "scale=4; $dur/$avail"|bc)
     if [ "$(echo "$rate > 1.6"|bc)" = 1 ]; then
-      ffmpeg -v error -y -i "$src" -filter_complex "[0:v]trim=0.4:$(echo "0.4+$avail"|bc),setpts=(PTS-STARTPTS)*1.6,fps=25,tpad=stop_mode=clone:stop_duration=$dur,$SQ,$(cap "$captext" "$en"),trim=0:$dur,setsar=1[v]" -map "[v]" -an "${enc[@]}" "$out"
+      ffmpeg -v error -y -i "$src" -filter_complex "[0:v]trim=0.4:$(echo "0.4+$avail"|bc),setpts=(PTS-STARTPTS)*1.6,fps=25,tpad=stop_mode=clone:stop_duration=$dur,crop=1080:1080:420:0,$(cap "$captext" "$en"),trim=0:$dur,setsar=1[v]" -map "[v]" -an "${enc[@]}" "$out"
       echo "$label slowed x1.6 and held to cover $dur s"
     else
-      ffmpeg -v error -y -i "$src" -filter_complex "[0:v]trim=0.4:$(echo "0.4+$avail"|bc),setpts=(PTS-STARTPTS)*$rate,fps=25,$SQ,$(cap "$captext" "$en"),trim=0:$dur,setsar=1[v]" -map "[v]" -an "${enc[@]}" "$out"
+      ffmpeg -v error -y -i "$src" -filter_complex "[0:v]trim=0.4:$(echo "0.4+$avail"|bc),setpts=(PTS-STARTPTS)*$rate,fps=25,crop=1080:1080:420:0,$(cap "$captext" "$en"),trim=0:$dur,setsar=1[v]" -map "[v]" -an "${enc[@]}" "$out"
       echo "$label slowed x$rate to cover $dur s"
     fi
   else
@@ -136,9 +105,9 @@ print(min(50, max(28, int(2136 / need))))
 PYF
 )
 echo "caption size $CAPSZ (longest caption $(python3 -c "import sys; print(max(len(a) for a in sys.argv[1:] if a))" "$C1" "$C2" "$C3" "$AVCAP" "$PROMISE") chars)"
-SA=${SCENE_A:-$T/$AD-a/raw.mp4}; SB=${SCENE_B:-$T/$AD-b/raw.mp4}; SC=${SCENE_C:-$T/$AD-c/raw.mp4}
-scene "$SA" "$D1" "$V/q1.mp4" "$(esc "$C1")" ":enable='gte(t,$S1)'" "scene a"
-scene "$SB" "$D2" "$V/q2.mp4" "$(esc "$C2")" ":enable='gte(t,0.15)'" "scene b"
+scene "$T/$AD-a/raw.mp4" "$D1" "$V/q1.mp4" "$(esc "$C1")" ":enable='gte(t,$S1)'" "scene a"
+scene "$T/$AD-b/raw.mp4" "$D2" "$V/q2.mp4" "$(esc "$C2")" ":enable='gte(t,0.15)'" "scene b"
+SC=${SCENE_C:-$T/$AD-c/raw.mp4}
 scene "$SC" "$D3" "$V/q3.mp4" "$(esc "$C3")" ":enable='between(t,0.15,$(echo "$E3-$T3+0.10"|bc))'" "scene c"
 # measured, frame-exact scene lengths: every audio anchor below derives from these, never from the plan
 frames() { ffprobe -v error -select_streams v -count_frames -show_entries stream=nb_read_frames -of csv=p=0 "$1"; }
@@ -175,18 +144,15 @@ CAPF2=$(cap "$(esc "$PROMISE")" ":enable='between(t,$PSTART,$(echo "$AVEND+0.2"|
 # measured mouth-lag compensation (2026-08-26, sign fixed the same night after the gate caught the first
 # version doubling the error): probe lag POSITIVE means her mouth LEADS the audio, so the video start gets
 # padded by that much; NEGATIVE means the mouth TRAILS, so the first |lag| seconds of video are trimmed.
-# Applied only past 20 ms. Probe failure means no compensation, logged, never a block.
+# Applied only past 100 ms. Probe failure means no compensation, logged, never a block.
 MLAG=$( ( ${FACEPY:-python3} "$GATES/mouth_sync_probe.py" "$AVV" --json 2>/dev/null || true ) | tail -1 | python3 -c "import sys,json; print(json.load(sys.stdin)['lag_s'])" 2>/dev/null || echo 0)
 COMP=$(python3 -c "l=float('$MLAG' or 0)+float('${CLOSER_NUDGE:-0}'); print(round(l,2) if abs(l) >= 0.02 else 0)")   # CLOSER_NUDGE adds a manual offset when the two sync probes disagree
-# The probe compensation is OFF unless CLOSER_AUTOALIGN=1. HeyGen avatar renders generate the
+# CLOSER_AUTOALIGN=0 disables the probe compensation entirely. HeyGen avatar renders generate the
 # mouth FROM the audio, aligned by construction; on the 2026-08-29 ads8 night the probe misread
 # every lively face by 0.2-0.24s and this block TRIMMED that much off aligned video, shipping the
 # desync it claimed to fix (frame-vs-onset audit on the delivered master proved the mouth ran
-# exactly the trim early). The docs have said it is off since then, and the default said on until
-# 2026-09-23. A person sets CLOSER_NUDGE after reading the frame ladder, and that always applies.
-# ON means exactly 1. The test used to be "anything but 0", so CLOSER_AUTOALIGN=off or =false
-# switched the probe compensation ON, the reverse of what the word says.
-[ "${CLOSER_AUTOALIGN:-0}" = "1" ] || COMP=$(python3 -c "l=float('${CLOSER_NUDGE:-0}'); print(round(l,2) if abs(l) >= 0.02 else 0)")
+# exactly the trim early). CLOSER_NUDGE still applies when set explicitly.
+[ "${CLOSER_AUTOALIGN:-1}" = "0" ] && COMP=$(python3 -c "l=float('${CLOSER_NUDGE:-0}'); print(round(l,2) if abs(l) >= 0.02 else 0)")
 if [ "$COMP" != "0" ] && [ "$(echo "$COMP > 0"|bc)" = 1 ]; then
   echo "closer mouth leads audio by ${COMP}s, padding video start to align"
   ffmpeg -v error -y -i "$AVV" -filter_complex "[0:v]tpad=start_mode=clone:start_duration=$COMP,trim=0:$AVD,setpts=PTS-STARTPTS,scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080,$CAPF1,$CAPF2,setsar=1[v]" -map "[v]" -an "${enc[@]}" "$V/q4.mp4"
@@ -214,18 +180,16 @@ ffmpeg -v error -y -f lavfi -i "color=c=black:s=1080x1080:d=3.0:r=25" -i "$V/c1.
 ffmpeg -v error -y -f concat -safe 0 -i "$V/concat.txt" -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p "$V/video.mp4"
 AVMS=$(echo "$TEND*1000/1"|bc); CARDMS=$(echo "($TEND+$AVD)*1000/1"|bc); DUR=$(echo "$TEND+$AVD+3.0"|bc)
 T2MS=$(echo "$T2*1000/1"|bc); T3MS=$(echo "$T3*1000/1"|bc)
-switch_hits "${SWITCHES:-}" "$T2MS" "$T3MS" "$V/video.mp4" "$(echo "scale=3; $CARDMS/1000"|bc)" "$(echo "scale=3; $AVMS/1000"|bc)"
-[ -z "$SWITCHLINE" ] || echo "$SWITCHLINE"
-ffmpeg -v error -y -i "$T/$AD-vo/narration.mp3" -i "$SA" -i "$SB" -i "$SC" -i "$AVV" -i "$BED" -i "$F2/hit2.mp3" -i "$F2/hit.mp3" -filter_complex "
+ffmpeg -v error -y -i "$T/$AD-vo/narration.mp3" -i "$T/$AD-a/raw.mp4" -i "$T/$AD-b/raw.mp4" -i "${SCENE_C:-$T/$AD-c/raw.mp4}" -i "$AVV" -i "$BED" -i "$F2/hit2.mp3" -i "$F2/hit.mp3" -filter_complex "
 [0:a]apad=whole_dur=$DUR[vo];
 [1:a]atrim=0.4:$(echo "0.4+$D1"|bc),asetpts=PTS-STARTPTS,volume=0.14[m1];
 [2:a]atrim=0.4:$(echo "0.4+$D2"|bc),asetpts=PTS-STARTPTS,volume=0.14,adelay=$T2MS|$T2MS[m2];
 [3:a]atrim=0.4:$(echo "0.4+$D3"|bc),asetpts=PTS-STARTPTS,apad=whole_dur=$D3,volume=0.14,adelay=$T3MS|$T3MS[m3];
 [4:a]atrim=0:$AVD,asetpts=PTS-STARTPTS,volume=1.0,adelay=$AVMS|$AVMS[av];
 [5:a]atrim=0:$DUR,asetpts=PTS-STARTPTS,volume='if(lt(t,$TEND),0.20,if(lt(t,$(echo "$TEND+$AVD"|bc)),0.10,0.22))':eval=frame,afade=t=in:st=0:d=0.2,afade=t=out:st=$(echo "$DUR-0.8"|bc):d=0.8[bed];
-$KHITS
+[6:a]adelay=$T2MS|$T2MS,volume=0.4[k1];[6:a]adelay=$T3MS|$T3MS,volume=0.4[k2];
 [7:a]adelay=$CARDMS|$CARDMS,volume=0.7[h1];
-[vo][m1][m2][m3][av][bed]$KLABELS[h1]amix=inputs=$((7 + NK)):duration=first:normalize=0[a]" -map "[a]" -c:a aac -b:a 160k "$V/audio.m4a"
+[vo][m1][m2][m3][av][bed][k1][k2][h1]amix=inputs=9:duration=first:normalize=0[a]" -map "[a]" -c:a aac -b:a 160k "$V/audio.m4a"
 ffmpeg -v error -y -i "$V/video.mp4" -i "$V/audio.m4a" -map 0:v -map 1:a -c copy -shortest -movflags +faststart "$V/ad.mp4"
 # caption sidecar for the gates: narration sentences then the avatar line
 python3 - "$T/$AD-vo/stt.json" "$T/$AV/stt.json" "$TEND" "$V/clean.srt" <<'PY'
