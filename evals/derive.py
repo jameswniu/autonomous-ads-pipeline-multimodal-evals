@@ -25,7 +25,9 @@ embarrass the author:
 
 WHAT THIS DOES NOT COVER, because a tool that hides its own gaps is the thing
 this repo is about. Several probes refuse clips using inline literals rather than
-named constants: lipsync_probe's nine, and spasm_probe's `post.sum() < 0.30*fps`.
+named constants: lipsync_probe's nine, and spasm_probe's `post.sum() < 0.30*fps`
+(spasm_probe fails structurally when under 0.3s of runway follows the last word;
+mouth motion itself is only reported, never a verdict).
 They cannot be bracketed until they are named, so they are absent from GATES and
 absent from the denominator. The count below is therefore NOT "every way this
 suite can refuse a clip". It is "every NAMED constant that can".
@@ -102,9 +104,10 @@ GATES = [
     # this file takes the number from labels.csv as written rather than re-reading those ledgers,
     # the same weakest tier most of this file's other rows already are.
     ("frontload_gate",   "FRONTLOAD_MAX",  "first_switch_s",  CEILING, 1.0,  False),
-    # gates/jaw_gate.py, which refuses a closer before it enters a build. The number is the
-    # latest dated ruling in the doctrine, and no labelled pass/reject pair on the jaw axis is
-    # committed, so it counts AUTHORED until one is.
+    # gates/jaw_gate.py, which refuses a closer (the ad's closing scene) before it enters a build
+    # (one full rendered version of the spot). The number is the latest dated ruling in the
+    # doctrine, and no labelled pass/reject pair on the jaw axis is committed, so it counts
+    # AUTHORED until one is.
     ("jaw_gate",         "JAW_MAX",        "jaw_rubber",      CEILING, 1.0,  True),
     # gates/cast_gate.py, which refuses a scene whose person is not the story's character. The floor
     # sits inside a gap measured between strangers and the narrator's own takes, and no labelled
