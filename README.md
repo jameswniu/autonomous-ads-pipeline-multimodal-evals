@@ -41,14 +41,15 @@ pip install -r requirements.txt
 
 python3 evals/derive.py                    # re-derive every threshold
 python3 probes/mirror_probe.py samples/exemplar-harbor-wan3-live.mp4
-python3 probes/mirror_probe.py samples/frozen-control-slowroad.mp4
+python3 probes/mirror_probe.py samples/frozen-control-slowroad.mp4 || echo "exit $?, refused on purpose as too static to judge"
 ```
 
-The derivation prints every named constant beside the labelled pass and labelled reject that bracket it, counts them at `10 of 10 NAMED gating thresholds are DERIVED`, and exits 0. The two probes print one line each:
+The derivation prints every named constant beside the labelled pass and labelled reject that bracket it, counts them at `10 of 10 NAMED gating thresholds are DERIVED`, and exits 0. The two probes print one line each, and the second reports its exit:
 
 ```
 MIRROR FORWARD: 16s | repeat 1.00 at P=5s (reject <0.4) | mirror 0.58 at t=10.4 (reject <0.22)
 MIRROR UNJUDGEABLE: scene distance 0.7 < floor 5.0. NOT a pass - too static to measure.
+exit 3, refused on purpose as too static to judge
 ```
 
 **The second one exits 3, which is the right answer and not a broken run.** A frozen frame held for 40 s has no scene motion to measure, so the probe refuses to call it a pass. That clip is the labelled reject the derivation brackets `mirror_probe.CONTROL_FLOOR` with, and the live take from the previous command is the labelled pass on the same axis.
