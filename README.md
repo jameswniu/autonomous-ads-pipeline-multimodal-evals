@@ -114,9 +114,10 @@ cd autonomous-ads-pipeline-multimodal-evals
 make check
 ```
 
-That installs what CI installs and runs what CI runs: lint, the derivation, the certificate, the figure byte-checks and the test suite. Green here means what green means on the Actions tab. Two probes run on pixels that ship in `samples/`:
+That installs what CI installs and runs what CI runs: lint, the derivation, the certificate, the figure byte-checks and the test suite. Green here means what green means on the Actions tab. Two probes run on pixels that ship in `samples/`, from the environment `make check` built:
 
 ```
+. .venv/bin/activate
 python3 probes/mirror_probe.py samples/exemplar-harbor-wan3-live.mp4
 python3 probes/mirror_probe.py samples/frozen-control-slowroad.mp4 || echo "exit $?"
 ```
