@@ -32,6 +32,8 @@ The question a reviewer asks first is why any of this is a probe rather than an 
 
 Every executable in `probes/` and `gates/` is classified here, and `tests/test_suite.py` fails if one is missing, if a row names a file that does not exist, or if a class outside these four appears. A check that nobody has decided the shape of is the thing this table exists to make impossible.
 
+A board is the written plan for a spot, one line per shot with the order of the shots, the narration and the props. The board law is the set of rules it must satisfy before any money is spent, checked here on a declared board, a board file already on disk.
+
 | File | Class | What it settles |
 |---|---|---|
 | `probes/bg_detail.py` | probe | Background busyness against a calibrated ceiling |
