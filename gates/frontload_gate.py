@@ -20,7 +20,7 @@ gating thresholds in probes/ and gates/.
 
 This only flags, never refuses. A slow open is a board problem: the fix is a different board
 next time, not a re-roll of a spot that already rendered and was paid for. So flag() names the
-measured time and the limit for a person to read at the eye, and the pipeline decides nothing
+measured time and the limit for a person to read at the eye (a person's review of the cut), and the pipeline decides nothing
 from it beyond showing it.
 
 Only a "cuts" build's first switch time means "first big picture change". A "slots" build's

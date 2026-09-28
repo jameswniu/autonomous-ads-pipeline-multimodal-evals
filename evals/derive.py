@@ -86,7 +86,7 @@ GATES = [
     # gates/mouth_sync_probe.py, the lip-sync check that actually refuses a master. Its labels
     # are the verdicts recorded beside the shipped masters in shoots/*/landings.jsonl.
     # Only FAIL_CORR can refuse a master. PASS_CORR and PASS_LAG sort PASS from REVIEW, and
-    # ad_gates.sh:49 lets every REVIEW through to the eye, so neither can stop a clip on its own.
+    # ad_gates.sh:49 lets every REVIEW through to the eye (a person's review of the cut), so neither can stop a clip on its own.
     # They are scored here and kept out of the gating denominator, the same way LAG_MAX is.
     ("mouth_sync_probe", "FAIL_CORR",      "mouth_corr",      FLOOR,   1.0,  True),
     ("mouth_sync_probe", "PASS_CORR",      "mouth_corr",      FLOOR,   1.0,  False),

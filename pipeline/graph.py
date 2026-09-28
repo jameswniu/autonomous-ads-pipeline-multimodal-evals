@@ -34,7 +34,7 @@ from pipeline.steps import BY_NODE
 # The scene re-roll count is the source's own number: "re-roll ONLY visible breakage,
 # once." Here the render step re-rolls only what failed to come back at all, a refusal, a
 # rejection or no video, and each broken scene gets that one retry. The eye may send a
-# scene or the closer back once per run. The source set no number for rebuilds: in August
+# scene or the closer (the presenter's last shot) back once per run. The source set no number for rebuilds: in August
 # a person directed up to seven builds of one spot by hand. MAX_BUILDS bounds the rebuilds
 # the eye can ask for with a nudge, so a lag three builds have not fixed stops for a
 # person, since it is not a nudge's to fix. Rebuilds after delivery are counted as
