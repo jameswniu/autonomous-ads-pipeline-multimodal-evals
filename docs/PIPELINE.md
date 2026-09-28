@@ -12,7 +12,7 @@ The step order and the gates are edges and plain functions now, so the order is 
 
 ## How I know it matches
 
-[`pipeline/replay.py`](../pipeline/replay.py) reads the seven August ledgers against the graph and counts only the moves a row states. Every one has an edge. Where history and the graph disagree, the replay prints it. Three REVIEWs shipped with no eye verdict on the record, and eighteen deliveries in the ads7 batch have no ship-gate pass. Four loops ran past a bound the graph now enforces, one scene re-rolled twice with no reason recorded and three spots each sent back twice for what a scene showed, four of those six send-backs naming no one. It also lists what the August rows never recorded, board verdicts, voice takes, build parameters, real request ids, which is what the graph writes on every run. `make replay` prints the whole report, and `tests/test_replay.py` pins it.
+[`pipeline/replay.py`](../pipeline/replay.py) reads the seven August ledgers against the graph and counts only the moves a row states. Every one has an edge. Where history and the graph disagree, the replay prints it. Three REVIEWs shipped with no eye verdict on the record, and eighteen deliveries in the ads7 batch, the seventh batch of ads shot in August 2026, have no ship-gate pass. Four loops ran past a bound the graph now enforces, one scene re-rolled twice with no reason recorded and three spots each sent back twice for what a scene showed, four of those six send-backs naming no one. It also lists what the August rows never recorded, board verdicts, voice takes, build parameters, real request ids, which is what the graph writes on every run. `make replay` prints the whole report, and `tests/test_replay.py` pins it.
 
 ## The first spot through the graph
 
