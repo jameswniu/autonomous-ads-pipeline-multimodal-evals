@@ -94,6 +94,10 @@ MEDIAN_BLOB = 1500         # px at 1080x1080, the largest patch that may sit awa
 GROW = 0.03                # her matte grown by this share of the frame's width, so hair and a soft edge stay out
 ALPHA = 0.05               # a pixel is hers on a frame where the matte reads over this
 REF_AREA = 1080 * 1080
+# The matte's code and its weights, where torch hub caches them under the directory TORCH_HOME names. Both
+# are read from there and never fetched, so each is put there once by hand.
+MATTE_REPO = "PeterL1n_RobustVideoMatting_master"
+MATTE_WEIGHTS = os.path.join("checkpoints", "rvm_mobilenetv3.pth")
 
 LINE = re.compile(r"^CONTINUITY_GATE props=(ok|fail|split|-) background=(ok|fail|split|-) first_break=([0-9.]+|-) "
                   r"verdict=(PASS|FAIL|REVIEW|UNREAD)[ \t]*$", re.M)
@@ -183,7 +187,9 @@ def tile_size(w, h):
 
 
 def sample(path, start, end, size):
-    """The clip between start and end, FPS frames a second, each scaled to size, as (second, RGB array)."""
+    """The clip between start and end, FPS frames a second, each scaled to size, as (second, RGB array). No
+    frames at all when ffmpeg exits non-zero or its frames stop short of end, since a decode that died partway
+    would be judged as if the clip ended where the decode did, and run() reads no frames as no reading."""
     import numpy as np
     tw, th = size
     r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-ss", f"{start:.3f}", "-i", path, "-t", f"{end - start:.3f}",
@@ -192,6 +198,11 @@ def sample(path, start, end, size):
     each = tw * th * 3
     frames = [np.frombuffer(r.stdout[i * each:(i + 1) * each], dtype=np.uint8).reshape(th, tw, 3)
               for i in range(len(r.stdout) // each)]
+    # A whole decode can come up a frame short, where the rate rounds at the span's end or the sound runs a
+    # little past the picture, and never more.
+    last = start + (len(frames) - 1) / FPS
+    if r.returncode or not frames or len(frames) < int((end - start) * FPS) - 1 or last < end - 2 / FPS:
+        return []
     return [(round(start + i / FPS, 2), f) for i, f in enumerate(frames)]
 
 
@@ -396,14 +407,34 @@ def read_answer(answer, props, background, times):
 
 # --- the ruler ----------------------------------------------------------------------------------
 
+def matte_repo(hub=None):
+    """The directory holding the matte's code in the local torch hub cache, `hub` or the one TORCH_HOME
+    names, once its weights are found in the same cache. ModuleNotFoundError naming what is missing when
+    either is not there, since nothing here is ever fetched, and the hubconf would fetch weights it cannot
+    find and unpickle them."""
+    if hub is None:
+        import torch
+        hub = torch.hub.get_dir()
+    repo = os.path.join(hub, MATTE_REPO)
+    missing = [name for name, there in ((MATTE_REPO, os.path.isdir(repo)),
+                                        (MATTE_WEIGHTS, os.path.isfile(os.path.join(hub, MATTE_WEIGHTS)))) if not there]
+    if missing:
+        raise ModuleNotFoundError(f"the matte model is not in the local torch hub cache that TORCH_HOME names, {hub}, "
+                                  f"which lacks {' and '.join(missing)}, and has to be put there once by hand, since "
+                                  "the gate never fetches it", name=MATTE_REPO)
+    return repo
+
+
 def rvm():
     """RobustVideoMatting's mobilenetv3 as one frame at a time, the recurrent state carried between
     frames so her edges hold. It is the matte the avatar pipeline's body guard uses outside this repository,
-    loaded from the torch hub cache TORCH_HOME names, and it needs torch, so the import lives here."""
+    loaded from the torch hub cache TORCH_HOME names, and it needs torch, so the import lives here. It loads
+    only from that local cache, never from the network, since a gate that runs code it just downloaded is
+    not the gate that was reviewed."""
     import cv2
     import torch
     dev = "mps" if torch.backends.mps.is_available() else "cpu"
-    model = torch.hub.load("PeterL1n/RobustVideoMatting", "mobilenetv3", trust_repo=True).to(dev).eval()
+    model = torch.hub.load(matte_repo(), "mobilenetv3", source="local").to(dev).eval()
     rec = [None] * 4
 
     def step(frame):
@@ -763,7 +794,10 @@ def main(argv=None):
     try:
         return run(o)
     except ImportError as e:
-        # A presenter take read by the repo's own interpreter, which carries no torch. No reading.
+        # A presenter take read by the repo's own interpreter, which carries no torch, or under one whose hub
+        # cache does not hold the matte, which is never fetched. No reading either way, and each says why.
+        if e.name == MATTE_REPO:
+            return unread(str(e))
         return unread(f"{e.name} is not installed here, so run a presenter take with MATTEPY's interpreter")
     except Exception as e:  # noqa: BLE001, an uncaught crash exits 1, which every caller reads as a break
         return unread(f"the gate crashed, {type(e).__name__}: {str(e)[:200]}")

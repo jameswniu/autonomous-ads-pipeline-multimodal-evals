@@ -39,7 +39,8 @@ STEPS = (
          "11 mechanical checks, 4 eye rows", "gates/board_probe.py", "process"),
     Step("render", "Render",
          "Every request and every landing appended to the ledger, the vendor's own rejection "
-         "text included, and every scene read by the edge probe. A scene that shows the story's "
+         "text included, and every scene read by the edge probe (it flags a story prop cut off by the "
+         "frame's edge). A scene that shows the story's "
          "character is rendered from her face, held apart from the narrator's first, and every "
          "scene is read back against it and refused under 0.3 face similarity, or when it reads at "
          "least as close to the narrator, who appears only in the closer. Every scene is read again for "

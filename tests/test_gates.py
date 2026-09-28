@@ -1411,6 +1411,34 @@ def test_a_continuity_gate_that_cannot_read_never_reads_as_a_break(tmp_path, mon
     assert said[-1].endswith("verdict=UNREAD") and "the decoder died" in said[-2], said
 
 
+def test_a_decode_that_fails_or_stops_short_is_no_frames(tmp_path, monkeypatch, capsys):
+    """sample() kept whatever whole frames ffmpeg wrote and never read its exit code, so a take whose file
+    lost its second half was judged, and could pass, on the frames before the cut. Frames from an ffmpeg that
+    exits non-zero, even every frame, or frames that stop short of the span are none, and a shot with none
+    reads UNREAD with no judge asked. A whole decode still comes back whole."""
+    c = _gate_module("continuity_gate")
+    shot, size = _shot(tmp_path / "shot.mp4"), (64, 36)
+    assert [t for t, _ in c.sample(str(shot), 0.0, 2.0, size)] == [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
+    assert c.sample(str(shot), 0.0, 3.0, size) == [], "two seconds of frames passed for a three second span"
+    failing = tmp_path / "failing"
+    failing.mkdir()
+    (failing / "ffmpeg").write_text(f"#!{sys.executable}\nimport subprocess, sys\n"
+                                    f"subprocess.run([{shutil.which('ffmpeg')!r}, *sys.argv[1:]])\nsys.exit(1)\n")
+    (failing / "ffmpeg").chmod(0o755)
+    with monkeypatch.context() as m:
+        m.setenv("PATH", f"{failing}{os.pathsep}{os.environ['PATH']}")
+        assert c.sample(str(shot), 0.0, 2.0, size) == [], "every frame of a decode ffmpeg said failed was kept"
+    whole, cut = tmp_path / "whole.mp4", tmp_path / "cut.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=25", "-t", "2",
+                    "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(whole)], check=True, timeout=120)
+    cut.write_bytes(whole.read_bytes()[:whole.stat().st_size // 2])   # its header, up front, still says two seconds
+    asked = _voting(c, monkeypatch, [_vote()])
+    assert c.main([str(cut), "--prop", LAPTOP, "--out", str(tmp_path / "found.json")]) == 64
+    said = capsys.readouterr().out.strip().splitlines()
+    assert said[-1] == "CONTINUITY_GATE props=- background=- first_break=- verdict=UNREAD", said
+    assert asked == [], "a judge was paid to read a take cut off halfway"
+
+
 def test_the_command_line_is_read_whole_or_refused():
     """A prop is a line of text, a region to ignore is four fractions of the frame in order, and a span runs
     forward from zero. Anything else, an unknown flag or a second clip included, is refused with the reason
@@ -1494,6 +1522,37 @@ def test_a_presenter_take_is_measured_not_judged(tmp_path, monkeypatch, capsys):
     ruler = json.load(open(out))["ruler"]
     assert (ruler["pair_limit"], ruler["median_limit"]) == (c.PAIR_BLOB, c.MEDIAN_BLOB) and ruler["strip"], ruler
     assert all((tmp_path / name).is_file() for name in ruler["strip"])
+
+
+def test_the_matte_is_loaded_only_from_the_local_hub_cache(tmp_path, monkeypatch, capsys):
+    """rvm() loaded the matte through torch.hub trusting its GitHub repository, so a hub cache without it
+    downloaded that repository's hubconf and ran it, code nobody here had reviewed. It now loads only from the
+    local cache TORCH_HOME names, weights included, since the hubconf fetches weights it cannot find and
+    unpickles them. A cache missing either reads UNREAD saying the matte has to be put there by hand, never
+    that torch is missing. This interpreter carries no torch, so a stand-in answers for its hub."""
+    from types import SimpleNamespace
+    c = _gate_module("continuity_gate")
+    hub, loaded = tmp_path / "hub", []
+    with pytest.raises(ImportError, match="not in the local torch hub cache that TORCH_HOME names") as e:
+        c.matte_repo(str(hub))
+    assert e.value.name == c.MATTE_REPO and "put there once by hand" in str(e.value), e.value
+    (hub / c.MATTE_REPO).mkdir(parents=True)
+    with pytest.raises(ImportError, match="rvm_mobilenetv3.pth"):
+        c.matte_repo(str(hub))
+    (hub / "checkpoints").mkdir()
+    (hub / c.MATTE_WEIGHTS).write_bytes(b"")
+    assert c.matte_repo(str(hub)) == str(hub / c.MATTE_REPO)
+    model = SimpleNamespace(to=lambda dev: model, eval=lambda: model)
+    torch = SimpleNamespace(hub=SimpleNamespace(get_dir=lambda: str(hub), load=lambda *a, **k: loaded.append((a, k)) or model),
+                            backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: False)))
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    c.rvm()
+    assert loaded == [((str(hub / c.MATTE_REPO), "mobilenetv3"), {"source": "local"})], loaded
+    shutil.rmtree(hub)
+    assert c.main([str(_shot(tmp_path / "take.mp4")), "--presenter", "--out", str(tmp_path / "found.json")]) == 64
+    said = capsys.readouterr().out.strip().splitlines()
+    assert said[-1].endswith("verdict=UNREAD") and "put there once by hand" in said[-2] and "MATTEPY" not in said[-2], said
+    assert len(loaded) == 1, "the matte was loaded from a cache that does not hold it"
 
 
 def test_a_fail_for_the_wrong_reason_or_a_split_on_a_real_break_is_a_miss():
