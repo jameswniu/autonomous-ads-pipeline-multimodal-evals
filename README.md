@@ -36,6 +36,7 @@ This repository is that pipeline, released in full.
 Two things are checkable here without accounts, keys or a GPU. `python3` and `ffmpeg` are the only prerequisites.
 
 ```
+python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 
 python3 evals/derive.py                    # re-derive every threshold
