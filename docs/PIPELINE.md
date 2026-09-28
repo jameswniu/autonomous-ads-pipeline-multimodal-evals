@@ -75,7 +75,7 @@ One limit is said plainly instead of tuned away. The face-similarity cast check 
 
 ## What is mine and what the agent did
 
-I wrote the doctrine, chose every gate and probe and the threshold each one enforces, and graded the exemplars those thresholds are derived from. The agent ran the August shoots from that doctrine, drafted the boards and prompts, and kept the ledgers. The code here was written with Claude Code, under my direction and my review, and each change went through an adversarial review before it landed.
+I wrote the doctrine, chose every gate and probe and the threshold each one enforces, and graded the exemplars those thresholds are derived from. The agent ran the August shoots from that doctrine, drafted the boards and prompts, and kept the ledgers. For the September runs through the graph, each board was drafted from my brief by Astra, a GPT model I run through Codex as the creative director. It writes text only, one call per board, so it costs cents next to the renders it asks for, and the board check reads everything it writes before any of those renders is paid for. The code here was written with Claude Code, under my direction and my review, and each change went through an adversarial review before it landed.
 
 ## What stays out
 
