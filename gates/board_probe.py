@@ -16,7 +16,8 @@ Mechanical half only. Checks, per spot:
   register         the narration talks to the viewer, never about the character: no he, she, his,
                    her, him or hers in it. "Your studio apartment is smaller than the problem you're
                    solving", never "Her studio apartment is smaller than the problem she's solving"
-                   (the doctrine's own example, 2026-08-29).
+                   (the doctrine, this repo's own written rule for how a spot must be written,
+                   gives this exact example, 2026-08-29).
   chain            a spot that shoots its scenes as a chain, each from the last frame of the one
                    before, names real scenes in its 'chain', each once, and a chained scene that
                    writes {character} has a 'character_noun' to name her by. A spot with no chain
@@ -157,7 +158,8 @@ def main():
         if bad: fails.append((ad, bad, sorted(shared)))
         rows.append((ad, checks, sorted(shared)))
     # --json was advertised in this file's own usage line for weeks and never parsed, so a
-    # caller asking for it got the text report. The graph's board node reads this.
+    # caller asking for it got the text report. The graph (the LangGraph state machine that
+    # runs the whole pipeline) has a board node that reads this.
     if as_json:
         print(json.dumps({"verdict": "FAIL" if fails else "PASS",
                           "spots": {ad: {"checks": checks, "quirk_words_in_narration": shared}

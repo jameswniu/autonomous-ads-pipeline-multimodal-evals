@@ -6,11 +6,13 @@
     continuity_gate.py --validate [<labels.json>]
 
 Every other gate reads a face, a frame's edge, a caption or a whole frame against another. None of
-them follows an object through time, and on 2026-09-27 the author watched three ads the graph shot
-and caught three breaks nothing had flagged. In the Perplexity master the open laptop on the desk,
-its screen up at 2 to 4 s, is a flat keyboard slab from about 7 s. In the same master flying paper
-hides her face and blurs the opening seconds. Behind the Grok presenter the street moves on its own,
-because avatar_iii invents traffic the still never held: a bicycle rides into a sign and a car loops.
+them follows an object through time, and on 2026-09-27 the author watched three ads the graph (the
+LangGraph state machine that runs the whole pipeline) shot and caught three breaks nothing had
+flagged. In the Perplexity master the open laptop on the desk, its screen up at 2 to 4 s, is a flat
+keyboard slab from about 7 s. In the same master flying paper hides her face and blurs the opening
+seconds. Behind the Grok presenter the street moves on its own, because avatar_iii, HeyGen's avatar
+engine used for the closer, invents traffic the still never held: a bicycle rides into a sign and a
+car loops.
 
 So the gate asks two questions of a clip. PROPS: is each named prop present and unchanged in every
 frame, and where does it first vanish, change form or pop in? BACKGROUND: does anything appear from
@@ -45,7 +47,8 @@ exits 1 on any miss, which means this file is wrong, never the eye. A FAIL label
 FAIL whose break on the labelled axis falls inside the labelled window, and a REVIEW on it is a miss.
 A REVIEW on a PASS label is deferred to the eye, counted apart, and not a miss. The labelled set is
 thin, and --validate prints its size every time it reports. A case held outside the repository names
-its directory by an environment variable, ADS8_TAKES for the ads8 closer takes, which --validate needs set.
+its directory by an environment variable, ADS8_TAKES for the ads8 closer takes (ads8, one of the ad
+batches shot in August 2026, before the graph existed), which --validate needs set.
 
 Exit 0 PASS, 1 FAIL, 2 REVIEW, the code gates/ad_gates.sh reads as a mouth to review, and 64 UNREAD
 or a clip that cannot be read. The machine line is always the last line printed:

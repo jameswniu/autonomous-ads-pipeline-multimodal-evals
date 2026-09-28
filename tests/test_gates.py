@@ -711,8 +711,9 @@ def _build_text():
 
 
 def test_the_build_crops_the_centre_square_at_any_height(tmp_path):
-    """The build cropped a fixed 1080 square at x=420, which fits only 1920x1080, and Omni now
-    returns 1280x720, so the first graph run died in the build. Its replacement took the frame's
+    """The build cropped a fixed 1080 square at x=420, which fits only 1920x1080, and Omni (Google's
+    Gemini Omni Flash video model, one of the engines the pipeline renders scenes on, reached
+    through fal) now returns 1280x720, so the first graph run died in the build. Its replacement took the frame's
     height as the side, which fails on a portrait frame. The crop now takes the shorter side,
     centred on both axes, and scales to 1080. The expression under test is read from the build,
     so this checks what the build runs. Landscape frames must come out exactly as they did under

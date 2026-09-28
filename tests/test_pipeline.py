@@ -216,6 +216,7 @@ def test_the_bounds_are_the_numbers_the_page_states():
         "the source says re-roll visible breakage once, and the step table repeats it")
     assert G.MAX_BUILDS == 3, "three builds on the eye's nudges, then a person"
     assert G.MAX_EYE_REJECTS == 1, "one scene or closer sent back by the eye per run"
+    # ads7: one of the ad batches shot in August 2026, before the graph existed.
     assert G.MAX_WITHDRAWALS == 3, "the three withdrawals ads7 took to land its v4 cuts"
     assert G.LAG_FIX == 0.12, "the source's threshold for a closer nudge"
 
@@ -469,6 +470,7 @@ def test_a_scene_a_failed_render_owes_is_kept_for_its_retry(tmp_path):
     ({"kind": "eye"}, {"verdict": "reject"}, False),
     ({"kind": "eye"}, {"verdict": "reject", "cause": "scene"}, False),
     ({"kind": "eye"}, {"verdict": "reject", "cause": "closer"}, False),
+    # avatar_iv is HeyGen's pricier avatar engine, the one a person may name when rejecting a closer.
     ({"kind": "eye"}, {"verdict": "reject", "cause": "closer", "engine": "avatar_iv"}, True),
     ({"kind": "eye"}, {"verdict": "reject", "cause": "lag", "nudge": "a lot"}, False),
     ({"kind": "eye"}, {"verdict": "reject", "cause": "other"}, True),
@@ -700,9 +702,10 @@ def test_the_board_gate_sends_back_every_august_board_that_named_a_person(tmp_pa
 
 
 def test_the_board_gate_refuses_a_board_that_shipped_in_august(tmp_path):
-    """A real finding, pinned so it cannot be forgotten. The ads5 board predates the
-    centre-crop rule, so today's gate stops it at the board even though it shipped. The
-    ruler moved after the shoot, which is what the relabel edge is for."""
+    """A real finding, pinned so it cannot be forgotten. The ads5 board, from one of the ad
+    batches shot in August 2026 before the graph existed, predates the centre-crop rule, so
+    today's gate stops it at the board even though it shipped. The ruler moved after the
+    shoot, which is what the relabel edge is for."""
     out, rows = dry(tmp_path, "shoots/ads5/boards.json", "orchard")
     assert out["trail"] == ["board", "ledger"], out["trail"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
