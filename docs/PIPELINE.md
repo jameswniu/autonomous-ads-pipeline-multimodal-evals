@@ -61,6 +61,18 @@ The state is also not what keeps the girl the same from shot to shot. Three thin
 
 The switching sound marks a change in the picture. The default build put it on the narration's sentence breaks, and in a chained cut those fall mid shot, where nothing changes. So a board can put it where the picture changes instead. The build measures the change from frame to frame on the finished picture, takes the peaks at least 2 seconds apart, and places the sound 0.1 seconds ahead of each. The cut to the narrator always gets one, placed at the time the build already knows rather than measured, since a closer lit darker than the story can change too little of the frame to count, and the rebuilt Z.ai closer did, 46.5 where the line is 55. On the last Z.ai run that is 0.18, 12.98 and 16.66 seconds, the studio blowing apart, the warehouse folding back and the cut to the narrator.
 
+## What tonight's three checks caught
+
+Three checks ran tonight, one that reads a finished shot for a break with enough confidence to re-shoot it on its own, one that reads a single frame before anything is paid for, and one that flags a slow-opening cut instead of rebuilding it, and all three exist to spend only where a shot is actually broken and to put a real judgement call in front of the author rather than guess at it.
+
+The continuity check, [`gates/continuity_gate.py`](../gates/continuity_gate.py), has a vision judge read every shot three times on the same frames. A break all three reads name re-shoots the shot. A split sends the shot to the author as a flag, and never pays for a re-shoot. On eight cases the author labelled by eye, it agreed with all eight on two separate runs. On the night it was built, it caught the Perplexity laptop turning into a flat keyboard, three for three, and re-shot that shot on its own. It caught Grok's ground newspapers vanishing on three takes in a row, three for three each time, which traced to the board's own wording, "every newspaper turns plain grey."
+
+The before-spending check is the same gate's first-frame mode. Before any shot is paid for, it asks whether every prop the board names is visible in the frame the chain starts from, and refuses the board if most reads say a prop is missing and none sees it. That night a board naming "ground newspapers" in a frame that never showed them cost six paid retakes. Run afterward on the same frame, the check refused it three for three.
+
+The slow-opening flag, [`gates/frontload_gate.py`](../gates/frontload_gate.py), holds to the author's rule to front-load impact, so the first big picture change in a cut must land by 1.75 seconds. That limit sits between the cuts the author picked, at 0.0, 1.14 and 1.22 seconds, and the one the author sent back, at 2.3 seconds. A slower cut reaches the eye flagged, and is never re-shot.
+
+One limit is said plainly instead of tuned away. The face-similarity cast check passed a different woman at 0.47 against its 0.30 floor, while the right woman scored 0.52, so no threshold separates the two. The author's eye caught it, and the fix was to end every chained shot with her face clear.
+
 ## What is mine and what the agent did
 
 I wrote the doctrine, chose every gate and probe and the threshold each one enforces, and graded the exemplars those thresholds are derived from. The agent ran the August shoots from that doctrine, drafted the boards and prompts, and kept the ledgers. The code here was written with Claude Code, under my direction and my review, and each change went through an adversarial review before it landed.
