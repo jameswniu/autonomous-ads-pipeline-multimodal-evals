@@ -145,9 +145,10 @@ def test_board_probe_sends_back_a_person_who_is_not_the_story_character(tmp_path
 
 
 def test_board_probe_sends_back_a_narration_that_talks_about_someone(tmp_path):
-    """The voice talks to the viewer, never about the character (the doctrine, 2026-08-29), and the
-    doctrine's own example is the Z.ai line. A narration with he, she, his, her, him or hers fails,
-    whatever its case, and a word that only contains one of them does not."""
+    """The voice talks to the viewer, never about the character (the doctrine, this repo's own
+    written rule for how a spot must be written, 2026-08-29), and the doctrine's own example is
+    the Z.ai line. A narration with he, she, his, her, him or hers fails, whatever its case, and
+    a word that only contains one of them does not."""
     zai = json.load(open(os.path.join(ROOT, "shoots", "graph-zai-cast", "boards.json")))["spots"]["zai"]["narration"]
     fixed = json.load(open(os.path.join(ROOT, "shoots", "graph-zai-character", "boards.json")))["spots"]["zai"]["narration"]
     old, new = "Her studio apartment is smaller than the problem she's solving.", \

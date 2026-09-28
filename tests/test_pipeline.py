@@ -4,7 +4,9 @@ Routing is tested through a scripted toolkit that hands each node a verdict from
 so every path is exercised with no media, no keys and no spend. The gates themselves are
 tested in test_gates.py; here the question is whether the graph sends each verdict where
 the steps say it goes, and whether a person's answers and a run's record stay straight.
-Several tests here exist because a mutation of the code they name survived the suite.
+The eye is one of those two interrupts, the human review step before shipping where a
+person looks at a flagged cut and approves or rejects it. Several tests here exist because
+a mutation of the code they name survived the suite.
 """
 import json
 import os
@@ -60,6 +62,8 @@ class Scripted(Toolkit):
         return self._next("render", {}, state)
 
     def closer(self, state):
+        # closer: the presenter's talking-head segment that closes the spot, rendered
+        # separately from the story scenes and gated on identity pin and jaw sync
         return self._next("closer", {"pass": True}, state)
 
     def build(self, state):
