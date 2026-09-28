@@ -5,6 +5,7 @@ of shipping the clip it was supposed to stop.
 
 Each test names the defect it guards. Run with: python3 -m pytest tests/test_gates.py -v
 """
+import base64
 import glob
 import importlib.util
 import json
@@ -13,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 
 import pytest
 
@@ -656,6 +658,9 @@ def test_the_gate_numbers_are_the_numbers_the_step_table_states():
     assert "within a decibel of -16 LUFS" in BY_NODE["ship_gate"].proves
     assert "true peak under -1.5 dB" in BY_NODE["ship_gate"].proves
     assert f"refused under {_gate_module('cast_gate').CAST_MIN:g} face similarity" in BY_NODE["render"].proves
+    cont = _gate_module("continuity_gate")
+    assert (f"moves over {cont.PAIR_BLOB} px between two frames or sits {cont.MEDIAN_BLOB} px off the clip's median"
+            in BY_NODE["closer"].proves)
 
 
 def test_the_jaw_gate_rules_on_what_source_gate_measured(tmp_path):
@@ -1120,3 +1125,469 @@ def test_missing_closer_segments_read_as_unreadable_not_as_drift(tmp_path):
     assert result and " drift=pass " in result[-1] + " ", (r.stdout, r.stderr)
     assert (tmp_path / "present" / "ad-gate-closer-master.mp4").exists(), (
         "the closer window was not cut under TMPDIR")
+
+
+# --------------------------------------------------------------------------------------
+# continuity_gate.py
+# --------------------------------------------------------------------------------------
+
+LAPTOP = "an open laptop on the desk"
+PAPER = "flying paper"
+
+
+def _shot(path, seconds=2):
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=25", "-t", str(seconds),
+                    "-pix_fmt", "yuv420p", str(path)], check=True, timeout=120)
+    return path
+
+
+def _judge(tmp, answer):
+    """A stand-in for the claude CLI. `answer` is one answer for every call, or a list the calls take in
+    turn: the votes run at once, so each call claims the next number by creating its file, which only one
+    process can do. Each keeps the arguments and the message the gate sent it in a file of its own, and ends
+    its stream-json the way the real one does, with a result event whose text is its answer. An answer of
+    None ends with no result at all, a call that died."""
+    answers = answer if isinstance(answer, list) else [answer]
+    stub = tmp / "claude"
+    stub.write_text(f"#!{sys.executable}\nimport json, os, sys\nanswers, d, n = {answers!r}, {str(tmp)!r}, 0\n"
+                    "while True:\n"
+                    "    try:\n"
+                    "        os.close(os.open(os.path.join(d, f'call-{n}'), os.O_CREAT | os.O_EXCL))\n"
+                    "        break\n"
+                    "    except FileExistsError:\n"
+                    "        n += 1\n"
+                    "json.dump({'argv': sys.argv[1:], 'message': sys.stdin.read()}, open(os.path.join(d, f'seen-{n}.json'), 'w'))\n"
+                    "print(json.dumps({'type': 'system', 'subtype': 'init'}))\n"
+                    "a = answers[n % len(answers)]\n"
+                    "if a is not None:\n"
+                    "    print(json.dumps({'type': 'result', 'subtype': 'success', 'is_error': False, 'result': a,\n"
+                    "                      'total_cost_usd': 0.01}))\n")
+    stub.chmod(0o755)
+    return stub, tmp
+
+
+def _continuity(tmp, answer, *args):
+    """The real gate as a process, its judge the stand-in above. Returns the run and the directory holding
+    what each judge call was sent, one seen file per call."""
+    stub, seen = _judge(tmp, answer)
+    r = subprocess.run([sys.executable, os.path.join(GATES, "continuity_gate.py"), *map(str, args)],
+                       env=dict(os.environ, CONTINUITY_CLAUDE=str(stub)), capture_output=True, text=True, timeout=300)
+    return r, seen
+
+
+def _vote(t=None, what="the lid is gone"):
+    """One vote on the laptop, holding when t is None and changing form at t otherwise, the background still."""
+    prop = {"n": 1, "ok": True, "first_break": None} if t is None else \
+        {"n": 1, "ok": False, "first_break": t, "kind": "changes form", "what": what}
+    return {"props": [prop], "background": {"ok": True, "breaks": []}}
+
+
+def _voting(c, monkeypatch, answers):
+    """Put a judge in the gate's place that hands each call the next answer in turn, whichever thread asks
+    first. An answer is the judge's JSON as a dict, prose as a string, or None for a call that died. Returns
+    the questions it was asked, in the order they came."""
+    lock, asked = threading.Lock(), []
+
+    def judge(text, images):
+        with lock:
+            asked.append((text, tuple(images)))
+            a = answers[(len(asked) - 1) % len(answers)]
+        if a is None:
+            return None
+        return {"text": a if isinstance(a, str) else json.dumps(a), "cost_usd": 0.02, "model": c.MODEL}
+    monkeypatch.setattr(c, "ask", judge)
+    return asked
+
+
+def _moving_square(path, y):
+    """Two seconds of flat grey with a white square crossing it at height y."""
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=gray:s=216x216:r=25:d=2",
+                    "-f", "lavfi", "-i", "color=c=white:s=30x30:r=25:d=2",
+                    "-filter_complex", f"[0][1]overlay=x='10+t*60':y={y}:shortest=1", "-pix_fmt", "yuv420p", str(path)],
+                   check=True, timeout=120)
+    return path
+
+
+def test_the_continuity_verdict_is_a_break_then_a_split_then_nothing_unread():
+    """A break on either axis fails the take whatever the other says, since no reading of the other could
+    save it. Short of a break, a split sends it to the eye, then a question that could not be read leaves no
+    verdict, and a take passes only when every question asked was answered."""
+    c = _gate_module("continuity_gate")
+    assert c.verdict("-", "ok") == "PASS" and c.verdict("ok", "ok") == "PASS"
+    assert c.verdict("fail", "ok") == "FAIL" and c.verdict("ok", "fail") == "FAIL" and c.verdict("-", "fail") == "FAIL"
+    assert c.verdict("fail", None) == "FAIL" and c.verdict(None, "fail") == "FAIL", "an unread axis saved a broken take"
+    assert c.verdict("fail", "split") == "FAIL" and c.verdict("split", "fail") == "FAIL", "a split softened a break"
+    assert c.verdict("split", "ok") == "REVIEW" and c.verdict("ok", "split") == "REVIEW" and c.verdict("-", "split") == "REVIEW"
+    assert c.verdict("split", None) == "REVIEW" and c.verdict(None, "split") == "REVIEW", "a split was lost to an unread axis"
+    assert c.verdict(None, "ok") == "UNREAD" and c.verdict("ok", None) == "UNREAD" and c.verdict("-", "-") == "UNREAD"
+    assert c.EXIT == {"PASS": 0, "FAIL": 1, "REVIEW": 2, "UNREAD": 64}, "REVIEW is not the code ad_gates.sh reads as review"
+
+
+def test_an_axis_fails_only_when_every_vote_names_the_break():
+    """One reading failed a cut the author passed where two passed it, so no one reading rules. An axis
+    fails when every vote read it and named a break, splits when some did and not all, holds when none did
+    and most read it clean, and is otherwise unread."""
+    c = _gate_module("continuity_gate")
+    assert c.VOTES == 3 and c.tally(["fail"] * 3) == "fail"
+    for split in (["fail", "fail", "ok"], ["fail", "ok", "ok"], ["fail", "fail", None], ["fail", None, None]):
+        assert c.tally(split) == "split", split
+    assert c.tally(["ok"] * 3) == "ok" and c.tally(["ok", "ok", None]) == "ok"
+    assert c.tally(["ok", None, None]) is None and c.tally([None] * 3) is None
+
+
+@pytest.mark.parametrize("votes, code, said", [
+    ([_vote(1.25)] * 3, 1, "props=fail background=ok first_break=1.25 verdict=FAIL"),
+    ([_vote(1.25), _vote(1.5), _vote()], 2, "props=split background=ok first_break=1.25 verdict=REVIEW"),
+    ([_vote(1.5), _vote(), _vote()], 2, "props=split background=ok first_break=1.50 verdict=REVIEW"),
+    ([_vote(), _vote(), "It all looks continuous."], 0, "props=ok background=ok first_break=- verdict=PASS"),
+    ([_vote(), "It all looks continuous.", None], 64, "props=- background=- first_break=- verdict=UNREAD"),
+], ids=["3/3 fail", "2/3 fail", "1/3 fail", "2 ok 1 unread", "1 ok 2 unread"])
+def test_three_votes_fail_a_break_outright_and_send_a_split_to_the_eye(tmp_path, monkeypatch, capsys, votes, code, said):
+    """Three votes, each asked the same question over the same frames. Every vote naming the laptop's break
+    fails the take, one or two naming it is a split for the eye, which points at the earliest break a
+    dissenting vote named, and a vote that could not be read does not stop two clean ones passing it, while
+    one clean vote beside two unread ones is no reading."""
+    c = _gate_module("continuity_gate")
+    asked = _voting(c, monkeypatch, votes)
+    assert c.main([str(_shot(tmp_path / "shot.mp4")), "--prop", LAPTOP, "--out", str(tmp_path / "found.json")]) == code
+    assert capsys.readouterr().out.strip().splitlines()[-1] == f"CONTINUITY_GATE {said}"
+    assert len(asked) == c.VOTES and len(set(asked)) == 1, "the votes were not asked one question over the same frames"
+
+
+def test_a_fail_points_at_the_median_vote_and_keeps_every_vote(tmp_path, monkeypatch, capsys):
+    """One vote naming a stray early frame cannot move where a FAIL points: breaks at 0.25, 1.25 and 1.5 point
+    at 1.25. Every vote's breaks are kept, each tagged with its vote, and the judge block holds all three
+    answers and what they cost together."""
+    c = _gate_module("continuity_gate")
+    _voting(c, monkeypatch, [_vote(0.25, "a stray early frame"), _vote(1.25), _vote(1.5)])
+    out = tmp_path / "found.json"
+    assert c.main([str(_shot(tmp_path / "shot.mp4")), "--prop", LAPTOP, "--out", str(out)]) == 1
+    assert capsys.readouterr().out.strip().splitlines()[-1].endswith("first_break=1.25 verdict=FAIL")
+    record = json.load(open(out))
+    assert record["first"]["t"] == 1.25 and record["axes"]["props"]["votes"] == ["fail"] * 3, record["first"]
+    assert sorted(f["t"] for f in record["findings"]) == [0.25, 1.25, 1.5], record["findings"]
+    assert sorted(f["vote"] for f in record["findings"]) == [1, 2, 3], record["findings"]
+    assert len(record["judge"]["answers"]) == 3 and record["judge"]["cost_usd"] == 0.06, record["judge"]
+
+
+def test_the_votes_are_asked_at_once(tmp_path, monkeypatch):
+    """Each vote waits on the network, so the three are asked together, not one after another. A judge that
+    answers only once all three are waiting proves it, since asked in turn the first would wait alone."""
+    c = _gate_module("continuity_gate")
+    together = threading.Barrier(c.VOTES, timeout=10)
+
+    def judge(text, images):
+        together.wait()
+        return {"text": json.dumps(_vote()), "cost_usd": 0.0, "model": c.MODEL}
+    monkeypatch.setattr(c, "ask", judge)
+    assert c.main([str(_shot(tmp_path / "shot.mp4")), "--prop", LAPTOP, "--out", str(tmp_path / "found.json")]) == 0
+
+
+def test_a_judge_answer_is_the_asked_json_or_no_reading():
+    """The judge answers strict JSON that names frames by their stamps. Anything else is no reading rather
+    than a guess: prose, a prop left out, a break with no frame or a frame the clip does not have, a kind
+    nobody asked for, a prop that holds with a break named, a background that fails with nothing named or
+    holds with something named. A time no frame carries is no reading either, and neither is an answer
+    that leaves a prop out or answers one twice, or a breaks list holding something that is not a break.
+    A code fence around the JSON is tolerated."""
+    c = _gate_module("continuity_gate")
+    times = [0.0, 0.25, 0.5, 0.75, 1.0]
+    still = {"ok": True, "breaks": []}
+    held = {"props": [{"n": 1, "ok": True, "first_break": None}], "background": still}
+    assert c.read_answer(held, [LAPTOP], True, times) == ("ok", "ok", [])
+    assert c.answer_of("```json\n" + json.dumps(held) + "\n```") == held
+    assert c.answer_of("The laptop looks fine to me.") is None and c.answer_of("[1, 2]") is None
+    assert c.read_answer(None, [LAPTOP], True, times) == (None, None, [])
+    broke = {"n": 1, "ok": False, "first_break": 0.75, "kind": "changes form", "what": "a flat keyboard is left"}
+    p, b, found = c.read_answer({"props": [broke], "background": still}, [LAPTOP], True, times)
+    assert (p, b) == ("fail", "ok") and found == [{"axis": "props", "prop": LAPTOP, "t": 0.75, "kind": "changes form",
+                                                   "what": "a flat keyboard is left"}], found
+    p, b, found = c.read_answer({"props": [dict(broke, first_break=0.7501)], "background": still}, [LAPTOP], True, times)
+    assert p == "fail" and found[0]["t"] == 0.75, "a time within the rounding of a frame did not snap to it"
+    p, b, found = c.read_answer({"props": [broke], "background": still}, [LAPTOP, PAPER], True, times)
+    assert p is None and found == [], "a prop the answer left out did not leave the whole axis unread"
+    for bad, why in (([], "a prop left out"), ([dict(broke, first_break=None)], "a break with no frame"),
+                     ([dict(broke, first_break=9.0)], "a frame the clip does not have"),
+                     ([dict(broke, first_break=0.6)], "a time between two frames"),
+                     ([dict(broke, first_break=1.1)], "a time past the last frame, which the old code accepted"),
+                     ([dict(broke, kind="melts")], "a kind nobody asked for"),
+                     ([dict(broke, n=2)], "an answer about a prop never named"),
+                     ([dict(broke, n=True)], "an n that is not really an int"),
+                     ([broke, dict(broke, first_break=0.5)], "the same prop answered twice"),
+                     ([{"n": 1, "ok": True, "first_break": 0.5}], "a prop that holds with a break named")):
+        assert c.read_answer({"props": bad, "background": still}, [LAPTOP], True, times)[0] is None, why
+    looped = {"t": 1.0, "kind": "repeats", "what": "the car loops"}
+    for bad, why in (({"ok": False, "breaks": []}, "a background that fails with nothing named"),
+                     ({"ok": True, "breaks": [looped]}, "a background that holds with a break named"),
+                     ({"ok": False, "breaks": [looped, dict(looped, t=None)]}, "a break with no frame"),
+                     ({"ok": False, "breaks": [looped, "a car"]}, "a breaks list holding something that is not a break"),
+                     ("fine", "prose where the object goes")):
+        assert c.read_answer({"background": bad}, [], True, times)[1] is None, why
+    assert c.read_answer({"background": {"ok": False, "breaks": [looped]}}, [], True, times) == \
+        ("-", "fail", [dict(looped, axis="background")])
+
+
+def test_the_continuity_gate_exits_on_its_verdict_and_never_writes_over_a_reading(tmp_path):
+    """PASS exits 0 and FAIL 1 with the second of the first break, and a judge that answers no JSON, or
+    ends with no answer at all, reads UNREAD and exits 64. The machine line is always the last line, and
+    the findings beside it name the break. A second reading of the same take goes beside the first."""
+    shot = _shot(tmp_path / "shot.mp4")
+    held = json.dumps({"props": [{"n": 1, "ok": True, "first_break": None}], "background": {"ok": True, "breaks": []}})
+    broke = json.dumps({"props": [{"n": 1, "ok": False, "first_break": 1.25, "kind": "changes form", "what": "the lid is gone"}],
+                        "background": {"ok": True, "breaks": []}})
+    for i, (answer, code, said) in enumerate(((held, 0, "props=ok background=ok first_break=- verdict=PASS"),
+                                              (broke, 1, "props=fail background=ok first_break=1.25 verdict=FAIL"),
+                                              ("The laptop looks fine to me.", 64, "props=- background=- first_break=- verdict=UNREAD"),
+                                              (None, 64, "props=- background=- first_break=- verdict=UNREAD"))):
+        tmp = tmp_path / f"answer{i}"
+        tmp.mkdir()
+        r, _ = _continuity(tmp, answer, shot, "--prop", LAPTOP, "--out", tmp / "found.json")
+        assert r.returncode == code, (answer, r.stdout, r.stderr)
+        assert r.stdout.strip().splitlines()[-1] == f"CONTINUITY_GATE {said}", r.stdout
+        record = json.load(open(tmp / "found.json"))
+        assert record["verdict"] == said.rsplit("=", 1)[1] and record["line"] == f"CONTINUITY_GATE {said}", record
+        if code == 1:
+            assert record["findings"][0]["t"] == 1.25 and record["findings"][0]["prop"] == LAPTOP, record["findings"]
+    first = (tmp_path / "answer0" / "found.json").read_bytes()
+    r, _ = _continuity(tmp_path / "answer0", held, shot, "--prop", LAPTOP, "--out", tmp_path / "answer0" / "found.json")
+    assert r.returncode == 0 and (tmp_path / "answer0" / "found-v2.json").is_file(), r.stdout
+    assert (tmp_path / "answer0" / "found.json").read_bytes() == first, "a second reading overwrote the first"
+
+
+def test_the_judge_is_called_lean_with_the_frames_as_images_in_one_message(tmp_path):
+    """A judge that loads its host's settings, tools or servers is not detached, and costs forty times the
+    tokens. Every flag that keeps it lean is on the call, the model is named, and the frames go in over
+    stdin as one stream-json user message, the question first and then each grid as a JPEG. Five seconds
+    read four times a second is twenty frames, sixteen to a grid."""
+    shot = _shot(tmp_path / "shot.mp4", seconds=5)
+    r, seen = _continuity(tmp_path, json.dumps({"background": {"ok": True, "breaks": []}}), shot,
+                          "--story", "A warehouse hums.", "--out", tmp_path / "found.json")
+    assert r.returncode == 0, r.stdout + r.stderr
+    sent = [json.load(open(f)) for f in sorted(seen.glob("seen-*.json"))]
+    assert len(sent) == 3 and all(x == sent[0] for x in sent), "the three votes were not sent the same call"
+    got = sent[0]
+    argv = got["argv"]
+    for flag, value in (("--setting-sources", ""), ("--tools", ""), ("--mcp-config", '{"mcpServers":{}}'),
+                        ("--model", "claude-opus-5-5"), ("--input-format", "stream-json"), ("--output-format", "stream-json")):
+        assert argv[argv.index(flag) + 1] == value, (flag, argv)
+    for flag in ("-p", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands", "--system-prompt", "--verbose"):
+        assert flag in argv, flag
+    message = json.loads(got["message"])
+    assert message["type"] == "user" and message["message"]["role"] == "user"
+    text, *images = message["message"]["content"]
+    assert text["type"] == "text" and "A warehouse hums." in text["text"] and "BACKGROUND" in text["text"], text
+    assert "PROPS" not in text["text"], "the judge was asked about props when none were named"
+    assert len(images) == 2 and all(i["type"] == "image" and i["source"]["media_type"] == "image/jpeg" for i in images)
+    assert all(base64.b64decode(i["source"]["data"])[:2] == b"\xff\xd8" for i in images)
+    judge = json.load(open(tmp_path / "found.json"))["judge"]
+    assert judge["cost_usd"] == 0.03 and len(judge["answers"]) == 3, judge
+
+
+def test_a_continuity_gate_that_cannot_read_never_reads_as_a_break(tmp_path, monkeypatch, capsys):
+    """Exit 1 is a break to every caller, and an uncaught crash exits 1. So a clip that is not there,
+    findings with nowhere to go, a presenter take read without the matte's torch and a crash anywhere
+    inside all read UNREAD and exit 64, each saying why, and none of the first three pays for a judge
+    call. Named nothing, it prints its usage and no verdict."""
+    shot = _shot(tmp_path / "shot.mp4")
+    cases = [("a clip that is not there", [tmp_path / "missing.mp4"]),
+             ("findings with nowhere to go", [shot, "--out", tmp_path / "no" / "dir" / "found.json"])]
+    if importlib.util.find_spec("torch") is None:
+        cases.append(("a presenter take without torch", [shot, "--presenter", "--out", tmp_path / "found.json"]))
+    for label, args in cases:
+        r, seen = _continuity(tmp_path, "{}", *args)
+        assert r.returncode == 64, (label, r.stdout, r.stderr)
+        assert r.stdout.strip().splitlines()[-1] == "CONTINUITY_GATE props=- background=- first_break=- verdict=UNREAD", label
+        assert "continuity: no reading" in r.stdout and "Traceback" not in r.stderr, (label, r.stdout, r.stderr)
+        assert not list(seen.glob("seen-*.json")), f"{label}: a judge was paid with nothing to read"
+    r, _ = _continuity(tmp_path, "{}")
+    assert r.returncode == 64 and "--prop" in r.stdout and "CONTINUITY_GATE" not in r.stdout, r.stdout
+    c = _gate_module("continuity_gate")
+
+    def died(*args, **kwargs):
+        raise RuntimeError("the decoder died")
+    monkeypatch.setattr(c, "sample", died)
+    assert c.main([str(shot), "--out", str(tmp_path / "died.json")]) == 64
+    said = capsys.readouterr().out.strip().splitlines()
+    assert said[-1].endswith("verdict=UNREAD") and "the decoder died" in said[-2], said
+
+
+def test_the_command_line_is_read_whole_or_refused():
+    """A prop is a line of text, a region to ignore is four fractions of the frame in order, and a span runs
+    forward from zero. Anything else, an unknown flag or a second clip included, is refused with the reason
+    before anything is measured or paid for."""
+    c = _gate_module("continuity_gate")
+    o = c.options(["take.mp4", "--prop", " an open laptop on the desk ", "--ignore", "0.2,0.1,0.8,1", "--span", "0:13.84",
+                   "--story", "A warehouse hums.", "--out", "found.json"])
+    assert o == {"clip": "take.mp4", "props": ["an open laptop on the desk"], "story": "A warehouse hums.",
+                 "ignore": [0.2, 0.1, 0.8, 1.0], "span": [0.0, 13.84], "presenter": False, "out": "found.json"}, o
+    assert c.options(["take.mp4", "--presenter", "--prop", "a mug"])["presenter"] is True
+    for bad in (["take.mp4", "--prop", " "], ["take.mp4", "--ignore", "0.8,0.1,0.2,1"], ["take.mp4", "--ignore", "0,0,1"],
+                ["take.mp4", "--span", "5:2"], ["take.mp4", "--span", "-1:2"], ["take.mp4", "--frames", "8"],
+                ["take.mp4", "other.mp4"], ["take.mp4", "--out"], []):
+        with pytest.raises(ValueError):
+            c.options(bad)
+
+
+def test_a_presenter_take_is_measured_whole_so_a_span_is_refused(capsys):
+    """A presenter take is read whole against its own median, so --span naming part of one is refused."""
+    c = _gate_module("continuity_gate")
+    with pytest.raises(ValueError, match="measured whole"):
+        c.options(["clip.mp4", "--presenter", "--span", "0:2"])
+    o = c.options(["clip.mp4", "--span", "0:2"])
+    assert o["span"] == [0.0, 2.0]
+    assert c.main(["clip.mp4", "--presenter", "--span", "0:2"]) == 64
+    capsys.readouterr()
+
+
+def test_a_region_to_ignore_is_painted_out_and_named_to_the_judge():
+    """The judge is not asked about what it cannot see. The region is flat grey in every frame of every grid,
+    the rest of the frame is left as it was, and the question says what the grey box is."""
+    import io
+
+    import numpy as np
+    from PIL import Image
+    c = _gate_module("continuity_gate")
+    frames = [(t / 4, np.full((100, 160, 3), 250, np.uint8)) for t in range(18)]
+    sheets = c.grids(frames, ignore=[0.25, 0.25, 0.75, 0.75])
+    assert len(sheets) == 2, "eighteen frames are one grid of sixteen and one of two"
+    first = np.asarray(Image.open(io.BytesIO(sheets[0])).convert("RGB")).astype(int)
+    assert abs(first[50, 80] - 128).max() <= 8, first[50, 80]
+    assert abs(first[10, 150] - 250).max() <= 8, first[10, 150]
+    asked = c.prompt([], "A presenter speaks.", [0.25, 0.25, 0.75, 0.75], True, 0.0, 4.25, 2)
+    assert "flat grey box" in asked and "hides the speaker" in asked, asked
+    assert "grey box" not in c.prompt([], "A presenter speaks.", None, True, 0.0, 4.25, 2)
+
+
+def test_the_ruler_fails_what_moves_behind_her_and_passes_what_she_does(tmp_path):
+    """Her matte is her region. A square crossing the frame above her is the background moving, the bicycle
+    behind the Grok presenter, and it fails on both measures from its first frames. The same square crossing
+    where she is moves with her and passes. A matte that covers the whole frame leaves nothing to measure,
+    which is no reading, never a still background."""
+    import numpy as np
+    c = _gate_module("continuity_gate")
+    her = np.zeros((216, 216))
+    her[120:, :] = 1.0
+    area = her.size
+    above = c.measure(str(_moving_square(tmp_path / "above.mp4", 20)), matte=lambda f: her)
+    state, first, found = c.rule(above)
+    assert state == "fail" and {f["measure"] for f in found} == {"pair", "vs_median"} and first <= 0.2, (state, first, found)
+    assert max(r["blob"] for r in above["pair"]) >= c.PAIR_BLOB * area / c.REF_AREA
+    inside = c.measure(str(_moving_square(tmp_path / "inside.mp4", 160)), matte=lambda f: her)
+    assert c.rule(inside)[0] == "ok", ([r["blob"] for r in inside["pair"]], [r["blob"] for r in inside["vs_median"]])
+    assert c.rule(c.measure(str(tmp_path / "above.mp4"), matte=lambda f: np.ones(f.shape[:2]))) == (None, None, [])
+
+
+def test_a_presenter_take_is_measured_not_judged(tmp_path, monkeypatch, capsys):
+    """Behind a presenter the camera holds still, so the background is the ruler's to read and no judge is
+    asked. Its findings carry the limits it was held to, and the frames with her greyed out go beside
+    them for the eye."""
+    import numpy as np
+    c = _gate_module("continuity_gate")
+    her = np.zeros((216, 216))
+    her[120:, :] = 1.0
+    monkeypatch.setattr(c, "rvm", lambda: (lambda f: her))
+    monkeypatch.setattr(c, "ask", lambda *a: pytest.fail("a judge was asked about a presenter's background"))
+    out = tmp_path / "found.json"
+    assert c.main([str(_moving_square(tmp_path / "take.mp4", 20)), "--presenter", "--out", str(out)]) == 1
+    said = capsys.readouterr().out.strip().splitlines()[-1]
+    assert re.fullmatch(r"CONTINUITY_GATE props=- background=fail first_break=[0-9.]+ verdict=FAIL", said), said
+    ruler = json.load(open(out))["ruler"]
+    assert (ruler["pair_limit"], ruler["median_limit"]) == (c.PAIR_BLOB, c.MEDIAN_BLOB) and ruler["strip"], ruler
+    assert all((tmp_path / name).is_file() for name in ruler["strip"])
+
+
+def test_a_fail_for_the_wrong_reason_or_a_split_on_a_real_break_is_a_miss():
+    """--validate agrees with a FAIL label only when the gate fails the labelled axis with its break inside
+    the labelled window, so a gate that fails the Perplexity master for flying paper has not seen the laptop
+    go, and a split on a real break is a miss, since a real break has to be caught outright. A split on a
+    take the author passed is deferred to the eye, a look and not a miss. No reading is a miss, and a null
+    window is the whole clip, for a break named by what moved rather than when."""
+    c = _gate_module("continuity_gate")
+    laptop = {"label": "FAIL", "axis": "props", "window": [4.0, 8.0]}
+
+    def axes(state, t, axis="props"):
+        return {axis: {"state": state, "first": {"t": t}}}
+    assert c.agrees(laptop, "FAIL", axes("fail", 7.25)) == "agree"
+    assert c.agrees(laptop, "FAIL", axes("fail", 2.0)) == "miss", "a break before he saw it go"
+    assert c.agrees(laptop, "FAIL", axes("fail", 7.25, "background")) == "miss", "a break on the other axis"
+    assert c.agrees(laptop, "REVIEW", axes("split", 7.25)) == "miss", "a real break was only sent to the eye"
+    assert c.agrees(laptop, "PASS", {}) == "miss" and c.agrees(laptop, "UNREAD", {}) == "miss"
+    assert c.agrees(dict(laptop, window=None), "FAIL", axes("fail", 0.0)) == "agree"
+    passed = {"label": "PASS"}
+    assert c.agrees(passed, "PASS", {}) == "agree" and c.agrees(passed, "REVIEW", axes("split", 4.75)) == "deferred"
+    assert c.agrees(passed, "FAIL", axes("fail", 4.75)) == "miss" and c.agrees(passed, "UNREAD", {}) == "miss"
+
+
+def test_validate_defers_a_split_on_a_passed_take_and_misses_one_on_a_broken_take(tmp_path, monkeypatch, capsys):
+    """The labels as --validate reads them, each run through the real gate with a judge that splits on every
+    take, one vote of three naming the laptop's break. On a take the author passed that is deferred to the
+    eye, the tally says how close it was, and the run exits 0. Beside a take he failed it is a miss, and the
+    run exits 1."""
+    c = _gate_module("continuity_gate")
+    shot = _shot(tmp_path / "shot.mp4")
+    stub, _ = _judge(tmp_path, [json.dumps(_vote(1.25)), json.dumps(_vote()), json.dumps(_vote())])
+    monkeypatch.setenv("CONTINUITY_CLAUDE", str(stub))
+    passed = {"id": "passed-take", "clip": str(shot), "story": "A laptop sits open on a desk.", "props": [LAPTOP],
+              "label": "PASS"}
+    broken = dict(passed, id="broken-take", label="FAIL", axis="props", window=[0.0, 2.0])
+    labels = tmp_path / "labels.json"
+    labels.write_text(json.dumps({"cases": [passed]}))
+    assert c.validate(str(labels), out_root=str(tmp_path / "reports")) == 0
+    said = capsys.readouterr().out
+    assert "props 1/3 fail 2/3 ok" in said and "0 agree, 1 deferred to the eye, 0 missed" in said, said
+    labels.write_text(json.dumps({"cases": [passed, broken]}))
+    assert c.validate(str(labels), out_root=str(tmp_path / "reports")) == 1
+    said = capsys.readouterr().out
+    assert "0 agree, 1 deferred to the eye, 1 missed" in said, said
+
+
+def test_the_continuity_labels_are_whole_and_say_where_each_break_is():
+    """--validate holds the gate to these. Every case names its clip and, by hash, the file that was
+    labelled. A FAIL names its axis and a window, or none for a break named by what moved, and one on the
+    props axis names the prop. A presenter case is measured, so it carries no words for a judge, and every
+    other case does. The three breaks caught on 2026-09-27 are all there as FAILs, beside the takes passed."""
+    cases = json.load(open(os.path.join(ROOT, "evals", "continuity-labels.json")))["cases"]
+    ids = [case["id"] for case in cases]
+    assert len(ids) == len(set(ids)), ids
+    for case in cases:
+        assert case["label"] in ("PASS", "FAIL") and re.fullmatch(r"[0-9a-f]{64}", case["sha256"]), case["id"]
+        if case["label"] == "FAIL":
+            window = case["window"]
+            assert case["axis"] in ("props", "background"), case["id"]
+            assert window is None or (len(window) == 2 and 0 <= window[0] < window[1]), case["id"]
+            assert case["axis"] != "props" or case.get("props"), f"{case['id']} fails on a prop it never names"
+        if case.get("presenter"):
+            assert not case.get("board") and not case.get("story"), case["id"]
+        else:
+            assert (case.get("board") and case.get("spot")) or case.get("story"), f"{case['id']} has no words beside it"
+    fails = {case["id"] for case in cases if case["label"] == "FAIL"}
+    assert {"perplexity-v4-laptop", "perplexity-v4-face", "grok-av6", "grok-av8"} <= fails, fails
+    assert {"zai-v2-mug", "zai-av-v1-august", "grok-av7"} <= set(ids) - fails
+
+
+def test_a_labelled_master_is_judged_with_its_boards_own_lines(tmp_path):
+    """The words beside a labelled master are each shot's line from its board, in the order they were
+    shot, with the character named the way the render names her."""
+    c = _gate_module("continuity_gate")
+    story = c.story_of({"board": "shoots/graph-zai-chain/boards.json", "spot": "zai"})
+    assert story.startswith("Shot a: ") and " Shot b: " in story and " Shot c: " in story, story
+    assert "{character}" not in story and "the student" in story, story
+
+
+def test_board_probe_holds_props_to_lines_of_plain_words(tmp_path):
+    """A spot's props are what the continuity gate holds every shot to, so a malformed list would be a
+    question nobody can answer, asked after the spend. None passes, a list of lines passes, and an empty
+    list, a blank line, a line that is not text, the same line twice, or a bare string fails."""
+    def props(value):
+        p = tmp_path / "b.json"
+        spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.",
+                "scenes": {"a": "A warehouse hums. Mouth closed, nobody speaks."}}
+        if value is not None:
+            spot["props"] = value
+        p.write_text(json.dumps({"guard": "Keep the subject in the middle third.", "spots": {"s": spot}}))
+        r = run([sys.executable, os.path.join(GATES, "board_probe.py"), str(p), "--json"])
+        return json.loads(r.stdout)["spots"]["s"]["checks"]["props"], r.returncode
+    assert props(None) == (True, 0)
+    assert props([LAPTOP, "a ceramic mug on the desk beside the keyboard"]) == (True, 0)
+    for bad in ([], [""], ["  "], [3], ["a mug", "A mug"], LAPTOP, {"laptop": True}):
+        assert props(bad) == (False, 1), bad
