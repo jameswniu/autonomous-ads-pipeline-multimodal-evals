@@ -118,7 +118,7 @@ That installs what CI installs and runs what CI runs: lint, the derivation, the 
 
 ```
 python3 probes/mirror_probe.py samples/exemplar-harbor-wan3-live.mp4
-python3 probes/mirror_probe.py samples/frozen-control-slowroad.mp4
+python3 probes/mirror_probe.py samples/frozen-control-slowroad.mp4 || echo "exit $?, refused on purpose as too static to judge"
 ```
 
 The first prints a forward read and exits 0. The second exits 3, on purpose: a frame held for 40 seconds has no motion to judge, so the probe refuses to call it a pass. That clip is the labelled reject behind `mirror_probe.CONTROL_FLOOR`, and the live take is the labelled pass on the same axis. `CLAUDE.md` has the rest of the commands for an agent opening the repository cold.
