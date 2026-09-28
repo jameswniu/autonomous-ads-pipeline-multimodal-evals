@@ -150,13 +150,16 @@ class Vendor:
 
 def scripts(voice_ok=True, jaw=(0, "JAW_GATE jaw=0.11 face_cov=1.0 max=0.17 verdict=PASS"), ship=(0, "SHIP-GATE PASS"),
             loud=(0, "LOUDNESS_GATE i=-16.0 tp=-2.0 verdict=PASS"), gates=None, build=None, edge=(0, "EDGE CLEAN"),
-            match=(0, "SCRIPT-MATCH PASS"), cast=SAME, reference_ok=True, distinct=APART, continuity=held):
+            match=(0, "SCRIPT-MATCH PASS"), cast=SAME, reference_ok=True, distinct=APART, continuity=held,
+            first_frame=None):
     """Stand-ins for the repo scripts the toolkit runs, keyed on the script's path. `cast` is
     one (exit, line) for every clip, or a function of the clip's path returning one. `distinct`
     answers the read of the character's reference against the narrator's. A read asked for a
     second face gets one, the narrator somewhere else (0.10), unless the answer already names it.
     `continuity` answers the continuity gate, one answer or a function of its arguments, and writes
-    the findings where the gate was told to."""
+    the findings where the gate was told to. `first_frame` answers the gate's --first-frame mode the
+    same way, (exit, line) or a function of its arguments, and every prop reads visible when it is
+    left unset."""
     seen = []
 
     def run(self, *args, env=None, drop=(), timeout=1800, python=None):
@@ -177,6 +180,15 @@ def scripts(voice_ok=True, jaw=(0, "JAW_GATE jaw=0.11 face_cov=1.0 max=0.17 verd
             code, out = cast(args[2]) if callable(cast) else cast
             if "--not" in args and " not=-" in out:
                 out = out.replace(" not=-", " not=nan" if "faces=0 " in out else " not=0.10")
+            return done(code, out)
+        if name == "gates/continuity_gate.py" and "--first-frame" in args:
+            if first_frame is None:
+                n = args.count("--prop")
+                code, out = 0, CT.first_frame_line(n, n, [], "PASS")
+            else:
+                code, out = first_frame(args[1:]) if callable(first_frame) else first_frame
+            with open(args[args.index("--out") + 1], "w") as fh:
+                json.dump({}, fh)
             return done(code, out)
         if name == "gates/continuity_gate.py":
             code, out, found = continuity(args[1:]) if callable(continuity) else continuity
@@ -2202,3 +2214,121 @@ def test_a_re_entry_raises_a_split_takes_flag_again_without_asking_the_judge(liv
     assert len(calls_to(run, "gates/continuity_gate.py")) == reads, "an unchanged take was judged again"
     assert again["flags"]["b"] == first["flags"]["b"] and again["failed"] == [] and again["fresh"] == [], again
     assert len(vendor.posts()) == posts, "a re-entry paid for a take it held"
+
+
+# the board's own first-frame check, on the still a chain starts from, before any scene is sent
+
+def chain_props_state(state, tmp_path, props=(MUG,)):
+    """The chain board with props named, so its first frame is checked before anything renders."""
+    board = json.load(open(CHAIN_BOARD))
+    board["spots"]["zai"]["props"] = list(props)
+    path = tmp_path / "chain-props-board.json"
+    path.write_text(json.dumps(board))
+    return dict(state, board=str(path), spot="zai")
+
+
+def test_a_board_with_an_absent_prop_in_the_first_frame_stops_with_no_render_request(live, monkeypatch, tmp_path):
+    """A board names a prop the chain's first frame never shows, so the board's own check fails it before
+    anything is paid for, the reason naming the prop, and the graph stops there the same way a failed
+    board probe always has, with nothing sent to a vendor."""
+    tk, state = live
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(first_frame=lambda args: (1, CT.first_frame_line(0, 1, [1], "FAIL"))))
+    st = chain_props_state(state, tmp_path)
+    v = tk.board(st)
+    assert v["pass"] is False and MUG in v["reason"], v
+    row = [r for r in tk.ledger.rows() if r.get("check") == "first frame"][-1]
+    assert row["passed"] is False and row["props"] == [MUG] and "unreadable" not in row, row
+    G = graph()
+    assert G.after_board(dict(st, verdict={"board": v})) == G.STOP, "an absent prop did not stop the run at the board"
+    assert vendor.calls == [], "something was sent for a board with an absent prop in its first frame"
+
+
+def test_a_split_first_frame_reading_writes_the_row_and_lets_the_board_pass(live, monkeypatch, tmp_path):
+    """A split among the votes costs a look, never a re-shoot, so the board still passes and the run goes
+    on to render, with the split on the record."""
+    tk, state = live
+    monkeypatch.setattr(L, "http", Vendor())
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(first_frame=lambda args: (2, CT.first_frame_line(0, 1, [], "REVIEW"))))
+    st = chain_props_state(state, tmp_path)
+    v = tk.board(st)
+    assert v["pass"] is True, v
+    row = [r for r in tk.ledger.rows() if r.get("check") == "first frame"][-1]
+    assert row["passed"] is False and "REVIEW" in row["reading"] and "unreadable" not in row, row
+    G = graph()
+    assert G.after_board(dict(st, verdict={"board": v})) == "render", "a split first frame stopped the board"
+
+
+def test_an_unreadable_first_frame_never_stops_a_board_the_old_way_would_have_shot(live, monkeypatch, tmp_path):
+    """A judge that gives no reading is not a reason to hold a board the old way would have shot without
+    it, so the row says unreadable and the run goes on."""
+    tk, state = live
+    monkeypatch.setattr(L, "http", Vendor())
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(first_frame=(64, CT.first_frame_line(0, 1, [], "UNREAD"))))
+    st = chain_props_state(state, tmp_path)
+    v = tk.board(st)
+    assert v["pass"] is True, v
+    row = [r for r in tk.ledger.rows() if r.get("check") == "first frame"][-1]
+    assert row["passed"] is False and row["unreadable"] is True, row
+    G = graph()
+    assert G.after_board(dict(st, verdict={"board": v})) == "render"
+
+
+def test_a_board_whose_first_frame_holds_every_prop_passes_and_the_run_goes_on(live, monkeypatch, tmp_path):
+    """Every prop read visible lets the board pass and the graph move on to render, the ordinary case."""
+    tk, state = live
+    monkeypatch.setattr(L, "http", Vendor())
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    st = chain_props_state(state, tmp_path)
+    v = tk.board(st)
+    assert v["pass"] is True and "reason" not in v, v
+    row = [r for r in tk.ledger.rows() if r.get("check") == "first frame"][-1]
+    assert row["passed"] is True, row
+    G = graph()
+    assert G.after_board(dict(st, verdict={"board": v})) == "render"
+
+
+def test_the_first_frame_is_never_asked_without_both_props_and_a_chain(live, monkeypatch, tmp_path):
+    """Props alone or a chain alone is not enough: the check runs only when a spot both names props and
+    shoots them as a chain, since that is the only shape where a later scene starts from an earlier one's
+    frame. A dry run never runs it either, whatever the board names, since DryToolkit never overrides
+    board() at all."""
+    tk, state = live
+    asked = []
+
+    def spy(args):
+        asked.append(args)
+        return 0, CT.first_frame_line(1, 1, [], "PASS")
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(first_frame=spy))
+    chain_only = dict(state, board=CHAIN_BOARD, spot="zai")   # a chain, and no props named
+    assert tk.board(chain_only)["pass"] is True
+    assert asked == [], "a chain with no props named asked the first-frame judge"
+    props_only = props_state(state, tmp_path)                 # props, and no chain
+    assert tk.board(props_only)["pass"] is True
+    assert asked == [], "props with no chain asked the first-frame judge"
+
+
+def test_a_re_entry_never_pays_the_first_frame_judge_twice_for_the_same_still_and_props(live, monkeypatch, tmp_path):
+    """A PASS already on the ledger for the same still and the same props is not asked again on a
+    re-entry, the way a scene's continuity reading is not, so recovering after the board never re-pays
+    three judge votes for a question already answered. Props named since are a new question, and the
+    same still is read again against them."""
+    tk, state = live
+    calls = []
+
+    def counting(args):
+        calls.append(args)
+        return 0, CT.first_frame_line(1, 1, [], "PASS")
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(first_frame=counting))
+    st = chain_props_state(state, tmp_path)
+    assert tk.board(st)["pass"] is True
+    assert len(calls) == 1
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id)
+    assert again.board(st)["pass"] is True
+    assert len(calls) == 1, "a re-entry paid the judge again for the same still and the same props"
+    rows = [r for r in tk.ledger.rows() if r.get("check") == "first frame"]
+    assert len(rows) == 1, "a re-entry wrote a second row for a question already answered"
+    changed = chain_props_state(state, tmp_path, props=(MUG, "a closed laptop"))
+    assert L.LiveToolkit(state["run_dir"], tk.ledger.run_id).board(changed)["pass"] is True
+    assert len(calls) == 2, "a prop named since the last reading was not asked about"

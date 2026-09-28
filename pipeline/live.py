@@ -109,6 +109,9 @@ VIDEO_EXT = (".mp4", ".mov", ".m4v", ".webm")
 # split is an axis the judge's votes disagreed on, and REVIEW the verdict that sends such a take to the eye.
 CONTINUITY_LINE = re.compile(r"^CONTINUITY_GATE props=(?P<props>ok|fail|split|-) background=(?P<background>ok|fail|split|-) "
                              r"first_break=(?P<first_break>[0-9.]+|-) verdict=(?P<verdict>PASS|FAIL|REVIEW|UNREAD)[ \t]*$", re.M)
+# The board's own read of the still a chain starts from, before any scene is sent.
+FIRST_FRAME_LINE = re.compile(r"^CONTINUITY_FIRST_FRAME props=(?P<visible>\d+)/(?P<named>\d+) "
+                              r"absent=(?P<absent>[0-9,]+|-) verdict=(?P<verdict>PASS|FAIL|REVIEW|UNREAD)[ \t]*$", re.M)
 CONTINUITY_EXIT = {"PASS": 0, "FAIL": 1, "REVIEW": 2, "UNREAD": 64}
 LOUDNESS_LINE = re.compile(r"^LOUDNESS_GATE .*verdict=(PASS|FAIL)$", re.M)
 SLIT_LINE = re.compile(r"^slit-scan: (.+?)\s*$", re.M)   # the rest of the line, so a path with a space still reads
@@ -593,6 +596,20 @@ class LiveToolkit(Toolkit):
             return None, self.clean((r.stdout + r.stderr).strip()[-300:]), None
         return m["verdict"], self.clean(m.group(0)), m
 
+    def first_frame(self, image, props, out):
+        """The continuity gate's first-frame check on the still a chain starts from, before any render
+        request is sent for it: PASS, FAIL, REVIEW or UNREAD, or None when it printed no line its exit
+        code agrees with, the line it printed, and the match."""
+        args = ["--first-frame", image, "--out", out]
+        for p in props:
+            args += ["--prop", p]
+        r = self.script("gates/continuity_gate.py", *args, timeout=600)
+        found = list(FIRST_FRAME_LINE.finditer(r.stdout))
+        m = found[-1] if found else None
+        if not m or CONTINUITY_EXIT[m["verdict"]] != r.returncode:
+            return None, self.clean((r.stdout + r.stderr).strip()[-300:]), None
+        return m["verdict"], self.clean(m.group(0)), m
+
     def findings_path(self, take):
         """Where the continuity gate writes what it found on a take: beside it, named by its hash, never over
         an earlier reading of the same take."""
@@ -880,6 +897,40 @@ class LiveToolkit(Toolkit):
             self.cast_check(spot, s, raw, refs, failed, why, flags, writes_her=writes_her)
         self.continuity_check(spot, s, raw, hold, failed, why, flags)
         return s not in failed
+
+    def board(self, state):
+        """The free board checks, then, for a live spot that names props and shoots them as a chain, the
+        first-frame check on the still the chain starts from, so an absent prop stops the run here, with
+        no render request and no spend, the same as any other failed board check. A reading already on the
+        ledger for the same still and the same props is not asked again on a re-entry, a PASS or a REVIEW
+        kept as it stood, the way a scene's continuity reading is."""
+        v = super().board(state)
+        if not v.get("pass"):
+            return v
+        _board, spot_def = load_spot(state["board"], state["spot"])
+        spot = state["spot"]
+        props, chain = props_of(spot_def), chain_of(spot_def)
+        if not (props and chain):
+            return v
+        still = self.character_still(spot)
+        still_sha = sha256(still)
+        read = self.rows("gate", step="board", check="first frame", spot=spot)
+        last = read[-1] if read else {}
+        if last.get("sha256") == still_sha and last.get("props") == props and last.get("verdict") in ("PASS", "REVIEW"):
+            return v
+        out = self.findings_path(still)
+        verdict, reading, m = self.first_frame(still, props, out)
+        extra = {"findings": self.rel(out)} if os.path.isfile(out) else {}
+        if verdict in (None, "UNREAD"):
+            extra["unreadable"] = True
+        self.ledger.append("gate", "board", spot=spot, check="first frame", passed=verdict == "PASS",
+                           reading=reading, props=props, sha256=still_sha, verdict=verdict or "UNREAD", **extra)
+        if verdict == "FAIL":
+            nums = [] if not m or m["absent"] in (None, "-") else [int(x) for x in m["absent"].split(",")]
+            named = ", ".join(f'"{props[n - 1]}"' for n in nums) or "a named prop"
+            return {**v, "pass": False,
+                    "reason": f"the first frame the chain starts from does not show {named}"}
+        return v
 
     def render(self, state):
         board, spot_def = load_spot(state["board"], state["spot"])

@@ -3,6 +3,7 @@
 
     continuity_gate.py <clip> [--prop <what must persist>]... [--story <what the shot is meant to show>]
                        [--ignore x0,y0,x1,y1] [--span <from>:<to>] [--presenter] [--out <findings.json>]
+    continuity_gate.py --first-frame <image> --prop "<what must be visible>" [--prop "..."]... [--out <findings.json>]
     continuity_gate.py --validate [<labels.json>]
 
 Every other gate reads a face, a frame's edge, a caption or a whole frame against another. None of
@@ -57,6 +58,17 @@ A dash is a question not asked, props when none were named, or one that could no
 level findings, every vote's breaks tagged with its vote, go to a JSON sidecar beside the clip unless
 --out names one, never over an earlier one, and the grids the judge read or the strip the ruler cut go
 beside it for the eye.
+
+A board names its props before anything is shot, and a chain starts its first scene from a whole frame
+of its character, so that frame can be read before any of the chain is paid for. --first-frame <image>
+asks a narrower question of that one still: is each named prop visible in it? The same votes and the
+same strict JSON discipline apply, and a vote that does not account for every prop exactly once is no
+reading for any of them. A prop is absent when every vote reads it and every vote says it is not
+visible, split when the votes disagree, and otherwise visible. The verdict is FAIL when any prop is
+absent, REVIEW when none is absent and any is split, UNREAD when none is absent or split and any has no
+reading, and PASS when every prop reads visible, with the gate's own exit codes throughout. The machine
+line is CONTINUITY_FIRST_FRAME props=<visible>/<named> absent=<comma joined numbers or a dash>
+verdict=<PASS|FAIL|REVIEW|UNREAD>.
 """
 import base64
 import hashlib
@@ -690,6 +702,159 @@ def save(images, stem):
     return paths
 
 
+# --- the first frame ------------------------------------------------------------------------------
+
+def first_frame_prompt(props):
+    """What the judge is asked for a first-frame check: the props to find in the one still and the one
+    JSON shape it may answer in."""
+    listed = "\n".join(f"{i}. {p}" for i, p in enumerate(props, 1))
+    return ("This image is the still a chain's first shot starts from, before anything is filmed. For "
+            f"each prop below, say whether it is visible in this image.\n{listed}\n\nAnswer with this "
+            "JSON object and nothing else, one entry for each prop, every number above used exactly "
+            'once:\n{"props": [{"n": <the prop\'s number above>, "visible": true or false, "what": '
+            '"<one short sentence>"}]}')
+
+
+def first_frame_image(path):
+    """The still as one JPEG block, scaled down only when it is past the grid's own limits, so the judge
+    reads it no larger than any frame it is otherwise shown. Raises the way Image.open does when the
+    file is not a readable image, which the caller reads as no reading, never a crash."""
+    import io
+
+    from PIL import Image
+    im = Image.open(path).convert("RGB")
+    w, h = im.size
+    tw, th = w, h
+    for cand in range(w, 32, -2):
+        cth = max(2, round(cand * h / w))
+        if cand * cth <= GRID_PIXELS and max(cand, cth) <= GRID_EDGE:
+            tw, th = cand, cth
+            break
+    else:
+        tw, th = 32, max(2, round(32 * h / w))
+    if (tw, th) != (w, h):
+        im = im.resize((tw, th), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=90)
+    return buf.getvalue()
+
+
+def read_first_frame(answer, props):
+    """One vote's reading of a first-frame answer: "ok" (visible), "fail" (absent) or None (no reading it
+    can be trusted for), one for each prop in order, and what it said about each it read as absent. The
+    answer has to name every prop exactly once, or none of it is trusted, since a numbering that already
+    lost track of which prop is which cannot be trusted for any one of them."""
+    if not isinstance(answer, dict):
+        return [None] * len(props), []
+    entries = answer.get("props") if isinstance(answer.get("props"), list) else []
+    got = {}
+    for e in entries:
+        n = e.get("n") if isinstance(e, dict) else None
+        if type(n) is not int or not 1 <= n <= len(props) or n in got:
+            got = None
+            break
+        got[n] = e
+    if got is None or len(got) != len(props):
+        return [None] * len(props), []
+    states, found = [], []
+    for i, name in enumerate(props, 1):
+        visible = got[i].get("visible")
+        if not isinstance(visible, bool):
+            states.append(None)
+        else:
+            states.append("ok" if visible else "fail")
+            if not visible:
+                found.append({"n": i, "prop": name, "what": str(got[i].get("what", ""))})
+    return states, found
+
+
+def first_frame_line(visible, named, absent, v):
+    """The machine line pipeline/live.py reads for a first-frame check."""
+    a = "-" if not absent else ",".join(str(n) for n in absent)
+    return f"CONTINUITY_FIRST_FRAME props={visible}/{named} absent={a} verdict={v}"
+
+
+def first_frame_options(argv):
+    """The --first-frame command line as a dict, or ValueError naming what is wrong with it."""
+    o = {"image": None, "props": [], "out": None}
+    args = list(argv)
+    while args:
+        a = args.pop(0)
+        if a in ("--prop", "--out"):
+            if not args:
+                raise ValueError(f"{a} needs a value")
+            v = args.pop(0)
+            if a == "--prop":
+                if not v.strip():
+                    raise ValueError("a prop is a line of text")
+                o["props"].append(v.strip())
+            else:
+                o["out"] = v
+        elif a.startswith("-") or o["image"]:
+            raise ValueError(f"unexpected {a}")
+        else:
+            o["image"] = a
+    if not o["image"]:
+        raise ValueError("no image named")
+    if not o["props"]:
+        raise ValueError("no props named")
+    return o
+
+
+def unread_first_frame(reason, n):
+    print(f"continuity: no reading, {reason}")
+    print(first_frame_line(0, n, [], "UNREAD"))
+    return 64
+
+
+def run_first_frame(o):
+    """Read one still image and ask whether every named prop is visible in it, before any render request
+    is sent for it. Returns the exit code."""
+    image, props = o["image"], o["props"]
+    if not os.path.isfile(image):
+        return unread_first_frame("the image cannot be read", len(props))
+    out = fresh(o["out"] or os.path.splitext(image)[0] + ".first_frame.json")
+    if not os.path.isdir(os.path.dirname(os.path.abspath(out))):
+        # Checked before anything is measured or paid for, since a reading with nowhere to go is lost.
+        return unread_first_frame(f"there is no directory to write the findings in, {os.path.dirname(out)}", len(props))
+    try:
+        frame = first_frame_image(image)
+    except Exception as e:  # noqa: BLE001, an image that cannot be opened is no reading, never a crash
+        return unread_first_frame(f"the image cannot be opened, {type(e).__name__}: {str(e)[:200]}", len(props))
+    asked = first_frame_prompt(props)
+    replies = poll(asked, [frame])
+    answers = [answer_of(r["text"]) if r else None for r in replies]
+    per_vote = [read_first_frame(a, props) for a in answers]
+    findings, tallied = [], []
+    for i in range(len(props)):
+        column = [states[i] for states, _ in per_vote]
+        tallied.append(tally(column))
+        for n_vote, (_states, found) in enumerate(per_vote, 1):
+            findings += [dict(f, vote=n_vote) for f in found if f["n"] - 1 == i]
+    absent = [i + 1 for i, s in enumerate(tallied) if s == "fail"]
+    split = [i + 1 for i, s in enumerate(tallied) if s == "split"]
+    unread_ns = [i + 1 for i, s in enumerate(tallied) if s is None]
+    visible_n = sum(1 for s in tallied if s == "ok")
+    v = "FAIL" if absent else "REVIEW" if split else "UNREAD" if unread_ns else "PASS"
+    said = first_frame_line(visible_n, len(props), absent, v)
+    record = {"image": image, "image_sha256": sha256(image), "props": props, "findings": findings,
+              "tally": tallied, "absent": absent, "split": split, "unread": unread_ns, "verdict": v, "line": said,
+              "judge": {"model": MODEL, "votes": VOTES, "prompt": asked,
+                       "cost_usd": round(sum((r or {}).get("cost_usd") or 0 for r in replies), 6),
+                       "frame": [os.path.basename(p) for p in save([frame], os.path.splitext(out)[0] + ".frame")],
+                       "answers": [a if a is not None else (r or {}).get("text") for a, r in zip(answers, replies, strict=True)]}}
+    with open(out, "w") as fh:
+        json.dump(record, fh, indent=1)
+    for i, name in enumerate(props, 1):
+        axis = {"by": "judge", "state": tallied[i - 1], "votes": [states[i - 1] for states, _ in per_vote]}
+        print(f'continuity: prop {i} "{name}" {count(axis)}')
+    for f in findings:
+        print(f"continuity: prop {f['n']} \"{f['prop']}\" not visible, vote {f['vote']}: {f['what']}")
+    print(f"continuity: findings in {out}")
+    print(said)
+    return EXIT[v]
+
+
 # --- the labels ---------------------------------------------------------------------------------
 
 def story_of(case):
@@ -789,6 +954,16 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["--validate"]:
         return validate(argv[1] if len(argv) > 1 else LABELS)
+    if argv[:1] == ["--first-frame"]:
+        try:
+            o = first_frame_options(argv[1:])
+        except ValueError as e:
+            print(f"continuity: {e}\n{USAGE}")
+            return 64
+        try:
+            return run_first_frame(o)
+        except Exception as e:  # noqa: BLE001, an uncaught crash exits 1, which every caller reads as a break
+            return unread_first_frame(f"the gate crashed, {type(e).__name__}: {str(e)[:200]}", len(o["props"]))
     try:
         o = options(argv)
     except ValueError as e:

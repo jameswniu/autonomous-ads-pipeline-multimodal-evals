@@ -53,7 +53,7 @@ A board is the written plan for a spot, one line per shot with the order of the 
 | `gates/edge_clip_probe.py` | probe | A story prop amputated by a frame edge the engine never saw |
 | `gates/jaw_gate.py` | probe | Refuses a closer whose jaw swings past what its lips explain, over 0.17 |
 | `gates/cast_gate.py` | probe | Refuses a scene whose person is not the story's character, under 0.30 face similarity to her reference or at least as close to the narrator's |
-| `gates/continuity_gate.py` | eval | Refuses a story shot when all three votes of a vision judge read a named prop or its background breaking, sends a split vote to the eye, and refuses a presenter take whose background moves past 600 or 1500 px under a matte diff, compared with the author's whole-take labels by `--validate` |
+| `gates/continuity_gate.py` | eval | Refuses a story shot when all three votes of a vision judge read a named prop or its background breaking, sends a split vote to the eye, and refuses a presenter take whose background moves past 600 or 1500 px under a matte diff, compared with the author's whole-take labels by `--validate`; `--first-frame` asks the same votes of one still, the frame a chain starts from, whether each named prop is visible in it, before any of the chain is paid for |
 | `gates/loudness_gate.py` | unit | Integrated loudness and true peak on the master against the delivery target |
 | `gates/mouth_sync_probe.py` | probe | The lip-sync check that actually blocks a master |
 | `gates/script_match.sh` | unit | The spoken read-back against the written script |

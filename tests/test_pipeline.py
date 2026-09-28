@@ -629,6 +629,29 @@ def test_a_dry_run_on_the_chain_board_shoots_each_scene_from_a_frame_in_order(tm
     assert est["est_usd"] == round(sum(r["est_usd"] for r in requests), 2) == 1.89, est
 
 
+def test_a_dry_run_never_pays_the_first_frame_judge_even_with_props_named(tmp_path, monkeypatch):
+    """DryToolkit never overrides board(), so it never reaches the first-frame check LiveToolkit adds for
+    a live spot with props and a chain. A dry run stops before the first spend, and that includes never
+    asking a judge to read the still a chain would start from, whatever the board names."""
+    board = json.load(open(os.path.join(ROOT, "shoots/graph-zai-chain/boards.json")))
+    board["spots"]["zai"]["props"] = ["a ceramic mug on the desk beside the keyboard"]
+    path = tmp_path / "chain-props-board.json"
+    path.write_text(json.dumps(board))
+    asked = []
+    real_repo = Toolkit.repo
+
+    def spying(self, *args, timeout=600):
+        if "continuity_gate.py" in args[0]:
+            asked.append(args)
+        return real_repo(self, *args, timeout=timeout)
+    monkeypatch.setattr(Toolkit, "repo", spying)
+    out, rows = dry(tmp_path, str(path), "zai")
+    assert out["outcome"] == "dry: stopped before the first spend", out["outcome"]
+    gate = [r for r in rows if r["kind"] == "gate"][0]
+    assert gate["pass"] and gate["checks"]["props"] and gate["checks"]["chain"], gate
+    assert asked == [], "a dry run paid a judge to read the first frame"
+
+
 def test_a_dry_run_on_the_shots_board_chains_four_shots_under_three_sentences(tmp_path):
     """The shots board opens on the walls already shooting away, gives the long middle sentence two
     shots, a crane up to a high wide and a lower one that folds the warehouse back, and names a

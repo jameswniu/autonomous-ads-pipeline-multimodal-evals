@@ -1136,6 +1136,12 @@ LAPTOP = "an open laptop on the desk"
 PAPER = "flying paper"
 
 
+def _still(path, size="64x48", color="gray"):
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c={color}:s={size}", "-frames:v", "1", str(path)],
+                   check=True, timeout=60)
+    return path
+
+
 def _shot(path, seconds=2):
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=25", "-t", str(seconds),
                     "-pix_fmt", "yuv420p", str(path)], check=True, timeout=120)
@@ -1632,6 +1638,136 @@ def test_a_labelled_master_is_judged_with_its_boards_own_lines(tmp_path):
     story = c.story_of({"board": "shoots/graph-zai-chain/boards.json", "spot": "zai"})
     assert story.startswith("Shot a: ") and " Shot b: " in story and " Shot c: " in story, story
     assert "{character}" not in story and "the student" in story, story
+
+
+# --------------------------------------------------------------------------------------
+# continuity_gate.py --first-frame
+# --------------------------------------------------------------------------------------
+
+def _first_frame_vote(visible=True, what="on the desk"):
+    return {"props": [{"n": 1, "visible": visible, "what": what}]}
+
+
+@pytest.mark.parametrize("votes, code, said", [
+    ([_first_frame_vote(False)] * 3, 1, "props=0/1 absent=1 verdict=FAIL"),
+    ([_first_frame_vote(False), _first_frame_vote(True), _first_frame_vote(True)], 2, "props=0/1 absent=- verdict=REVIEW"),
+    (["not json"] * 3, 64, "props=0/1 absent=- verdict=UNREAD"),
+    ([_first_frame_vote(True)] * 3, 0, "props=1/1 absent=- verdict=PASS"),
+], ids=["3/3 absent", "split", "malformed", "3/3 visible"])
+def test_a_first_frame_check_fails_only_when_every_vote_says_absent(tmp_path, monkeypatch, capsys, votes, code, said):
+    """One question of one still: is the named prop visible? Absent only when every vote says so, split
+    when the votes disagree, no reading at all when none of that could be trusted, and otherwise visible,
+    the same tally the props axis of a full clip uses."""
+    c = _gate_module("continuity_gate")
+    _voting(c, monkeypatch, votes)
+    still = _still(tmp_path / "still.png")
+    assert c.main(["--first-frame", str(still), "--prop", LAPTOP, "--out", str(tmp_path / "found.json")]) == code
+    assert capsys.readouterr().out.strip().splitlines()[-1] == f"CONTINUITY_FIRST_FRAME {said}"
+
+
+def test_a_first_frame_check_reads_every_prop_independently(tmp_path, monkeypatch, capsys):
+    """Two props, one absent by every vote and one visible by every vote: the verdict follows the worse of
+    the two, the machine line counts both, the findings name which one broke and why, and the still
+    reaches the judge as exactly one JPEG image, never a grid of several."""
+    c = _gate_module("continuity_gate")
+    votes = [{"props": [{"n": 1, "visible": False, "what": "not on the desk"},
+                        {"n": 2, "visible": True, "what": "closed on the desk"}]}] * 3
+    asked = _voting(c, monkeypatch, votes)
+    still = _still(tmp_path / "still.png")
+    out = tmp_path / "found.json"
+    assert c.main(["--first-frame", str(still), "--prop", LAPTOP, "--prop", "a closed laptop",
+                  "--out", str(out)]) == 1
+    assert capsys.readouterr().out.strip().splitlines()[-1] == "CONTINUITY_FIRST_FRAME props=1/2 absent=1 verdict=FAIL"
+    record = json.load(open(out))
+    assert record["absent"] == [1] and record["tally"] == ["fail", "ok"], record
+    assert sorted(f["vote"] for f in record["findings"]) == [1, 2, 3] and all(f["n"] == 1 for f in record["findings"])
+    assert re.fullmatch(r"[0-9a-f]{64}", record["image_sha256"])
+    assert len(asked) == c.VOTES and len(set(asked)) == 1, "the votes were not asked one question over the same image"
+    _text, images = asked[0]
+    assert len(images) == 1 and images[0][:2] == b"\xff\xd8", "the still was not sent as one JPEG block"
+
+
+def test_a_first_frame_answer_is_the_asked_json_or_no_reading():
+    """The judge names every prop by number, visible or not, and an answer that does not account for every
+    one exactly once is no reading for any of them, whatever it says about the ones it did name. An entry
+    whose own "visible" cannot be read spares the props answered beside it. A code fence is tolerated."""
+    c = _gate_module("continuity_gate")
+    props = [LAPTOP, PAPER]
+    held = {"props": [{"n": 1, "visible": True, "what": "on the desk"}, {"n": 2, "visible": True, "what": "on the floor"}]}
+    assert c.read_first_frame(held, props) == (["ok", "ok"], [])
+    assert c.answer_of("```json\n" + json.dumps(held) + "\n```") == held
+    broke = {"props": [{"n": 1, "visible": False, "what": "not in frame"}, held["props"][1]]}
+    states, found = c.read_first_frame(broke, props)
+    assert states == ["fail", "ok"] and found == [{"n": 1, "prop": LAPTOP, "what": "not in frame"}], found
+    assert c.read_first_frame(None, props) == ([None, None], [])
+    assert c.read_first_frame("prose where the object goes", props) == ([None, None], [])
+    for bad, why in (([held["props"][0]], "a prop left out"),
+                     ([dict(held["props"][0], n=3), held["props"][1]], "a number naming no prop"),
+                     ([held["props"][0], held["props"][0]], "the same prop answered twice"),
+                     ([dict(held["props"][0], n=True), held["props"][1]], "an n that is not really an int")):
+        assert c.read_first_frame({"props": bad}, props)[0] == [None, None], why
+    partial = {"props": [{"n": 1, "visible": "yes", "what": "x"}, held["props"][1]]}
+    assert c.read_first_frame(partial, props)[0] == [None, "ok"], "one bad entry spared the prop answered beside it"
+
+
+def test_the_first_frame_command_line_is_read_whole_or_refused():
+    """An image and at least one prop are needed, a prop is a line of text, and anything else, an unknown
+    flag or a second image included, is refused with the reason before any judge is paid."""
+    c = _gate_module("continuity_gate")
+    o = c.first_frame_options(["still.jpg", "--prop", " a ceramic mug on the desk ", "--prop", "a closed laptop",
+                               "--out", "found.json"])
+    assert o == {"image": "still.jpg", "props": ["a ceramic mug on the desk", "a closed laptop"], "out": "found.json"}, o
+    for bad in (["still.jpg"], ["still.jpg", "--prop", " "], ["still.jpg", "--prop", "a mug", "other.jpg"],
+               ["still.jpg", "--out"], []):
+        with pytest.raises(ValueError):
+            c.first_frame_options(bad)
+
+
+def test_the_first_frame_image_is_one_jpeg_block_scaled_like_a_frame(tmp_path):
+    """The still reaches the judge as exactly one JPEG, kept at its own size when that already fits the
+    grid's own limits, and only ever scaled down, never up, when it does not."""
+    c = _gate_module("continuity_gate")
+    import io
+
+    from PIL import Image
+    small = _still(tmp_path / "small.png")
+    data = c.first_frame_image(str(small))
+    assert data[:2] == b"\xff\xd8"
+    im = Image.open(io.BytesIO(data))
+    assert im.size == (64, 48), im.size
+    big = tmp_path / "big.png"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=3000x2000", "-frames:v", "1", str(big)],
+                   check=True, timeout=60)
+    im2 = Image.open(io.BytesIO(c.first_frame_image(str(big))))
+    assert im2.size[0] * im2.size[1] <= c.GRID_PIXELS and max(im2.size) <= c.GRID_EDGE, im2.size
+    assert im2.size[0] < 3000, "a still past the grid's limits was not scaled down"
+
+
+def test_a_first_frame_check_that_cannot_read_never_pays_a_judge(tmp_path, monkeypatch, capsys):
+    """A still that is not there, findings with nowhere to go, or a crash while opening the image all read
+    UNREAD and exit 64, each saying why, and none of them pays for a judge call. Named no image or no
+    prop, it prints its usage and no verdict."""
+    c = _gate_module("continuity_gate")
+    monkeypatch.setattr(c, "ask", lambda *a: pytest.fail("a judge was asked with nothing readable"))
+    still = _still(tmp_path / "still.png")
+    cases = [("a still that is not there", [str(tmp_path / "missing.png"), "--prop", LAPTOP]),
+             ("findings with nowhere to go", [str(still), "--prop", LAPTOP,
+                                              "--out", str(tmp_path / "no" / "dir" / "found.json")])]
+    for label, args in cases:
+        assert c.main(["--first-frame", *args]) == 64, label
+        said = capsys.readouterr().out.strip().splitlines()
+        assert said[-1] == "CONTINUITY_FIRST_FRAME props=0/1 absent=- verdict=UNREAD", label
+        assert "continuity: no reading" in said[0], label
+    assert c.main(["--first-frame"]) == 64
+    said = capsys.readouterr().out
+    assert "no image named" in said and "CONTINUITY_FIRST_FRAME" not in said, said
+
+    def died(*args, **kwargs):
+        raise RuntimeError("the file is corrupt")
+    monkeypatch.setattr(c, "first_frame_image", died)
+    assert c.main(["--first-frame", str(still), "--prop", LAPTOP, "--out", str(tmp_path / "died.json")]) == 64
+    said = capsys.readouterr().out.strip().splitlines()
+    assert said[-1].endswith("verdict=UNREAD") and "the file is corrupt" in said[-2], said
 
 
 def test_board_probe_holds_props_to_lines_of_plain_words(tmp_path):
