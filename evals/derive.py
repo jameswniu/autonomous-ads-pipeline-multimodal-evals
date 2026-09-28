@@ -96,11 +96,11 @@ GATES = [
     # gates/frontload_gate.py, whether a "cuts" build's first big picture change opens the film
     # soon enough. It never refuses a clip, only flags a slow open for the eye, the same way
     # LAG_MAX and PASS_CORR/PASS_LAG above only disclose, so it is scored here and kept out of
-    # the gating denominator. Its four exemplars are notes, not shipped pixels or a committed
-    # ledger: the shoots that produced them (graph-grok-hook, graph-perplexity-neurons,
-    # graph-zai-neurons, graph-grok-neurons) were still being shot when this was written and
-    # their ledgers are not committed to this repository, so each row in labels.csv is attested
-    # from notes, the same weakest tier most of this file's other rows already are.
+    # the gating denominator. Its four exemplars ship no pixels. Each is the first switch time on
+    # the last build row of its run's committed ledger (shoots/graph-grok-hook,
+    # graph-perplexity-neurons, graph-zai-neurons and graph-grok-neurons, each ledger.jsonl), and
+    # this file takes the number from labels.csv as written rather than re-reading those ledgers,
+    # the same weakest tier most of this file's other rows already are.
     ("frontload_gate",   "FRONTLOAD_MAX",  "first_switch_s",  CEILING, 1.0,  False),
     # gates/jaw_gate.py, which refuses a closer before it enters a build. The number is the
     # latest dated ruling in the doctrine, and no labelled pass/reject pair on the jaw axis is
