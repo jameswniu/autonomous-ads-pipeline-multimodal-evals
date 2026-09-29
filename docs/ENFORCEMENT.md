@@ -21,7 +21,7 @@ Across 15 governed runs:
 
 The first number is what a dashboard shows. The second is what the model actually did. The gap between them is a piece of code.
 
-Stated as a rate: prompt-level constraints held about 40% of the time; the runtime guard brought effective compliance to 93%.
+In counts, prompt-level constraints held on 6 of 15 attempts, and with the runtime guard the outcome was right on 14 of 15.
 
 ## The natural experiment
 
