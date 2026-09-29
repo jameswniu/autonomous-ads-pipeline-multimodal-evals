@@ -100,7 +100,7 @@ Every spot ends on the closer, a presenter who speaks the brand line to camera, 
 |:---|:---|:---|
 | Board | Five mechanical checks, free, before a cent is spent (the product absent before the payoff, the escalation declared, the quirk never spoken by the narration, mouths closed under narration, the centre-crop clause present), then four judgment rows I score 0 to 3 by eye | The board goes back |
 | Render | Every request and every landing appended to the ledger, the vendor's own rejection text included | Recorded, re-rolled once with one variable moved |
-| Closer | Identity pin on the voice and avatar ids, prop gate on the look, jaw measured on the raw render and refused over the band | Pre-spend |
+| Closer | Identity pin on the voice and avatar ids, prop gate on the look, jaw measured on the raw render and read against the band | Pre-spend |
 | Build | The closer's video starts within 40 ms of where its audio was placed | Frame-exact, on the master |
 | Ad gates | Every burned cue says what is spoken, within 0.5 s before or 0.3 s after its first word. The closer's mouth is not late | Blocks delivery |
 | Ship gate | Loudness, true peak, silence tail, the standing disclosures. Exit 64 on unreadable input | Fails closed |
@@ -189,7 +189,7 @@ For an ad, true means four things.
 
 The invented brands were the easy case, because a story can bend to whatever the engine renders well. So the same loop ran against ten real, currently shipping AI products.
 
-- All ten shot on Omni Flash at about sixty-three cents a scene, thirty scenes across two batches.
+- All ten shot on Omni Flash at about sixty cents a scene, thirty scenes across two batches.
 - Each master was gated on caption timing, closer alignment and lip sync before it was allowed out.
 - These are spec ads. They are not affiliated with, endorsed by, or produced for Google, OpenAI, Perplexity, Meta, xAI, Z.ai, Moonshot AI or Anthropic. None of these companies has seen them, and every tagline is written here.
 
@@ -331,7 +331,7 @@ No engine sweeps the catalogue, which is the whole case for routing instead of s
 | B2 and B3 | Wan 3.0 and Seedance 2.0 | About thirty-two dollars together for their thirty scenes, roughly a dollar a scene |
 
 - Ten scoring models were built and killed in one day, the record is in [docs/EVALS.md](docs/EVALS.md). Every one sat on a plausible axis and every one inverted on contact with the labelled set. A metric that agrees with the labels is not yet a metric either. One lip-sync reading matched 8 of 8 labels and was gating within minutes, until the same clip measured in thirds swung 6 to 10 frames against itself. A metric has to be stable inside one clip before I let it gate anything.
-- The judge is a flagger. On a calibration set of 42 scenes I had labelled 16 FAIL and 26 PASS, and four versions of the judge are scored against it in [evals/judge-rubric.json](evals/judge-rubric.json). The first language-model pass caught 12 of the 16 failures while clearing only 12 of the 26 passes. Its flag goes on the strip as evidence and the verdict stays with me. And on the last night of the shoot every instrument favoured a swapped voice take and a nudged mouth, and I reverted both by ear. The meters nominate candidates and I pick.
+- The judge is a flagger. On a calibration set of 42 scenes I had labelled 16 FAIL and 26 PASS, and three versions of the judge are scored against it in [evals/judge-rubric.json](evals/judge-rubric.json), with a fourth tried on eight decisive clips. The first language-model pass caught 12 of the 16 failures while clearing only 12 of the 26 passes. Its flag goes on the strip as evidence and the verdict stays with me. And on the last night of the shoot every instrument favoured a swapped voice take and a nudged mouth, and I reverted both by ear. The meters nominate candidates and I pick.
 
 All of this is in the prompt too. Every engine got the same brief with the audience written in, and the four columns under each spot are what four models did with identical words. A prompt is a request and a generation is a draw against it, and a prompt steers one engine but cannot tell you which engine to buy for this audience. So the loop holds both ends: the prompts know the user going in, the panel checks that the feeling landed coming out, and the next dollar routes on the count.
 
@@ -437,7 +437,7 @@ Everything below ran.
 | `probes/` | The ten instruments the panels and gates read: gesture energy, background detail, eye rejection, scene simplicity, face level wander, lip sync, sync lag, replay detection, and the rest and spasm meters the ship gate runs on closers |
 | `guards/` | The four pre-spend guards and the learned rules the prop gate reads back |
 | `evals/derive.py`, `evals/labels.csv` | The labelled exemplars and the tool that re-measures them and brackets every gating constant. It derives thresholds and does not score a video |
-| `evals/judge-rubric.json`, `evals/judge-calibration.json` | The rubric the language-model judge scores against, and the 42 eye-labelled scenes its four versions were calibrated on |
+| `evals/judge-rubric.json`, `evals/judge-calibration.json` | The rubric the language-model judge scores against, and the 42 eye-labelled scenes its first three versions were calibrated on |
 
 </details>
 
@@ -455,7 +455,7 @@ Everything below ran.
 0 are AUTHORED: typed by hand, no exemplar pair in evals/labels
 ```
 
-**Ten of ten.** The tool counts NAMED constants only. One probe still refuses clips on nine inline numbers that cannot be bracketed until they are named, and the page says so rather than rounding them away. You can check it without accounts, keys or a GPU, with `python3` and `ffmpeg` installed:
+**Ten of ten.** The tool counts NAMED constants only. Two probes still refuse clips on inline numbers that cannot be bracketed until they are named, nine in `lipsync_probe` and one in `spasm_probe`, and the page says so rather than rounding them away. You can check it without accounts, keys or a GPU, with `python3` and `ffmpeg` installed:
 
 ```
 git clone https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals
