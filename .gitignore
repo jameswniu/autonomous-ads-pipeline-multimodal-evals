@@ -45,3 +45,5 @@ tools/pii_names.txt
 !samples/
 !samples/**
 .pytest_cache/
+.coverage
+.reports/

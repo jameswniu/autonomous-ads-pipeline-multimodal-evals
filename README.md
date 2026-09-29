@@ -84,6 +84,9 @@ Three words carry the page. A **probe** is a check, a **threshold** is the line 
 
 ## 1. Process evals
 
+<details>
+<summary>The step table and the redo, read from the ledger</summary>
+
 Process evals check how the work got made, before anyone looks at the result. The industry name is process supervision.
 
 Every spot ends on the closer, a presenter who speaks the brand line to camera, animated from a look, one still photo of her in a set.
@@ -160,9 +163,14 @@ Every one of the eight masters passed the caption gate at five cues and held its
 - The face-located mouth probe went in with its sign inverted and doubled the error it was built to remove. The gate caught it on the master. Three days later the same sign confusion came back in a different builder and reached the review thread, where a frame-by-frame audit found it rather than a probe. That auto-alignment is off now, and the check that replaced it is a frame ladder read by eye.
 - Four guards protect the render path and three approve everything when a file they depend on goes missing. Two of the three do not know they are doing it, so a missing file looks exactly like a pass.
 
+</details>
+
 ---
 
 ## 2. Outcome evals
+
+<details>
+<summary>What true means for an ad, and the ten real products</summary>
 
 Outcome evals check the artifact against the facts and do not care how it got made. The research literature calls this outcome supervision, and in retrieval terms it is a groundedness check.
 
@@ -238,9 +246,14 @@ The first batch landed fifteen scenes on fifteen requests with zero content reje
 - A For Sale sign that read perfectly in the raw 16:9 render shipped as OR SALE. The build cuts a centre square, and the engine had filled the width. Any scene whose beat is legible text is now composed small and dead centre, and checked in the square before the build. A probe flags a bright prop straddling a frame edge. It also fires on crowds and lamps, so it flags and I decide.
 - A billboard of corrupted headline text was pulled for being illegible, replaced with clean colour fields, and then put back. The rule exists for fake logos and readable gibberish, and the glitch was the point. An outcome check has to know what the brief meant, and the rule alone cannot tell it.
 
+</details>
+
 ---
 
 ## 3. Quality evals
+
+<details>
+<summary>The golden set, and the race that routes each audience to an engine</summary>
 
 Quality evals are the tier everyone argues about, so I made them the most mechanical of the three.
 
@@ -322,6 +335,8 @@ No engine sweeps the catalogue, which is the whole case for routing instead of s
 
 All of this is in the prompt too. Every engine got the same brief with the audience written in, and the four columns under each spot are what four models did with identical words. A prompt is a request and a generation is a draw against it, and a prompt steers one engine but cannot tell you which engine to buy for this audience. So the loop holds both ends: the prompts know the user going in, the panel checks that the feeling landed coming out, and the next dollar routes on the count.
 
+</details>
+
 ---
 
 ## Nobody directed the shoot
@@ -339,6 +354,9 @@ I set the rules and watched it run itself. I wrote no scripts for this shoot and
 - The evals were designed and calibrated before a single render was paid for.
 
 ## The loop, as a map
+
+<details>
+<summary>The seven-step map and the graph of the loop</summary>
 
 One loop, seven steps, and it ran unattended. The gates are where the system stops itself, and that is the only reason it was allowed to spend.
 
@@ -389,7 +407,12 @@ flowchart TD
 | Dotted | 3 Quality | The probes inside Ad gates, and the eye |
 | Dash-dot | Shared | Ad gates, outcome and quality together |
 
+</details>
+
 ## Code map
+
+<details>
+<summary>What each folder and file is</summary>
 
 Everything below ran.
 
@@ -416,7 +439,12 @@ Everything below ran.
 | `evals/derive.py`, `evals/labels.csv` | The labelled exemplars and the tool that re-measures them and brackets every gating constant. It derives thresholds and does not score a video |
 | `evals/judge-rubric.json`, `evals/judge-calibration.json` | The rubric the language-model judge scores against, and the 42 eye-labelled scenes its four versions were calibrated on |
 
+</details>
+
 ## Recounted on every push
+
+<details>
+<summary>The count CI recomputes on every push, and how to check it yourself</summary>
 
 - 10 of the 10 named gating thresholds in [`probes/`](probes/) are bracketed by a labelled pass and a labelled reject.
 - [`evals/derive.py`](evals/derive.py) re-measures the shipped pixels and refuses to exit clean if a constant has drifted outside its own bracket.
@@ -435,7 +463,12 @@ cd autonomous-ads-pipeline-multimodal-evals && pip install -r requirements.txt
 python3 evals/derive.py
 ```
 
+</details>
+
 ## Which checks stop a ship, and which only speak
+
+<details>
+<summary>Which checks block a delivery and which only report</summary>
 
 A mixed read is the design, not a broken run. Most probes report and do not refuse.
 
@@ -449,6 +482,8 @@ A mixed read is the design, not a broken run. Most probes report and do not refu
 | `probes/` | **Speak only** to the panels and the gates that read them |
 
 A probe says which of those it means in its exit code. `mirror_probe.py` exits 0 when it looked and found no replay, 1 when it found one, 3 when the clip is too static to be judged either way, and 64 when it cannot run at all, no clip named or the file unreadable.
+
+</details>
 
 ## Why measurement rather than a learned model
 
