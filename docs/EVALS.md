@@ -26,7 +26,7 @@ Verdicts come first, in plain language, on real takes. They accumulate into labe
 |---|---|---|
 | Labelled exemplars | 48 rows | [`../evals/labels.csv`](../evals/labels.csv), the pass and reject exemplars behind the ten gating thresholds, 7 re-measured from shipped pixels and 41 attested from the derivation notes |
 | Judge calibration | 42 scenes | [`../evals/judge-calibration.json`](../evals/judge-calibration.json), 16 FAIL and 26 PASS, labelled by eye before the judge ran |
-| Lip-sync labels | 8 | the closer masters the mouth probe was scored against |
+| Lip-sync labels | 8 | The closer masters, the finished clips of the presenter's closing shot, that the mouth probe was scored against |
 | Ledgers | 15 governed runs | every request and landing under [`../shoots/`](../shoots/), append-only |
 
 Nothing in this repository treats a label as noise to be smoothed. The labels are the only ground truth in the building.
