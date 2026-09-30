@@ -1,0 +1,13 @@
+cohort aug24, judge claude: 398 votes, 5 briefs, 400 judge calls on its renders, 20 of 20 voted renders scored
+  uniform  50.0%   what a coin ships
+  gate     53.9%   kill the judge's lowest, ship the rest    gap closed +86%
+  pick     47.9%   ship the judge's highest, for contrast    gap closed -47%
+  oracle   54.6%   kill the render humans liked least
+  gate minus pick +6.1 points, from the unrounded values
+  per brief, gate minus uniform: ha+1.6 la+1.1 or+6.1 qu+3.3 sl+7.5
+  hit rate         gate 3 of 5 = 60%   coin 25%   oracle 100%   P(coin gets at least 3) = 0.10
+  misses           harbor killed the second-worst, lantern killed the second-worst
+  brief bootstrap  (3125 resamples, exhaustive, interval)  lift +3.9  95% [+1.8, +6.1]  P(lift<=0) 0.0000
+  rater bootstrap  (4000 resamples, 90 raters, interval)  lift +3.9  95% [+1.8, +6.1]  P(lift<=0) 0.0000
+  hit stability    (same resamples)  the oracle's kill is still the worst 69.0% of the time, the gate's kill 58.0%
+  fair-coin null   (4000 draws)  p = 0.0005

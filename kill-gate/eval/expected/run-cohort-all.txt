@@ -1,0 +1,11 @@
+cohort all, judge claude: 450 votes, 5 briefs, 560 judge calls on its renders, 28 of 28 voted renders scored
+  uniform  50.0%   what a coin ships
+  gate     51.9%   kill the judge's lowest, ship the rest    gap closed +57%
+  pick     51.7%   ship the judge's highest, for contrast    gap closed +51%
+  oracle   53.4%   kill the render humans liked least
+  gate minus pick +0.2 points, from the unrounded values
+  per brief, gate minus uniform: ha+1.0 la+0.7 or+1.5 qu+3.3 sl+3.1
+  hit rate         not reported, 4 of 5 briefs are not a round robin, so the render humans liked least there never met every other render
+  brief bootstrap  (3125 resamples, exhaustive, interval)  lift +1.9  95% [+1.0, +2.9]  P(lift<=0) 0.0000
+  rater bootstrap  (4000 resamples, 90 raters, interval)  lift +1.9  95% [+0.2, +3.8]  P(lift<=0) 0.0160
+  fair-coin null   (4000 draws)  p = 0.0345

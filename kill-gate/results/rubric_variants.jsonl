@@ -1,0 +1,196 @@
+{"stem": "shoot-20260824-a0-lantern", "variant": "V0_baseline", "craft": 4.0, "message": 5.0, "warmth": 4.0, "clip": "shoot-20260824-a0-lantern"}
+{"stem": "shoot-20260824-a0-harbor", "variant": "V0_baseline", "craft": 5.0, "message": 4.0, "warmth": 5.0, "clip": "shoot-20260824-a0-harbor"}
+{"stem": "shoot-20260824-a0-quiet", "variant": "V0_baseline", "craft": 5.0, "message": 4.0, "warmth": 4.0, "clip": "shoot-20260824-a0-quiet"}
+{"stem": "shoot-20260824-a0-orchard", "variant": "V0_baseline", "craft": 4.0, "message": 4.0, "warmth": 3.0, "clip": "shoot-20260824-a0-orchard"}
+{"stem": "shoot-20260824-omni-lantern", "variant": "V0_baseline", "craft": 5.0, "message": 6.0, "warmth": 4.0, "clip": "shoot-20260824-omni-lantern"}
+{"stem": "shoot-20260824-omni-harbor", "variant": "V0_baseline", "craft": 5.0, "message": 4.0, "warmth": 5.0, "clip": "shoot-20260824-omni-harbor"}
+{"stem": "shoot-20260824-a0-slowroad", "variant": "V0_baseline", "craft": 6.0, "message": 6.0, "warmth": 6.0, "clip": "shoot-20260824-a0-slowroad"}
+{"stem": "shoot-20260824-omni-orchard", "variant": "V0_baseline", "craft": 6.0, "message": 6.0, "warmth": 5.0, "clip": "shoot-20260824-omni-orchard"}
+{"stem": "shoot-20260824-omni-slowroad", "variant": "V0_baseline", "craft": 6.0, "message": 6.0, "warmth": 6.0, "clip": "shoot-20260824-omni-slowroad"}
+{"stem": "shoot-20260824-omni-quiet", "variant": "V0_baseline", "craft": 5.0, "message": 5.0, "warmth": 4.0, "clip": "shoot-20260824-omni-quiet"}
+{"stem": "shoot-20260824-seedance2-harbor", "variant": "V0_baseline", "craft": 6.0, "message": 5.0, "warmth": 5.0, "clip": "shoot-20260824-seedance2-harbor"}
+{"stem": "shoot-20260824-seedance2-lantern", "variant": "V0_baseline", "craft": 5.0, "message": 6.0, "warmth": 4.0, "clip": "shoot-20260824-seedance2-lantern"}
+{"stem": "shoot-20260824-seedance2-quiet", "variant": "V0_baseline", "craft": 6.0, "message": 5.0, "warmth": 5.0, "clip": "shoot-20260824-seedance2-quiet"}
+{"stem": "shoot-20260824-seedance2-orchard", "variant": "V0_baseline", "craft": 6.0, "message": 6.0, "warmth": 4.0, "clip": "shoot-20260824-seedance2-orchard"}
+{"stem": "shoot-20260824-seedance2-slowroad", "variant": "V0_baseline", "craft": 6.0, "message": 6.0, "warmth": 6.0, "clip": "shoot-20260824-seedance2-slowroad"}
+{"stem": "shoot-20260824-wan3-harbor", "variant": "V0_baseline", "craft": 5.0, "message": 4.0, "warmth": 5.0, "clip": "shoot-20260824-wan3-harbor"}
+{"stem": "shoot-20260824-wan3-lantern", "variant": "V0_baseline", "craft": 6.0, "message": 6.0, "warmth": 4.0, "clip": "shoot-20260824-wan3-lantern"}
+{"stem": "shoot-20260824-wan3-orchard", "variant": "V0_baseline", "craft": 6.0, "message": 6.0, "warmth": 5.0, "clip": "shoot-20260824-wan3-orchard"}
+{"stem": "shoot-20260824-wan3-quiet", "variant": "V0_baseline", "craft": 5.0, "message": 5.0, "warmth": 5.0, "clip": "shoot-20260824-wan3-quiet"}
+{"stem": "shoot-20260824-wan3-slowroad", "variant": "V0_baseline", "craft": 6.0, "message": 6.0, "warmth": 5.0, "clip": "shoot-20260824-wan3-slowroad"}
+{"stem": "shoot-20260826-omni-slowroad", "variant": "V0_baseline", "craft": 5.0, "message": 4.0, "warmth": 4.0, "clip": "shoot-20260826-omni-slowroad"}
+{"stem": "shoot-20260826-omni-orchard", "variant": "V0_baseline", "craft": 5.0, "message": 4.0, "warmth": 5.0, "clip": "shoot-20260826-omni-orchard"}
+{"stem": "shoot-20260826-seedance2-slowroad", "variant": "V0_baseline", "craft": 5.0, "message": 4.0, "warmth": 4.0, "clip": "shoot-20260826-seedance2-slowroad"}
+{"stem": "shoot-20260826-seedance2-orchard", "variant": "V0_baseline", "craft": 4.0, "message": 5.0, "warmth": 4.0, "clip": "shoot-20260826-seedance2-orchard"}
+{"stem": "shoot-20260826-omni-harbor", "variant": "V0_baseline", "craft": 5.0, "message": 6.0, "warmth": 5.0, "clip": "shoot-20260826-omni-harbor"}
+{"stem": "shoot-20260826-omni-lantern", "variant": "V0_baseline", "craft": 5.0, "message": 5.0, "warmth": 4.0, "clip": "shoot-20260826-omni-lantern"}
+{"stem": "shoot-20260826-wan3-lantern", "variant": "V0_baseline", "craft": 5.0, "message": 6.0, "warmth": 4.0, "clip": "shoot-20260826-wan3-lantern"}
+{"stem": "shoot-20260826-wan3-harbor", "variant": "V0_baseline", "craft": 6.0, "message": 5.0, "warmth": 4.0, "clip": "shoot-20260826-wan3-harbor"}
+{"stem": "shoot-20260824-a0-harbor", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-a0-harbor"}
+{"stem": "shoot-20260824-a0-quiet", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 4.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-a0-quiet"}
+{"stem": "shoot-20260824-a0-lantern", "variant": "V1_newaxes", "craft": 4.0, "brand_fluency": 4.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-a0-lantern"}
+{"stem": "shoot-20260824-a0-orchard", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-a0-orchard"}
+{"stem": "shoot-20260824-omni-harbor", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-omni-harbor"}
+{"stem": "shoot-20260824-omni-orchard", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-omni-orchard"}
+{"stem": "shoot-20260824-omni-lantern", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-omni-lantern"}
+{"stem": "shoot-20260824-a0-slowroad", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-a0-slowroad"}
+{"stem": "shoot-20260824-omni-quiet", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-omni-quiet"}
+{"stem": "shoot-20260824-seedance2-harbor", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-seedance2-harbor"}
+{"stem": "shoot-20260824-seedance2-lantern", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-seedance2-lantern"}
+{"stem": "shoot-20260824-omni-slowroad", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-omni-slowroad"}
+{"stem": "shoot-20260824-seedance2-orchard", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-seedance2-orchard"}
+{"stem": "shoot-20260824-seedance2-quiet", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-seedance2-quiet"}
+{"stem": "shoot-20260824-wan3-harbor", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-wan3-harbor"}
+{"stem": "shoot-20260824-seedance2-slowroad", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-seedance2-slowroad"}
+{"stem": "shoot-20260824-wan3-lantern", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-lantern"}
+{"stem": "shoot-20260824-wan3-orchard", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-wan3-orchard"}
+{"stem": "shoot-20260824-wan3-quiet", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-wan3-quiet"}
+{"stem": "shoot-20260824-wan3-slowroad", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-slowroad"}
+{"stem": "shoot-20260826-omni-harbor", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 6.0, "clip": "shoot-20260826-omni-harbor"}
+{"stem": "shoot-20260826-omni-lantern", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 5.0, "emotional_intensity": 6.0, "narrative_simplicity": 7.0, "clip": "shoot-20260826-omni-lantern"}
+{"stem": "shoot-20260826-omni-orchard", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 4.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-omni-orchard"}
+{"stem": "shoot-20260826-omni-slowroad", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 4.0, "emotional_intensity": 3.0, "narrative_simplicity": 3.0, "clip": "shoot-20260826-omni-slowroad"}
+{"stem": "shoot-20260826-seedance2-orchard", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-seedance2-orchard"}
+{"stem": "shoot-20260826-seedance2-slowroad", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-seedance2-slowroad"}
+{"stem": "shoot-20260826-wan3-harbor", "variant": "V1_newaxes", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 6.0, "clip": "shoot-20260826-wan3-harbor"}
+{"stem": "shoot-20260826-wan3-lantern", "variant": "V1_newaxes", "craft": 6.0, "brand_fluency": 4.0, "emotional_intensity": 6.0, "narrative_simplicity": 6.0, "clip": "shoot-20260826-wan3-lantern"}
+{"stem": "shoot-20260824-a0-lantern", "variant": "V2_anchored", "craft": 3.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-a0-lantern"}
+{"stem": "shoot-20260824-a0-quiet", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-a0-quiet"}
+{"stem": "shoot-20260824-a0-orchard", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-a0-orchard"}
+{"stem": "shoot-20260824-a0-harbor", "variant": "V2_anchored", "craft": 7.0, "brand_fluency": 7.0, "emotional_intensity": 3.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-a0-harbor"}
+{"stem": "shoot-20260824-omni-lantern", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-omni-lantern"}
+{"stem": "shoot-20260824-omni-harbor", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-omni-harbor"}
+{"stem": "shoot-20260824-omni-orchard", "variant": "V2_anchored", "craft": 7.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-omni-orchard"}
+{"stem": "shoot-20260824-a0-slowroad", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-a0-slowroad"}
+{"stem": "shoot-20260824-omni-quiet", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-omni-quiet"}
+{"stem": "shoot-20260824-seedance2-harbor", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 3.0, "clip": "shoot-20260824-seedance2-harbor"}
+{"stem": "shoot-20260824-omni-slowroad", "variant": "V2_anchored", "craft": 7.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-omni-slowroad"}
+{"stem": "shoot-20260824-seedance2-lantern", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-seedance2-lantern"}
+{"stem": "shoot-20260824-seedance2-orchard", "variant": "V2_anchored", "craft": 7.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-seedance2-orchard"}
+{"stem": "shoot-20260824-seedance2-quiet", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-seedance2-quiet"}
+{"stem": "shoot-20260824-wan3-harbor", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 3.0, "clip": "shoot-20260824-wan3-harbor"}
+{"stem": "shoot-20260824-seedance2-slowroad", "variant": "V2_anchored", "craft": 7.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-seedance2-slowroad"}
+{"stem": "shoot-20260824-wan3-lantern", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-lantern"}
+{"stem": "shoot-20260824-wan3-orchard", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-orchard"}
+{"stem": "shoot-20260824-wan3-quiet", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-wan3-quiet"}
+{"stem": "shoot-20260824-wan3-slowroad", "variant": "V2_anchored", "craft": 7.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-slowroad"}
+{"stem": "shoot-20260826-omni-harbor", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 7.0, "emotional_intensity": 3.0, "narrative_simplicity": 7.0, "clip": "shoot-20260826-omni-harbor"}
+{"stem": "shoot-20260826-omni-lantern", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 7.0, "narrative_simplicity": 5.0, "clip": "shoot-20260826-omni-lantern"}
+{"stem": "shoot-20260826-omni-orchard", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 3.0, "emotional_intensity": 5.0, "narrative_simplicity": 3.0, "clip": "shoot-20260826-omni-orchard"}
+{"stem": "shoot-20260826-omni-slowroad", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 3.0, "clip": "shoot-20260826-omni-slowroad"}
+{"stem": "shoot-20260826-seedance2-orchard", "variant": "V2_anchored", "craft": 3.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 3.0, "clip": "shoot-20260826-seedance2-orchard"}
+{"stem": "shoot-20260826-seedance2-slowroad", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 5.0, "clip": "shoot-20260826-seedance2-slowroad"}
+{"stem": "shoot-20260826-wan3-harbor", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 7.0, "emotional_intensity": 3.0, "narrative_simplicity": 5.0, "clip": "shoot-20260826-wan3-harbor"}
+{"stem": "shoot-20260826-wan3-lantern", "variant": "V2_anchored", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 7.0, "narrative_simplicity": 7.0, "clip": "shoot-20260826-wan3-lantern"}
+{"stem": "shoot-20260824-a0-quiet", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-a0-quiet"}
+{"stem": "shoot-20260824-a0-orchard", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-a0-orchard"}
+{"stem": "shoot-20260824-a0-harbor", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-a0-harbor"}
+{"stem": "shoot-20260824-a0-lantern", "variant": "V4_fewshot", "craft": 4.0, "brand_fluency": 4.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-a0-lantern"}
+{"stem": "shoot-20260824-omni-harbor", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 3.0, "clip": "shoot-20260824-omni-harbor"}
+{"stem": "shoot-20260824-a0-slowroad", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-a0-slowroad"}
+{"stem": "shoot-20260824-omni-lantern", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-omni-lantern"}
+{"stem": "shoot-20260824-omni-orchard", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-omni-orchard"}
+{"stem": "shoot-20260824-omni-quiet", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-omni-quiet"}
+{"stem": "shoot-20260824-seedance2-harbor", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-seedance2-harbor"}
+{"stem": "shoot-20260824-omni-slowroad", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-omni-slowroad"}
+{"stem": "shoot-20260824-seedance2-lantern", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 4.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-seedance2-lantern"}
+{"stem": "shoot-20260824-seedance2-orchard", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-seedance2-orchard"}
+{"stem": "shoot-20260824-seedance2-quiet", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-seedance2-quiet"}
+{"stem": "shoot-20260824-seedance2-slowroad", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 8.0, "emotional_intensity": 4.0, "narrative_simplicity": 8.0, "clip": "shoot-20260824-seedance2-slowroad"}
+{"stem": "shoot-20260824-wan3-harbor", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 3.0, "clip": "shoot-20260824-wan3-harbor"}
+{"stem": "shoot-20260824-wan3-lantern", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-wan3-lantern"}
+{"stem": "shoot-20260824-wan3-quiet", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 4.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-wan3-quiet"}
+{"stem": "shoot-20260824-wan3-slowroad", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-slowroad"}
+{"stem": "shoot-20260824-wan3-orchard", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-orchard"}
+{"stem": "shoot-20260826-omni-harbor", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 3.0, "narrative_simplicity": 6.0, "clip": "shoot-20260826-omni-harbor"}
+{"stem": "shoot-20260826-omni-lantern", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 6.0, "narrative_simplicity": 6.0, "clip": "shoot-20260826-omni-lantern"}
+{"stem": "shoot-20260826-omni-orchard", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 5.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-omni-orchard"}
+{"stem": "shoot-20260826-omni-slowroad", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 4.0, "emotional_intensity": 3.0, "narrative_simplicity": 3.0, "clip": "shoot-20260826-omni-slowroad"}
+{"stem": "shoot-20260826-seedance2-orchard", "variant": "V4_fewshot", "craft": 4.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-seedance2-orchard"}
+{"stem": "shoot-20260826-wan3-harbor", "variant": "V4_fewshot", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 6.0, "clip": "shoot-20260826-wan3-harbor"}
+{"stem": "shoot-20260826-seedance2-slowroad", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-seedance2-slowroad"}
+{"stem": "shoot-20260826-wan3-lantern", "variant": "V4_fewshot", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 6.0, "narrative_simplicity": 6.0, "clip": "shoot-20260826-wan3-lantern"}
+{"stem": "shoot-20260824-a0-quiet", "variant": "V5_justify", "craft": 5.0, "brand_fluency": 5.0, "emotional_intensity": 4.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-a0-quiet"}
+{"stem": "shoot-20260824-a0-lantern", "variant": "V5_justify", "craft": 4.0, "brand_fluency": 4.0, "emotional_intensity": 5.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-a0-lantern"}
+{"stem": "shoot-20260824-a0-harbor", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-a0-harbor"}
+{"stem": "shoot-20260824-a0-orchard", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-a0-orchard"}
+{"stem": "shoot-20260824-a0-slowroad", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-a0-slowroad"}
+{"stem": "shoot-20260824-omni-harbor", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-omni-harbor"}
+{"stem": "shoot-20260824-omni-lantern", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 6.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-omni-lantern"}
+{"stem": "shoot-20260824-omni-orchard", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-omni-orchard"}
+{"stem": "shoot-20260824-omni-quiet", "variant": "V5_justify", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-omni-quiet"}
+{"stem": "shoot-20260824-omni-slowroad", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-omni-slowroad"}
+{"stem": "shoot-20260824-seedance2-harbor", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-seedance2-harbor"}
+{"stem": "shoot-20260824-seedance2-lantern", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-seedance2-lantern"}
+{"stem": "shoot-20260824-seedance2-orchard", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-seedance2-orchard"}
+{"stem": "shoot-20260824-seedance2-slowroad", "variant": "V5_justify", "craft": 7.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-seedance2-slowroad"}
+{"stem": "shoot-20260824-seedance2-quiet", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-seedance2-quiet"}
+{"stem": "shoot-20260824-wan3-harbor", "variant": "V5_justify", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-wan3-harbor"}
+{"stem": "shoot-20260824-wan3-slowroad", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-slowroad"}
+{"stem": "shoot-20260824-wan3-lantern", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 5.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-wan3-lantern"}
+{"stem": "shoot-20260824-wan3-orchard", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-orchard"}
+{"stem": "shoot-20260824-wan3-quiet", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-quiet"}
+{"stem": "shoot-20260826-omni-orchard", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 5.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-omni-orchard"}
+{"stem": "shoot-20260826-omni-harbor", "variant": "V5_justify", "craft": 5.0, "brand_fluency": 7.0, "emotional_intensity": 4.0, "narrative_simplicity": 7.0, "clip": "shoot-20260826-omni-harbor"}
+{"stem": "shoot-20260826-omni-slowroad", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 4.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-omni-slowroad"}
+{"stem": "shoot-20260826-omni-lantern", "variant": "V5_justify", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 6.0, "narrative_simplicity": 6.0, "clip": "shoot-20260826-omni-lantern"}
+{"stem": "shoot-20260826-seedance2-orchard", "variant": "V5_justify", "craft": 5.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 5.0, "clip": "shoot-20260826-seedance2-orchard"}
+{"stem": "shoot-20260826-seedance2-slowroad", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 5.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-seedance2-slowroad"}
+{"stem": "shoot-20260826-wan3-harbor", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 6.0, "clip": "shoot-20260826-wan3-harbor"}
+{"stem": "shoot-20260826-wan3-lantern", "variant": "V5_justify", "craft": 6.0, "brand_fluency": 5.0, "emotional_intensity": 6.0, "narrative_simplicity": 6.0, "clip": "shoot-20260826-wan3-lantern"}
+{"stem": "shoot-20260824-a0-harbor", "variant": "V3_percall", "craft": 4.0, "brand_fluency": 6.0, "emotional_intensity": 2.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-a0-harbor"}
+{"stem": "shoot-20260824-a0-quiet", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 4.0, "emotional_intensity": 3.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-a0-quiet"}
+{"stem": "shoot-20260824-omni-harbor", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 3.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-omni-harbor"}
+{"stem": "shoot-20260824-a0-lantern", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 4.0, "emotional_intensity": 5.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-a0-lantern"}
+{"stem": "shoot-20260824-a0-orchard", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 6.0, "emotional_intensity": 6.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-a0-orchard"}
+{"stem": "shoot-20260824-omni-orchard", "variant": "V3_percall", "craft": 4.0, "brand_fluency": 6.0, "emotional_intensity": 6.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-omni-orchard"}
+{"stem": "shoot-20260824-a0-slowroad", "variant": "V3_percall", "craft": 4.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-a0-slowroad"}
+{"stem": "shoot-20260824-omni-quiet", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-omni-quiet"}
+{"stem": "shoot-20260824-omni-lantern", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 3.0, "emotional_intensity": 4.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-omni-lantern"}
+{"stem": "shoot-20260824-omni-slowroad", "variant": "V3_percall", "craft": 6.0, "brand_fluency": 5.0, "emotional_intensity": 3.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-omni-slowroad"}
+{"stem": "shoot-20260824-seedance2-lantern", "variant": "V3_percall", "craft": 4.0, "brand_fluency": 3.0, "emotional_intensity": 6.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-seedance2-lantern"}
+{"stem": "shoot-20260824-seedance2-orchard", "variant": "V3_percall", "craft": 4.0, "brand_fluency": 4.0, "emotional_intensity": 2.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-seedance2-orchard"}
+{"stem": "shoot-20260824-seedance2-harbor", "variant": "V3_percall", "craft": 4.0, "brand_fluency": 4.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-seedance2-harbor"}
+{"stem": "shoot-20260824-seedance2-quiet", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 4.0, "emotional_intensity": 4.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-seedance2-quiet"}
+{"stem": "shoot-20260824-seedance2-slowroad", "variant": "V3_percall", "craft": 6.0, "brand_fluency": 6.0, "emotional_intensity": 4.0, "narrative_simplicity": 6.0, "clip": "shoot-20260824-seedance2-slowroad"}
+{"stem": "shoot-20260824-wan3-harbor", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 4.0, "emotional_intensity": 2.0, "narrative_simplicity": 3.0, "clip": "shoot-20260824-wan3-harbor"}
+{"stem": "shoot-20260824-wan3-lantern", "variant": "V3_percall", "craft": 4.0, "brand_fluency": 3.0, "emotional_intensity": 3.0, "narrative_simplicity": 5.0, "clip": "shoot-20260824-wan3-lantern"}
+{"stem": "shoot-20260824-wan3-quiet", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 4.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260824-wan3-quiet"}
+{"stem": "shoot-20260824-wan3-orchard", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 4.0, "emotional_intensity": 3.0, "narrative_simplicity": 7.0, "clip": "shoot-20260824-wan3-orchard"}
+{"stem": "shoot-20260824-wan3-slowroad", "variant": "V3_percall", "craft": 6.0, "brand_fluency": 7.0, "emotional_intensity": 3.0, "narrative_simplicity": 8.0, "clip": "shoot-20260824-wan3-slowroad"}
+{"stem": "shoot-20260826-omni-harbor", "variant": "V3_percall", "craft": 6.0, "brand_fluency": 4.0, "emotional_intensity": 3.0, "narrative_simplicity": 7.0, "clip": "shoot-20260826-omni-harbor"}
+{"stem": "shoot-20260826-omni-orchard", "variant": "V3_percall", "craft": 4.0, "brand_fluency": 4.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-omni-orchard"}
+{"stem": "shoot-20260826-omni-lantern", "variant": "V3_percall", "craft": 4.0, "brand_fluency": 4.0, "emotional_intensity": 5.0, "narrative_simplicity": 7.0, "clip": "shoot-20260826-omni-lantern"}
+{"stem": "shoot-20260826-seedance2-orchard", "variant": "V3_percall", "craft": 3.0, "brand_fluency": 4.0, "emotional_intensity": 3.0, "narrative_simplicity": 4.0, "clip": "shoot-20260826-seedance2-orchard"}
+{"stem": "shoot-20260826-omni-slowroad", "variant": "V3_percall", "craft": 5.0, "brand_fluency": 3.0, "emotional_intensity": 3.0, "narrative_simplicity": 5.0, "clip": "shoot-20260826-omni-slowroad"}
+{"stem": "shoot-20260826-seedance2-slowroad", "variant": "V3_percall", "craft": 6.0, "brand_fluency": 3.0, "emotional_intensity": 3.0, "narrative_simplicity": 5.0, "clip": "shoot-20260826-seedance2-slowroad"}
+{"stem": "shoot-20260826-wan3-harbor", "variant": "V3_percall", "craft": 6.0, "brand_fluency": 4.0, "emotional_intensity": 3.0, "narrative_simplicity": 8.0, "clip": "shoot-20260826-wan3-harbor"}
+{"stem": "shoot-20260826-wan3-lantern", "variant": "V3_percall", "craft": 4.0, "brand_fluency": 3.0, "emotional_intensity": 6.0, "narrative_simplicity": 8.0, "clip": "shoot-20260826-wan3-lantern"}
+{"stem": "shoot-20260824-a0-lantern", "variant": "V6_fine", "craft": 46.0, "message": 52.0, "warmth": 38.0, "clip": "shoot-20260824-a0-lantern"}
+{"stem": "shoot-20260824-a0-harbor", "variant": "V6_fine", "craft": 58.0, "message": 42.0, "warmth": 47.0, "clip": "shoot-20260824-a0-harbor"}
+{"stem": "shoot-20260824-a0-quiet", "variant": "V6_fine", "craft": 52.0, "message": 58.0, "warmth": 47.0, "clip": "shoot-20260824-a0-quiet"}
+{"stem": "shoot-20260824-a0-orchard", "variant": "V6_fine", "craft": 52.0, "message": 58.0, "warmth": 40.0, "clip": "shoot-20260824-a0-orchard"}
+{"stem": "shoot-20260824-omni-lantern", "variant": "V6_fine", "craft": 52.0, "message": 66.0, "warmth": 44.0, "clip": "shoot-20260824-omni-lantern"}
+{"stem": "shoot-20260824-a0-slowroad", "variant": "V6_fine", "craft": 66.0, "message": 62.0, "warmth": 58.0, "clip": "shoot-20260824-a0-slowroad"}
+{"stem": "shoot-20260824-omni-harbor", "variant": "V6_fine", "craft": 66.0, "message": 52.0, "warmth": 58.0, "clip": "shoot-20260824-omni-harbor"}
+{"stem": "shoot-20260824-omni-orchard", "variant": "V6_fine", "craft": 66.0, "message": 58.0, "warmth": 47.0, "clip": "shoot-20260824-omni-orchard"}
+{"stem": "shoot-20260824-omni-quiet", "variant": "V6_fine", "craft": 52.0, "message": 58.0, "warmth": 47.0, "clip": "shoot-20260824-omni-quiet"}
+{"stem": "shoot-20260824-omni-slowroad", "variant": "V6_fine", "craft": 66.0, "message": 58.0, "warmth": 55.0, "clip": "shoot-20260824-omni-slowroad"}
+{"stem": "shoot-20260824-seedance2-harbor", "variant": "V6_fine", "craft": 58.0, "message": 47.0, "warmth": 55.0, "clip": "shoot-20260824-seedance2-harbor"}
+{"stem": "shoot-20260824-seedance2-lantern", "variant": "V6_fine", "craft": 58.0, "message": 62.0, "warmth": 41.0, "clip": "shoot-20260824-seedance2-lantern"}
+{"stem": "shoot-20260824-seedance2-quiet", "variant": "V6_fine", "craft": 58.0, "message": 52.0, "warmth": 47.0, "clip": "shoot-20260824-seedance2-quiet"}
+{"stem": "shoot-20260824-seedance2-orchard", "variant": "V6_fine", "craft": 66.0, "message": 58.0, "warmth": 47.0, "clip": "shoot-20260824-seedance2-orchard"}
+{"stem": "shoot-20260824-seedance2-slowroad", "variant": "V6_fine", "craft": 66.0, "message": 52.0, "warmth": 61.0, "clip": "shoot-20260824-seedance2-slowroad"}
+{"stem": "shoot-20260824-wan3-harbor", "variant": "V6_fine", "craft": 58.0, "message": 42.0, "warmth": 50.0, "clip": "shoot-20260824-wan3-harbor"}
+{"stem": "shoot-20260824-wan3-orchard", "variant": "V6_fine", "craft": 66.0, "message": 58.0, "warmth": 47.0, "clip": "shoot-20260824-wan3-orchard"}
+{"stem": "shoot-20260824-wan3-lantern", "variant": "V6_fine", "craft": 62.0, "message": 68.0, "warmth": 47.0, "clip": "shoot-20260824-wan3-lantern"}
+{"stem": "shoot-20260824-wan3-quiet", "variant": "V6_fine", "craft": 54.0, "message": 52.0, "warmth": 47.0, "clip": "shoot-20260824-wan3-quiet"}
+{"stem": "shoot-20260824-wan3-slowroad", "variant": "V6_fine", "craft": 66.0, "message": 58.0, "warmth": 55.0, "clip": "shoot-20260824-wan3-slowroad"}
+{"stem": "shoot-20260826-omni-harbor", "variant": "V6_fine", "craft": 58.0, "message": 62.0, "warmth": 47.0, "clip": "shoot-20260826-omni-harbor"}
+{"stem": "shoot-20260826-omni-slowroad", "variant": "V6_fine", "craft": 58.0, "message": 47.0, "warmth": 41.0, "clip": "shoot-20260826-omni-slowroad"}
+{"stem": "shoot-20260826-omni-orchard", "variant": "V6_fine", "craft": 62.0, "message": 48.0, "warmth": 55.0, "clip": "shoot-20260826-omni-orchard"}
+{"stem": "shoot-20260826-omni-lantern", "variant": "V6_fine", "craft": 52.0, "message": 58.0, "warmth": 47.0, "clip": "shoot-20260826-omni-lantern"}
+{"stem": "shoot-20260826-seedance2-orchard", "variant": "V6_fine", "craft": 52.0, "message": 54.0, "warmth": 47.0, "clip": "shoot-20260826-seedance2-orchard"}
+{"stem": "shoot-20260826-wan3-lantern", "variant": "V6_fine", "craft": 58.0, "message": 66.0, "warmth": 47.0, "clip": "shoot-20260826-wan3-lantern"}
+{"stem": "shoot-20260826-seedance2-slowroad", "variant": "V6_fine", "craft": 58.0, "message": 47.0, "warmth": 41.0, "clip": "shoot-20260826-seedance2-slowroad"}
+{"stem": "shoot-20260826-wan3-harbor", "variant": "V6_fine", "craft": 58.0, "message": 62.0, "warmth": 47.0, "clip": "shoot-20260826-wan3-harbor"}

@@ -1,0 +1,13 @@
+cohort aug24, judge gpt: 398 votes, 5 briefs, 20 judge calls on its renders, 20 of 20 voted renders scored
+  uniform  50.0%   what a coin ships
+  gate     52.6%   kill the judge's lowest, ship the rest    gap closed +58%
+  pick     44.4%   ship the judge's highest, for contrast    gap closed -122%
+  oracle   54.6%   kill the render humans liked least
+  gate minus pick +8.2 points, from the unrounded values
+  per brief, gate minus uniform: ha+0.0 la+3.4 or-1.1 qu+3.3 sl+7.5
+  hit rate         gate 3 of 5 = 60%   coin 25%   oracle 100%   P(coin gets at least 3) = 0.10
+  misses           harbor killed the third-worst, orchard killed the third-worst
+  brief bootstrap  (3125 resamples, exhaustive, interval)  lift +2.6  95% [+0.0, +5.2]  P(lift<=0) 0.0131
+  rater bootstrap  (4000 resamples, 90 raters, interval)  lift +2.7  95% [+0.6, +4.7]  P(lift<=0) 0.0077
+  hit stability    (same resamples)  the oracle's kill is still the worst 69.0% of the time, the gate's kill 45.3%
+  fair-coin null   (4000 draws)  p = 0.0147

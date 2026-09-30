@@ -1,0 +1,58 @@
+AGREEMENT among raters, decisive votes only (no-preference votes excluded)
+  two distinct raters pick the same render: 1129/2128 = 53.1%
+  the majority side of each pair, in-sample: 258/390 = 66.2%
+  no-preference votes excluded from both:    60 of 450
+
+POSITION BIAS in the pairwise runs, results/pairwise_verdicts.jsonl
+  claude  base  picked B on 28/34 distinct pairs = 82%
+  claude  swap  picked B on 30/34 distinct pairs = 88%
+  claude  tail  picked B on 25/32 distinct pairs = 78%
+  gemini  base  picked B on 19/31 distinct pairs = 61%
+  gpt     base  picked B on 28/34 distinct pairs = 82%
+  gpt     swap  picked B on 22/33 distinct pairs = 67%
+  gpt     tail  25 distinct pairs, 1 scored twice with conflicting picks. Not reported
+  claude  rubric after frames, same 32 pairs: base 81% -> tail 78%
+
+CORRELATION of each Claude axis with human value, all 28 renders, all votes
+  craft    r = +0.28   n=28
+  message  r = +0.07   n=28
+  warmth   r = +0.13   n=28
+  sum      r = +0.21   n=28
+
+SCORE RESOLUTION, Claude
+  first call only:  7 distinct totals across 28 renders
+  20 calls averaged: 23 distinct totals across 28 renders
+  harbor     no ties
+  lantern    omni/seedance2 tie at 15.0 (middle)
+  orchard    no ties
+  quiet      no ties
+  slowroad   no ties
+
+WINNING ENGINE per brief, Aug 24, human value vs the other three
+  harbor     omni       63%   runner-up a0         50%   margin 12.9
+  lantern    seedance2  66%   runner-up omni       48%   margin 18.1
+  orchard    wan3       70%   runner-up seedance2  53%   margin 16.4
+  quiet      seedance2  63%   runner-up omni       55%   margin 8.4
+  slowroad   seedance2  69%   runner-up wan3       58%   margin 10.8
+
+PANEL, Claude and GPT axis means averaged per render, Aug 24
+  gate  claude alone 53.9%   claude+gpt 53.9%
+  pick  claude alone 47.9%   claude+gpt 48.9%
+
+PAIRWISE WORST, Aug 24, whether the lowest win rate also lost every head-to-head
+  harbor     seedance2  lowest win rate, lost every head-to-head, and the gate killed wan3, which won 53% of their head-to-head votes against it
+  lantern    wan3       lowest win rate, lost every head-to-head, and the gate killed a0, which won 61% of their head-to-head votes against it
+  orchard    a0         lowest win rate, lost every head-to-head
+  quiet      a0         lowest win rate, lost every head-to-head
+  slowroad   a0         lowest win rate, lost every head-to-head
+
+CONSTANT BASELINE, pick the engine with the best mean human value on the other four briefs, Aug 24
+  folds picked ['seedance2', 'seedance2', 'seedance2', 'seedance2', 'seedance2'], held-out human value 58.6%
+
+COUNTS
+  rubric variants besides the baseline: 6
+  Prolific studies: 2, raters: 90, votes: 450
+
+OTHER JUDGES, one call each
+  gpt     7 distinct totals across 28 renders, 1 call(s) per render
+  gemini  4 distinct totals across 26 renders, 1 call(s) per render

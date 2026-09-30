@@ -72,3 +72,14 @@ jobs:
       # shipped, so this blocks like everything else.
       - name: Prop gate selftest
         run: bash guards/prop_gate.sh selftest
+      # The kill gate is standard library only. Its scripts must print exactly what
+      # eval/expected/ records, so a change to the votes, scores or math fails here.
+      - name: Kill gate
+        working-directory: kill-gate
+        run: |
+          set -eo pipefail
+          python3 test_gate.py
+          python3 eval/run.py | diff eval/expected/run.txt -
+          python3 eval/run.py --cohort all | diff eval/expected/run-cohort-all.txt -
+          python3 eval/run.py --judge gpt | diff eval/expected/run-judge-gpt.txt -
+          python3 eval/facts.py | diff eval/expected/facts.txt -

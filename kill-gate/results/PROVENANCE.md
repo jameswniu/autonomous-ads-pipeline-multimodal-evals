@@ -1,0 +1,11 @@
+# Provenance of the scores in this directory
+
+`judge_scores.jsonl` was produced on 2026-09-19 and 2026-09-20 from the 28 masters in the `media-2026-08` GitHub release, eight frames each at 512 px wide, with the rubric that is now in `judge.py`. Claude is `claude-sonnet-5` through the `claude` CLI in the lean form shown in `judge.py`; the `--bare` flag was added to `judge.py` after these scores were taken and is not part of their invocation. GPT is `codex exec` in a read-only sandbox reading the frame files from disk. Gemini is `gemini-3.8-flash` on Vertex AI reading each clip as video. Claude has 20 calls per clip, the other two have one. Each reply was parsed by the working script's rule, the first JSON object in the result text that carried all three axes. `judge.py` now requires the whole text to be one object, and how many saved replies would have failed that stricter parse is not known. Raw model responses were not kept. Only the parsed scores are here, so the file supports the arithmetic in `eval/run.py` and does not by itself prove which prompt, or which parse, produced a given number.
+
+`votes.csv` is 450 judgments from two Prolific studies on 2026-09-19 and 2026-09-20, 20 then 70 participants, five pairs each. Participant IDs are salted hashes of the Prolific IDs. Study IDs are kept. The user agent and session fields were dropped.
+
+`pairwise_verdicts.jsonl` holds the earlier pairwise runs, where each judge saw both renders in one call. These are the source of the position-bias figures in the README: the base variant and a swap variant with sides reversed, and a tail variant with the rubric after the frames.
+
+`rubric_variants.jsonl` holds six single-call rubric variants scored on the 28 clips, used to test whether axes from the ad-effectiveness literature beat the three in `gate.py`.
+
+`outside-review.md` is a second vendor's read-only review of the working directory that preceded this one. The files it names (`data.json`, `points.jsonl`, `brief.md`) were that directory's; `judge_scores.jsonl` here is `points.jsonl` with the clip-to-vote join it criticised corrected. Its tables that depend on the old join are therefore historical, and its finding 2 is the reason the join was corrected.
