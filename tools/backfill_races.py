@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Backfill the two recorded race cohorts, locally and without vendor calls.
+"""Backfill the recorded race cohorts, locally and without vendor calls.
 
 Existing JSONL rows are immutable. Identical identities are no-ops; changed
-content under an existing identity is an error, checked before any append.
+content under an existing identity is an error, checked before any append. A
+cohort already in the ledger is not rebuilt at all: its rows hash the README and
+the other sources as they stood when they were written, so a later tree cannot
+reproduce them, and committed rows are evidence rather than a build target.
 """
 
 import argparse
@@ -29,6 +32,21 @@ ENGINES = {
     "wan3": ("Wan 3.0", "3.0"),
     "seedance2": ("Seedance 2.0", "2.0"),
 }
+# The engine token inside a released 2026-08-24 master filename. The baseline ships
+# under its column name, A0, rather than under the engine id used everywhere else.
+RELEASE_TAGS = {"heygen": "a0", "omni": "omni", "wan3": "wan3", "seedance2": "seedance2"}
+# The header of the winners table in each of its two recorded shapes. The original
+# four-column table is where the hand calls were written down; the five-column table
+# that replaced it records the hand call in its own column and the panel's winner in
+# the WINNER column. A tree carries one or the other, and the cohort that reads a
+# shape is not built from a tree that no longer has it.
+ORIGINAL_WINNERS_HEADER = "| Spot | The feeling it sells, and the row that gates | WINNER | Why |"
+RESCORE_WINNERS_HEADER = ("| Spot | The feeling it sells, and the row that gates | "
+                          "Eye at the time | WINNER | Why the panel says so |")
+# The hand call in the five-column table: its own cell, then the panel's winner, whose
+# link names the brief. Written against that row shape, and deliberately separate from
+# the original four-column pattern below, which reads a table this one cannot.
+EYE_AT_THE_TIME = r"^\| [^|]+ \| [^|]+ \| ([^|]+?) \| \[([^]]+)\]\(#winner-([a-z]+)\) \| (.+) \|$"
 PATTERNS = {
     "hand_probe": r"^HAND gesture ratio ([0-9.]+)\s",
     "bg_detail": r"^BG (?:SIMPLE|TOO BUSY): detail ([0-9.]+)\s",
@@ -144,8 +162,15 @@ def _load_scorer(root):
     return module.resolve_panel, module.score_race
 
 
-def build_rows(root=ROOT):
-    """Return deterministic rows plus omissions. No writes and no probe execution."""
+def build_rows(root=ROOT, existing_ids=frozenset()):
+    """Return deterministic rows plus omissions. No writes and no probe execution.
+
+    `existing_ids` are the identities already on the ledger being appended to. A
+    cohort whose races are all present is skipped whole rather than rebuilt: its
+    rows pin the hashes its sources had at its own commit, so rebuilding it from a
+    later tree yields different content under the same identities, which
+    append_rows refuses. Skipping is what lets the ledger grow a second time.
+    """
     root = Path(root)
     sources = Sources(root)
     catalog = read_json(root / "races/panels.json")
@@ -162,24 +187,14 @@ def build_rows(root=ROOT):
     audience_boards = read_json(root / "shoots/ads4/boards.json")
     panel_scores = read_json(root / "shoots/ads6-omni/panel-score.json")
     readme_lines = sources.text("README.md").splitlines()
-    hand_original = {}
-    for line, text in enumerate(readme_lines, 1):
-        match = re.search(r"\| \[([^]]+)\]\(#winner-([a-z]+)\) \| (.+) \|$", text)
-        if match:
-            label, brief, why = match.groups()
-            hand_original[brief] = (engine_id(label), sources.ref("README.md", line=line), why)
-    if set(hand_original) != set(original_boards["ads"]):
-        raise ValueError("README winners and original board briefs do not match")
 
-    original_scores = {}
-    for probe, label in [(row["probe"], row["label"])
-                         for row in pinned_resolve_panel(catalog, "orchard")["rows"]]:
-        source = sources.ref("README.md", f"| {label},")
-        cells = readme_lines[source["line"] - 1].strip("|").split("|")[1:]
-        values = [float(cell.strip().replace("**", "")) for cell in cells]
-        if len(values) != 4:
-            raise ValueError("Orchard table must contain the four recorded engines")
-        original_scores[probe] = (dict(zip(ENGINES, values)), source)
+    def already_recorded(shoot, briefs):
+        """True when every race of this cohort is already on the ledger."""
+        if not all(f"race:{shoot}:{brief}" in existing_ids for brief in briefs):
+            return False
+        skipped.append({"item": f"cohort {shoot}", "reason":
+                        "cohort already in the ledger; committed rows are evidence, not a build target"})
+        return True
 
     def measurement(probe, value=None, refs=None, output_path=None):
         probe_path = f"probes/{probe}.py"
@@ -193,8 +208,12 @@ def build_rows(root=ROOT):
             if not match:
                 raise ValueError(f"{output_path}: no recognizable {probe} value")
             output_value = float(match.group(1))
-            result.update(value=output_value, panel_score_value=value,
-                          panel_score_agrees=output_value == value)
+            result["value"] = output_value
+            if value is not None:
+                # Only a row that was also transcribed by hand can record whether the
+                # two agree. A rescore reads the saved output and nothing else, so it
+                # has no transcription to compare and claims no agreement.
+                result.update(panel_score_value=value, panel_score_agrees=output_value == value)
             result["sources"].append(sources.ref(output_path, line=1))
         return result
 
@@ -216,7 +235,7 @@ def build_rows(root=ROOT):
                       "Probe code hashes pin the backfill snapshot, not an attested historical execution."],
         }
 
-    def add_race(shoot, brief, renders, hand, hand_sources, hand_reason):
+    def add_race(shoot, brief, renders, hand, hand_sources, hand_reason, notes=()):
         panel = pinned_resolve_panel(catalog, brief)
         values = {row["engine"]: {p: v["value"] for p, v in row["probes"].items()}
                   for row in renders}
@@ -239,7 +258,7 @@ def build_rows(root=ROOT):
             "agrees": agrees, "disagreement_reason": disagreement,
             "recorded_reason": hand_reason, "score": result, "missing_scores": missing,
             "status": "missing_scores" if missing else result["decided_by"],
-            "sources": hand_sources, "notes": [],
+            "sources": hand_sources, "notes": list(notes),
         }
         if missing:
             reason = "Winner computation skipped: no numeric scores for this original race."
@@ -248,7 +267,37 @@ def build_rows(root=ROOT):
         rows.extend(renders)
         rows.append(row)
 
-    for brief, scene_ids in original_boards["ads"].items():
+    build_original = not already_recorded("ads2-redo", original_boards["ads"])
+    if build_original and ORIGINAL_WINNERS_HEADER not in readme_lines:
+        # The hand calls for this cohort were written in the four-column winners
+        # table. A tree whose README no longer carries that table records them
+        # somewhere else, in another shape, and is not a source for these rows.
+        skipped.append({"item": "cohort ads2-redo", "reason":
+                        "This tree's README does not carry the original four-column winners "
+                        "table, which is where this cohort's hand calls were recorded."})
+        build_original = False
+
+    hand_original = {}
+    if build_original:
+        for line, text in enumerate(readme_lines, 1):
+            match = re.search(r"\| \[([^]]+)\]\(#winner-([a-z]+)\) \| (.+) \|$", text)
+            if match:
+                label, brief, why = match.groups()
+                hand_original[brief] = (engine_id(label), sources.ref("README.md", line=line), why)
+        if set(hand_original) != set(original_boards["ads"]):
+            raise ValueError("README winners and original board briefs do not match")
+
+        original_scores = {}
+        for probe, label in [(row["probe"], row["label"])
+                             for row in pinned_resolve_panel(catalog, "orchard")["rows"]]:
+            source = sources.ref("README.md", f"| {label},")
+            cells = readme_lines[source["line"] - 1].strip("|").split("|")[1:]
+            values = [float(cell.strip().replace("**", "")) for cell in cells]
+            if len(values) != 4:
+                raise ValueError("Orchard table must contain the four recorded engines")
+            original_scores[probe] = (dict(zip(ENGINES, values)), source)
+
+    for brief, scene_ids in original_boards["ads"].items() if build_original else []:
         renders = []
         for engine in ENGINES:
             refs = [sources.ref("shoots/ads2-redo/boards.json", f'"{brief}": ['),
@@ -304,7 +353,8 @@ def build_rows(root=ROOT):
     panel_path = "shoots/ads6-omni/panel-score.json"
     panel_text = sources.text(panel_path).splitlines()
     used_outputs = set()
-    for brief, recorded in panel_scores.items():
+    build_redo = not already_recorded("ads6-omni", panel_scores)
+    for brief, recorded in panel_scores.items() if build_redo else []:
         start = next(n for n, line in enumerate(panel_text, 1) if f'"{brief}": {{' in line)
         renders = []
         for side, engine, render_shoot in [
@@ -364,10 +414,66 @@ def build_rows(root=ROOT):
                  [sources.ref(panel_path, line=winner_line), sources.ref("README.md", "- Scored again after the redo,")],
                  recorded["how"])
 
-    for path in sorted((root / "shoots/ads6-omni/probe-outputs").glob("*.txt")):
-        rel = str(path.relative_to(root))
-        if rel not in used_outputs:
-            skipped.append({"item": rel, "reason": "Output does not belong to a scored final master."})
+    if build_redo:
+        for path in sorted((root / "shoots/ads6-omni/probe-outputs").glob("*.txt")):
+            rel = str(path.relative_to(root))
+            if rel not in used_outputs:
+                skipped.append({"item": rel, "reason": "Output does not belong to a scored final master."})
+
+    # The 2026-09-19 rescore. The same four engines and five briefs as the original
+    # cohort, measured from the released masters instead of from a hand transcription,
+    # so every race carries a computable winner. The hand call is kept as
+    # recorded_winner and read from the README's own record of it.
+    rescore_outputs = root / "shoots/ads2-redo/probe-outputs"
+    build_rescore = not already_recorded("ads2-rescore", original_boards["ads"])
+    if build_rescore and not rescore_outputs.is_dir():
+        skipped.append({"item": "cohort ads2-rescore", "reason":
+                        "This tree has no shoots/ads2-redo/probe-outputs, so there is no "
+                        "saved measurement of the released masters to record."})
+        build_rescore = False
+    if build_rescore and RESCORE_WINNERS_HEADER not in readme_lines:
+        skipped.append({"item": "cohort ads2-rescore", "reason":
+                        "This tree's README does not carry the five-column winners table, "
+                        "which is where the hand call this cohort preserves is recorded."})
+        build_rescore = False
+
+    eye_at_the_time = {}
+    if build_rescore:
+        for line, text in enumerate(readme_lines, 1):
+            match = re.search(EYE_AT_THE_TIME, text)
+            if match:
+                eye, brief = match.group(1), match.group(3)
+                eye_at_the_time[brief] = (engine_id(eye), sources.ref("README.md", line=line), eye)
+        if set(eye_at_the_time) != set(original_boards["ads"]):
+            raise ValueError("README eye-at-the-time column and original board briefs do not match")
+
+    for brief, scene_ids in original_boards["ads"].items() if build_rescore else []:
+        hand, readme_ref, eye_label = eye_at_the_time[brief]
+        renders = []
+        for engine in ENGINES:
+            master = f"shoot-20260824-{RELEASE_TAGS[engine]}-{brief}.mp4"
+            row = render_base("ads2-rescore", brief, engine,
+                              "ads2" if engine == "heygen" else "ads2-redo", scene_ids,
+                              [sources.ref("shoots/ads2-redo/boards.json", f'"{brief}": ['), readme_ref])
+            row["master"] = master
+            row["probes"] = {probe: measurement(
+                probe, output_path=f"shoots/ads2-redo/probe-outputs/{Path(master).stem}.{probe}.txt")
+                for probe in PATTERNS}
+            row["notes"].extend([
+                f"Rescored 2026-09-19: the probes read {master} as released in media-2026-08, "
+                "not a new render.",
+                "No cost is attributed to this row; this render was paid for in the original cohort.",
+                f"The original row render:ads2-redo:{brief}:{engine} is retained as evidence.",
+            ])
+            renders.append(row)
+        original_race = f"race:ads2-redo:{brief}"
+        carried = ("the same hand call and the README table's own readings"
+                   if brief == "orchard" else "the same hand call with no numeric scores")
+        add_race("ads2-rescore", brief, renders, hand, [readme_ref],
+                 f"Eye at the time: {eye_label}, from the winners table in README.md.",
+                 [f"Rescored 2026-09-19 from the released masters; the original {original_race} "
+                  f"row holds {carried} and is retained as evidence."])
+
     skipped.extend([
         {"item": "README.md:253", "reason": "Partial September probe rerun is not a separate complete race; original table readings retained."},
         {"item": "shoots/ads2-redo/requests.jsonl:46-47; shoots/ads6-omni/requests.jsonl:13-15",
@@ -447,6 +553,27 @@ def _set_aside(output, damaged):
     finally:
         os.close(directory)
     return kept
+
+
+def _ledger_ids(output):
+    """Identities already on the ledger this run would append to.
+
+    Read with the same reader and the same row definition the writer uses, so a
+    ledger this version cannot parse says so here rather than silently rebuilding a
+    cohort the append would then refuse. A ledger that does not exist yet is empty,
+    which is how a first run builds everything.
+    """
+    try:
+        with Path(output).open("rb") as stream:
+            ledger = _read_ledger(stream)
+    except (FileNotFoundError, NotADirectoryError):
+        return frozenset()
+    identities = set()
+    for line, text in enumerate(ledger.body.splitlines(), 1):
+        row = json.loads(text)
+        _validate_row(row, f"at line {line}")
+        identities.add(row["id"])
+    return frozenset(identities)
 
 
 def _validate_row(row, where):
@@ -566,13 +693,16 @@ def main(argv=None):
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     try:
-        rows, skipped = build_rows(args.root)
+        output = args.output or args.root / "races/races.jsonl"
+        # What is already recorded decides what is built, so the ledger is read before
+        # the rows are made rather than only when they are offered to it.
+        rows, skipped = build_rows(args.root, _ledger_ids(output))
         result = {"render_rows": sum(r["row_type"] == "render" for r in rows),
                   "race_rows": sum(r["row_type"] == "race" for r in rows), "skipped": skipped,
                   "disagreements": [{"race": r["id"], "reason": r["disagreement_reason"]}
                                     for r in rows if r.get("agrees") is False]}
         if not args.dry_run:
-            appended = append_rows(args.output or args.root / "races/races.jsonl", rows)
+            appended = append_rows(output, rows)
             # A recovery is news about the file, not a count of rows, so it is reported
             # beside the counts where a reader will see it rather than inside them.
             recovered = appended.pop("recovered_damaged_tail", None)

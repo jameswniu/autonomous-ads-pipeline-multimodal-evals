@@ -1,0 +1,2 @@
+HAND gesture ratio 0.728  (head-band motion 9.06, hand-band motion 6.59)
+  reference: avatar_v clips I call natural show visible gesture; a frozen talking head ~0.2 or less

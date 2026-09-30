@@ -5,6 +5,17 @@ complete JSON object. Existing lines are evidence and must not be rewritten;
 the backfill only appends identities that are not already present and refuses a
 changed row under an existing identity.
 
+A cohort whose races are all on the ledger is not rebuilt at all. The backfill
+reads the ledger it is about to append to, and skips such a cohort whole,
+recording one omission that says committed rows are evidence and not a build
+target. This is what lets the ledger grow a second time. Rows written earlier
+pin the hashes their sources had at their own commit, so rebuilding them from a
+later tree would produce different content under the same identities, which the
+append would then refuse. A cohort is built entirely or not at all, never in
+part. A cohort is also skipped when the tree it is being built from no longer
+carries the source it reads, which is how one checkout can rebuild an older
+commit's rows and a newer commit's rows without the two colliding.
+
 Every row has `schema_version`, currently `1`; `row_type`, either `render` or
 `race`; and a stable `id`. `shoot` identifies the race cohort. `brief_id`
 identifies the ad brief, `panel_type` selects a definition from `panels.json`,
@@ -59,6 +70,38 @@ saved output; the parsed output is authoritative when both exist.
 `notes` explains nulls, inheritance, and limitations rather than silently
 inventing missing facts.
 
+## The ads2-rescore cohort
+
+`ads2-rescore` records the 2026-08-24 four-engine races scored again on
+2026-09-19, from the masters as they shipped in the `media-2026-08` release. The
+original `ads2-redo` cohort holds the same twenty renders and five races as they
+were recorded at the time, four of them with no numeric scores at all, and those
+rows are untouched evidence. The rescore is a separate identity for the same
+comparison, measured rather than transcribed, so every race carries a computable
+winner.
+
+`master` on a rescore render row names the released file, `shoot-20260824-<tag>-<brief>.mp4`,
+where the baseline's tag is its column name `a0` and the other three are their
+engine ids. Its five probe outputs live in
+[`shoots/ads2-redo/probe-outputs/`](../shoots/ads2-redo/probe-outputs/), one file
+per probe per master, named after the master. Each measurement cites that file
+and its SHA256 digest, and its `value` is parsed from it. There is no hand
+transcription behind a rescore reading, so `panel_score_value` and
+`panel_score_agrees` are absent rather than null, since a row cannot report
+agreement with a number nobody wrote down.
+
+`cost.records` is empty and `cost.amount` and `cost.unit` are null. These renders
+were paid for once, in the original cohort, and a rescore of an existing file
+buys nothing. Batch costs stay where they were recorded instead of being copied
+onto a second row and counted twice.
+
+`recorded_winner` is the hand call, read from the "Eye at the time" column of the
+winners table in README.md, which is the source file that holds it. The WINNER
+column beside it is the panel's answer, and `computed_winner` reproduces that
+from the probe values. They agree on Orchard and Quiet and disagree on Lantern,
+Harbor and Slow Road, where `agrees` is false and `disagreement_reason` states
+both calls and the row wins behind the numeric one.
+
 ## Race rows
 
 A race row records one brief-level comparison. Its identity is
@@ -95,19 +138,27 @@ background busy-ness without multiplying the three audience panel types.
 Bars are recorded context. The historical winner rule is row direction, then
 row count, then the gate row; a bar does not eliminate an engine.
 
-## Known limit of the reproduction checks
+## How the reproduction checks work, and the limit they used to have
 
-The reproduction checks rebuild the whole ledger from the single commit that last
-wrote it. That is correct while every row was written by that commit, which is the
-case today, and it is what lets ordinary edits to the README and other sources stop
-breaking the build.
+The reproduction check verifies each commit against its own tree. For every commit
+reachable from HEAD that changed `races.jsonl`, the check extracts that commit's
+tree, seeds a scratch ledger with the parent commit's bytes, runs the current
+backfill against that tree, and requires the bytes it appends to be exactly the
+bytes that commit added. Nothing is compared against a tree it was not built from,
+and the concatenation of every commit's verified additions is the committed ledger.
 
-It does not survive a second append made after a source has changed. Rows added by
-the earlier commit record the hashes the sources had then, so rebuilding them from
-the later tree produces different hashes and the exact-backfill and probe-hash
-checks fail. Regenerating the earlier rows to match is not a fix, because those rows
-are immutable evidence.
+It used to rebuild the whole ledger from the single commit that last wrote it. That
+was correct only while every row had been written by that one commit, and it was
+what let ordinary edits to the README stop breaking the build. It could not survive a
+second append made after a source had changed. Rows added by the earlier commit
+record the hashes their sources had then, so rebuilding them from the later tree
+produced different hashes and the exact-backfill and probe-hash checks failed.
+Regenerating the earlier rows to match was never a fix, because those rows are
+immutable evidence.
 
-The fix, when the ledger next grows, is to verify each row against the commit that
-introduced it, rebuilding from that tree and comparing only the rows that commit
-added. The append-only history check is unaffected and keeps working either way.
+That limit closed when the ledger first grew a second time, in the 2026-09-19
+rescore, which is also when cohort skipping arrived. The two are one mechanism seen
+from both ends. The backfill refuses to rebuild a cohort it already has, and the
+check asks each commit only about the rows it actually added. The append-only
+history check is unaffected and keeps working either way, and it remains the only
+one of these that can catch a rewrite, because a rewrite carries its own pin.
