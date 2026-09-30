@@ -39,7 +39,7 @@ Two things are checkable here without accounts, keys or a GPU. `python3` and `ff
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 
-python3 evals/derive.py                    # re-derive every threshold
+python3 evals/derive.py                    # re-derive the ten named thresholds
 python3 probes/mirror_probe.py samples/exemplar-harbor-wan3-live.mp4
 python3 probes/mirror_probe.py samples/frozen-control-slowroad.mp4 || echo "exit $?"
 ```
@@ -94,17 +94,17 @@ Every spot ends on the closer, a presenter who speaks the brand line to camera, 
 |:---|:---|:---|
 | Board | Five mechanical checks, free, before a cent is spent (the product absent before the payoff, the escalation declared, the quirk never spoken by the narration, mouths closed under narration, the centre-crop clause present), then four judgment rows I score 0 to 3 by eye | The board goes back |
 | Render | Every request and every landing appended to the ledger, the vendor's own rejection text included | Recorded, re-rolled once with one variable moved |
-| Closer | Identity pin on the voice and avatar ids, prop gate on the look, jaw measured on the raw render and read against the band | Pre-spend |
+| Closer | Identity pin on the voice and avatar ids, prop gate on the look, jaw measured on the raw render and read against the band | The pins and the look fail before the spend, the jaw read after the render |
 | Build | The closer's video starts within 40 ms of where its audio was placed | Frame-exact, on the master |
 | Ad gates | Every burned cue says what is spoken, within 0.5 s before or 0.3 s after its first word. The closer's mouth is not late | Blocks delivery |
-| Ship gate | Loudness, true peak, silence tail, the standing disclosures. Exit 64 on unreadable input | Fails closed |
+| Ship gate | The frame has no letterbox, the light in it agrees with the clock and the spoken words, a one-way flow is read by eye, and the mouth-settle and coherence readings are disclosed. Exit 64 on unreadable input | Fails closed |
 | Deliver | A defective delivered cut is withdrawn, replaced, and the withdrawal ledgered with its reason | On the record |
 
 ### The redo, as a ledger reads it
 
 Four invented-brand spots were shot again after I kept rejecting boards. I review every cut by eye, and I am the only human in the loop.
 
-- Each spot shipped two ways. One leg ran on the engine that won its panel in the four-engine race in section 3, the other on Omni Flash, from the same boards, narrations, closers, beds and captions. The only variable between the columns is the engine. The 2026-09-19 rescore later overturned the Lantern, Harbor and Slow Road winners, so those three legs turn out to have raced the eye's pick rather than the panel's, Wan 3.0 for the first two and Seedance 2.0 for the third. The redo's own scores in the ledger are unchanged.
+- Each spot shipped two ways. One leg ran on the engine I had picked from the four-engine race in section 3, the other on Omni Flash, from the same boards, narrations, closers, beds and captions. The only variable between the columns is the engine. The 2026-09-19 rescore later overturned my pick for Lantern, Harbor and Slow Road, so those three legs raced Wan 3.0, Wan 3.0 and Seedance 2.0 rather than the panel's winners. The redo's own scores in the ledger are unchanged.
 - The [ledgers](shoots/) hold four rounds behind them, 16, 16, 12 and 15 engine requests, 59 in all, two of them music beds, for eight shipped versions.
 
 <table>
@@ -124,7 +124,7 @@ Four invented-brand spots were shot again after I kept rejecting boards. I revie
 
 <table>
   <tr>
-    <td width="50%" align="center" valign="top"><div><a name="winner-lantern"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-lantern.gif" alt="Lantern Street redone, Wan 3.0" width="100%"><br><b>Lantern Street, Wan 3.0.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-lantern.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-lantern.gif" alt="Lantern Street redone, Wan 3.0" width="100%"><br><b>Lantern Street, Wan 3.0.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-lantern.mp4">&#9654; with sound</a></td>
     <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-lantern.gif" alt="Lantern Street redone, Omni Flash" width="100%"><br><b>Lantern Street, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-lantern.mp4">&#9654; with sound</a></td>
   </tr>
 </table>
@@ -132,13 +132,13 @@ Four invented-brand spots were shot again after I kept rejecting boards. I revie
 <table>
   <tr>
     <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-wan3-harbor.gif" alt="Harbor Lane Realty redone, Wan 3.0" width="100%"><br><b>Harbor Lane Realty, Wan 3.0.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-wan3-harbor.mp4">&#9654; with sound</a></td>
-    <td width="50%" align="center" valign="top"><div><a name="winner-harbor"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-harbor.gif" alt="Harbor Lane Realty redone, Omni Flash" width="100%"><br><b>Harbor Lane Realty, Omni Flash, the first-race WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-harbor.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-harbor.gif" alt="Harbor Lane Realty redone, Omni Flash" width="100%"><br><b>Harbor Lane Realty, Omni Flash, the first-race WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-harbor.mp4">&#9654; with sound</a></td>
   </tr>
 </table>
 
 <table>
   <tr>
-    <td width="50%" align="center" valign="top"><div><a name="winner-slowroad"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-seedance2-slowroad.gif" alt="Slow Road Travel redone, Seedance 2.0" width="100%"><br><b>Slow Road Travel, Seedance 2.0.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-seedance2-slowroad.mp4">&#9654; with sound</a></td>
+    <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-seedance2-slowroad.gif" alt="Slow Road Travel redone, Seedance 2.0" width="100%"><br><b>Slow Road Travel, Seedance 2.0.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-seedance2-slowroad.mp4">&#9654; with sound</a></td>
     <td width="50%" align="center" valign="top"><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-cell-omni-slowroad.gif" alt="Slow Road Travel redone, Omni Flash" width="100%"><br><b>Slow Road Travel, Omni Flash.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260826-omni-slowroad.mp4">&#9654; with sound</a></td>
   </tr>
 </table>
@@ -173,7 +173,6 @@ For an ad, true means three things.
 The same loop ran against ten real, currently shipping AI products.
 
 - All ten shot on Omni Flash at about sixty cents a scene, thirty scenes across two batches.
-- Each master was gated on caption timing, closer alignment and lip sync before it was allowed out.
 - These are spec ads. They are not affiliated with, endorsed by, or produced for Google, OpenAI, Perplexity, Meta, xAI, Z.ai, Moonshot AI or Anthropic. None of these companies has seen them, and every tagline is written here.
 
 <table>
@@ -234,7 +233,7 @@ The same loop ran against ten real, currently shipping AI products.
 
 ### The router, and the race behind it
 
-Four engines ran the same five briefs with the audience written into every prompt, and the panels picked a different winner per audience. The winners table below is the router. A brief comes in, the panel for that audience scores the pool, and the highest row wins the buy.
+Four engines ran the same five briefs, and the panels picked a different winner per audience. The winners table below is the router. A brief comes in, the panel for that audience scores the pool, and the highest row wins the buy.
 
 - Bold is the best reading in its row, in that row's own direction.
 - The WINNER takes the most rows. When versions tie, the row the panel gates on decides.
@@ -258,7 +257,7 @@ Orchard Hill Coffee sells morning energy and craving, so its panel gates gesture
 | Scene simplicity, lower is calmer, reports | 7.37 | **6.7** | 8.10 | **6.7** |
 | Face level wander, lower is steadier, reports | 148.9 | 150.6 | 150.3 | **114.5** |
 
-Re-run on 2026-09-05 against the released Seedance master, face level 114.5, eye rejection 7.69 and background clutter 6.57 came back exactly, gesture 0.667 and scene 6.78 within probe scatter. Any row reproduces with `python3 probes/<probe>.py <master.mp4>`, and the redo's probe outputs ship in [`shoots/ads6-omni/probe-outputs/`](shoots/ads6-omni/probe-outputs/).
+Re-run on 2026-09-05 against the released Seedance master, face level 114.5, eye rejection 7.69 and background clutter 6.57 came back exactly, gesture 0.667 and scene 6.78 within probe scatter. Any row reproduces with `python3 probes/<probe>.py <master.mp4>`, and the redo's probe outputs ship in [`shoots/ads6-omni/probe-outputs/`](shoots/ads6-omni/probe-outputs/). The table is the 2026-08-24 reading, and the 2026-09-19 rescore in the ledger measured the released masters again, so nine of these twenty cells differ slightly and no row's best reading changes.
 
 The same four engines shot Quiet Hours, a brief that sells permission to rest, and here the premium baseline swept the calm rows.
 
@@ -279,11 +278,21 @@ The same four engines shot Quiet Hours, a brief that sells permission to rest, a
 | Quiet Hours | Permission to rest, gesture flipped so calm wins | HeyGen | [HeyGen](#winner-quiet) | Sweeps the four calm rows. This is where the router pays up |
 | Slow Road Travel | Wanderlust, gesture upward | Seedance 2.0 | [Wan 3.0](#winner-slowroad) | Two rows each with Seedance, so the gated row decides it, gesture 0.919 against 0.721 |
 
-All five races were scored from the released masters on 2026-09-19, and every probe value now sits on the ledger under the `ads2-rescore` cohort. The panel agreed with the eye on Orchard and Quiet and overturned it on Lantern, Harbor and Slow Road. Both calls are kept, the hand call still as `recorded_winner` and now with `agrees` false, beside the numbers that beat it. The WINNER column is the panel's answer, because the panel is the router.
+The first-race clips of the other three winners.
+
+<table>
+  <tr>
+    <td width="33%" align="center" valign="top"><div><a name="winner-lantern"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-cell-a0-lantern.gif" alt="Lantern Street, HeyGen, the WINNER" width="100%"><br><b>Lantern Street, A0 &middot; HeyGen, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-a0-lantern.mp4">&#9654; with sound</a></td>
+    <td width="33%" align="center" valign="top"><div><a name="winner-harbor"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-cell-omni-harbor.gif" alt="Harbor Lane Realty, Omni Flash, the WINNER" width="100%"><br><b>Harbor Lane Realty, B1 &middot; Omni Flash, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-omni-harbor.mp4">&#9654; with sound</a></td>
+    <td width="33%" align="center" valign="top"><div><a name="winner-slowroad"></a></div><img src="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-cell-wan3-slowroad.gif" alt="Slow Road Travel, Wan 3.0, the WINNER" width="100%"><br><b>Slow Road Travel, B2 &middot; Wan 3.0, the WINNER.</b> <a href="https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260824-wan3-slowroad.mp4">&#9654; with sound</a></td>
+  </tr>
+</table>
+
+All five races were scored from the released masters on 2026-09-19, and every probe value now sits on the ledger under the `ads2-rescore` cohort. The panel agreed with the eye on Orchard and Quiet and overturned it on Lantern, Harbor and Slow Road. Both calls are kept, the hand call still as `recorded_winner` and now with `agrees` false, beside the numbers that beat it. The WINNER column is the panel's answer, because the panel is the router. The ledger is `races/races.jsonl`, `tools/score_race.py` recomputes each winner from it, and `tests/test_races.py` runs that check.
 
 No engine sweeps the catalogue, which is the whole case for routing instead of standardising on a favourite.
 
-- Scored again after the redo, with each first-race winner meeting Omni Flash on the same brief, the router's answer became Orchard to Omni Flash, Lantern to Wan 3.0, Harbor to Omni Flash and Slow Road to Seedance 2.0. Omni pays its way where a clean frame beats the biggest gesture.
+- Scored again after the redo, with the engine I had picked for each brief meeting Omni Flash, the answer became Orchard to Omni Flash, Lantern to Wan 3.0, Harbor to Omni Flash and Slow Road to Seedance 2.0. It is a two-engine rematch, so it does not replace the winners table, and Omni pays its way where a clean frame beats the biggest gesture.
 - All twenty versions are in the [media release](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/tag/media-2026-08).
 
 | Version | Engine | What the Scenes Cost |
@@ -332,7 +341,7 @@ flowchart TD
         %% GH is an invisible twin of the eye, it balances the spine so the steps stay in one column
         AG ~~~ GH["The eye · REVIEW in, approval out"]
         GH ~~~ SG
-        B["Board · five checks before any spend"] --> R["Render · every request ledgered"] --> C["Closer · identity pin, jaw measured"] --> BU["Build · closer placed within 40 ms"] --> AG --> SG{{"Ship gate · loudness, fails closed to a remaster"}} --> D["Deliver · defects withdrawn on record"]
+        B["Board · five checks before any spend"] --> R["Render · every request ledgered"] --> C["Closer · identity pin, jaw measured"] --> BU["Build · closer placed within 40 ms"] --> AG --> SG{{"Ship gate · frame and light, fails closed to a remaster"}} --> D["Deliver · defects withdrawn on record"]
         D --> L[("Ledger · append-only, then relabel")]
         AG --> EYE["The eye · REVIEW in, approval out"]
         EYE -.-> SG
@@ -372,6 +381,7 @@ Vendor ids and Slack fields are replaced with `<id>` or dropped, and home direct
 | `probes/` | The ten instruments the panels and gates read: gesture energy, background detail, eye rejection, scene simplicity, face level wander, lip sync, sync lag, replay detection, and the rest and spasm meters the ship gate runs on closers |
 | `guards/` | The four guards, three that run before a paid render and the ship gate that runs before delivery, and the learned rules the prop gate reads back |
 | `evals/` | `derive.py` and `labels.csv`, the labelled exemplars and the tool that brackets every gating constant from them, which derives thresholds and does not score a video. `judge-rubric.json` and `judge-calibration.json`, the rubric for the language-model judge and the 42 eye-labelled scenes it was calibrated on |
+| `races/`, `tools/`, `tests/` | The race ledger and its panels, the scorer and the other tools CI runs, and the tests that check them |
 | `kill-gate/` | The kill gate, a separate experiment on the August renders. It asks whether a model judge can stand in for people choosing between versions of an ad, and whether it can safely drop the weakest render, scored against 450 blind human votes. Its own page has the findings |
 
 ## Recounted on every push
