@@ -2,7 +2,7 @@
 
 These commands reproduce the kill gate's results from the saved scores. The gate drops the lowest-scored of several ad renders, pick is the opposite rule that ships the top-scored one, the oracle drops the render people actually liked least, and gap closed is how much of the oracle's gain over a coin the gate gets.
 
-Run these yourself, cold, in a fresh terminal, from this folder. Nothing here calls a model; the judge scores are on disk in `results/`. The write-up GitHub shows on this branch is `.github/README.md`. The root `README.md` is the pipeline's own, byte-identical to main, because the pipeline's tests read their claims from it.
+Run these yourself, cold, in a fresh terminal, from this folder. Nothing here calls a model; the judge scores are on disk in `results/`. The write-up is the `README.md` in this folder, and the repository's root `README.md` belongs to the ad pipeline.
 
 | # | Command | What its output proves |
 |---|---|---|
