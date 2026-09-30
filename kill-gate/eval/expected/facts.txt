@@ -49,6 +49,19 @@ PAIRWISE WORST, Aug 24, whether the lowest win rate also lost every head-to-head
 CONSTANT BASELINE, pick the engine with the best mean human value on the other four briefs, Aug 24
   folds picked ['seedance2', 'seedance2', 'seedance2', 'seedance2', 'seedance2'], held-out human value 58.6%
 
+PICKS among the four finished ads against people's votes, Aug 24, 398 votes, human value of the engine picked per brief
+  harbor     panel omni       62.8%   eye wan3       45.1%   people's best omni       62.8%
+  lantern    panel a0         46.7%   eye wan3       39.9%   people's best seedance2  65.8%
+  orchard    panel seedance2  53.2%   eye seedance2  53.2%   people's best wan3       69.5%
+  quiet      panel a0         40.1%   eye a0         40.1%   people's best seedance2  63.2%
+  slowroad   panel wan3       58.1%   eye seedance2  68.8%   people's best seedance2  68.8%
+  mean over the five briefs, panel: 52.2%
+  mean over the five briefs, eye: 49.4%
+  mean over the five briefs, always seedance2: 58.6%
+  mean over the five briefs, coin, the mean of the four: 50.0%
+  mean over the five briefs, people's best: 66.0%
+  the panel picked the engine people liked best on: harbor
+
 COUNTS
   rubric variants besides the baseline: 6
   Prolific studies: 2, raters: 90, votes: 450

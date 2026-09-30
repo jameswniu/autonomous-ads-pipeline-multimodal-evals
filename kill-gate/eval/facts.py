@@ -189,6 +189,40 @@ for b in sorted(aug):
     tot += next(x for c, x in aug[b].items() if eng(c) == e)
 print(f"  folds picked {picks}, held-out human value {100 * tot / len(aug):.1f}%")
 
+print(f"\nPICKS among the four finished ads against people's votes, Aug 24, {len(votes24)} votes, human value of the engine picked per brief")
+# A pick chooses one engine's ad per brief after all four ads exist, so it is a selection among finished ads and not a choice a router
+# could make before rendering. The race ledger, races/races.jsonl, keeps two picks for these renders. computed_winner is the engine the
+# probe panel's scorer picks, which is what the README calls the router. recorded_winner is my pick by eye, which predates the panel's
+# scores. The ledger writes heygen where the render names write a0. Human value is defined by values() in run.py.
+ledger = [json.loads(line) for line in (ROOT.parent / "races" / "races.jsonl").read_text().splitlines()]
+races = [r for r in ledger if r.get("shoot") == "ads2-rescore" and r.get("row_type") == "race"]
+assert sorted(r["brief_id"] for r in races) == sorted(aug), "the ledger needs exactly one race row for each brief"
+raced = {r["brief_id"]: r for r in races}
+# The votes name each ad by its file, and a race row names the renders it scored by ledger id, so this checks both mean the same four files.
+files = {r["id"]: r["master"].removesuffix(".mp4") for r in ledger if r.get("shoot") == "ads2-rescore" and r.get("row_type") == "render"}
+for b in aug:
+    assert {files[i] for i in raced[b]["render_ids"]} == set(aug[b]), b
+render_name = {"heygen": "a0"}
+by_pick = defaultdict(list)
+matched = []
+for b in sorted(aug):
+    picked = {"panel": raced[b]["computed_winner"], "eye": raced[b]["recorded_winner"]}
+    picked = {who: render_name.get(e, e) for who, e in picked.items()}
+    engine_value = {eng(c): x for c, x in aug[b].items()}
+    best = max(engine_value, key=engine_value.get)
+    if picked["panel"] == best:
+        matched.append(b)
+    for who, e in picked.items():
+        by_pick[who].append(engine_value[e])
+    by_pick["always seedance2"].append(engine_value["seedance2"])
+    by_pick["coin, the mean of the four"].append(statistics.mean(engine_value.values()))
+    by_pick["people's best"].append(engine_value[best])
+    cells = [f"{who} {picked[who]:10s} {100 * engine_value[picked[who]]:.1f}%" for who in ("panel", "eye")]
+    print(f"  {b:10s} {'   '.join(cells)}   people's best {best:10s} {100 * engine_value[best]:.1f}%")
+for who, xs in by_pick.items():
+    print(f"  mean over the five briefs, {who}: {100 * statistics.mean(xs):.1f}%")
+print(f"  the panel picked the engine people liked best on: {', '.join(matched) if matched else 'no brief'}")
+
 print("\nCOUNTS")
 variants = {json.loads(l)["variant"] for l in (R / "rubric_variants.jsonl").read_text().splitlines()}
 studies = {v["study"] for v in votes}
