@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Backfill the recorded race cohorts, locally and without vendor calls.
+"""Backfill the ledger of engine races, locally and without vendor calls.
+
+A race is one ad brief rendered by several video engines and scored by probes, which are scripts that
+each measure one property of a video, such as gesture energy. A cohort is one recorded batch of races,
+named for the shoot it came from, such as ads2-redo or ads6-omni. This script builds a cohort's ledger
+rows from the README, the boards and the saved probe outputs.
 
 Existing JSONL rows are immutable. Identical identities are no-ops; changed
 content under an existing identity is an error, checked before any append. A

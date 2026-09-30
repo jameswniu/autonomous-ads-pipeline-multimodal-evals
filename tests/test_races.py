@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Offline checks for the append-only race ledger."""
+"""Offline checks for the append-only ledger of engine races.
+
+A race is one ad brief rendered by several video engines and scored by probes, which are scripts that
+each measure one property of a video, such as gesture energy. A cohort is one recorded batch of races,
+named for the shoot it came from, such as ads2-redo or ads6-omni. The ledger is races/races.jsonl, and its
+rows are only ever appended.
+"""
 
 import errno
 import hashlib
