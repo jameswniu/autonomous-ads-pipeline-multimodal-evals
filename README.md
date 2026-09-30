@@ -276,7 +276,7 @@ The same four engines shot Quiet Hours, a brief that sells permission to rest, a
 | Orchard Hill Coffee | Morning craving, gesture energy upward | Seedance 2.0 | [Seedance 2.0](#winner-orchard) | Three rows: cleanest eye read, steadiest face, tie for calmest scene |
 | Lantern Street | Three a.m. relief, clutter down | Wan 3.0 | [HeyGen](#winner-lantern) | Two rows, the calmest background and the calmest scene, against one row each for the other three |
 | Harbor Lane Realty | Neighborhood warmth, gesture upward | Wan 3.0 | [Omni Flash](#winner-harbor) | Two rows, the cleanest eye read and the calmest scene, against one row each for the other three |
-| Quiet Hours | Permission to rest, gesture flipped so calm wins | HeyGen | [HeyGen](#winner-quiet) | Sweeps the four calm rows. This is where the router pays up |
+| Quiet Hours | Permission to rest, gesture flipped so calm wins | HeyGen | [HeyGen](#winner-quiet) | Sweeps the four calm rows, though people's votes put it last of the four |
 | Slow Road Travel | Wanderlust, gesture upward | Seedance 2.0 | [Wan 3.0](#winner-slowroad) | Two rows each with Seedance, so the gated row decides it, gesture 0.919 against 0.721 |
 
 The first-race clips of the other three winners.
@@ -289,7 +289,7 @@ The first-race clips of the other three winners.
   </tr>
 </table>
 
-All five races were scored from the released masters on 2026-09-19, and every probe value now sits on the ledger under the `ads2-rescore` cohort. The panel agreed with the eye on Orchard and Quiet and overturned it on Lantern, Harbor and Slow Road. Both calls are kept, the hand call still as `recorded_winner` and now with `agrees` false, beside the numbers that beat it. The WINNER column is the panel's answer, because the panel is the router. The ledger is `races/races.jsonl`, `tools/score_race.py` recomputes each winner from it, and `tests/test_races.py` runs that check.
+All five races were scored from the released masters on 2026-09-19, and every probe value now sits on the ledger under the `ads2-rescore` cohort. The panel agreed with the eye on Orchard and Quiet and overturned it on Lantern, Harbor and Slow Road. Both calls are kept, the hand call still as `recorded_winner` and now with `agrees` false, beside the numbers that overturned it. The WINNER column is the panel's answer, because the panel is the router. The ledger is `races/races.jsonl`, `tools/score_race.py` recomputes each winner from it, and `tests/test_races.py` runs that check.
 
 No engine sweeps the catalogue. On the 398 blind Prolific votes for these four-engine ads people preferred Wan 3.0 on Orchard, Omni Flash on Harbor and Seedance 2.0 on the other three briefs, so the panel's pick matched theirs on Harbor only. Its picks, made with all four ads already scored, win 52% of their head-to-head votes on average, where a coin wins 50% and always choosing Seedance 2.0 wins 59%, so the panel has not earned the router's job yet. `kill-gate/eval/facts.py` prints each of these figures.
 
