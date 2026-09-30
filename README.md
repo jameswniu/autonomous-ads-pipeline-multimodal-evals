@@ -227,8 +227,8 @@ The same loop ran against ten real, currently shipping AI products.
 
 ## 3. Quality evals
 
-- A quality check, in practice, is a person watching a clip and saying good enough or not. I did that first, on the 48 labelled exemplars behind the thresholds and the 42 eye-labelled scenes behind the judge. Then the verdicts were compiled into numbers a scheduler can enforce.
-- Then people other than me voted. 90 raters on Prolific, a paid survey site, cast 450 blind votes between pairs of the ads, and those votes are the check on the model judge in [`kill-gate/`](kill-gate/) and on the router below.
+- A quality check, in practice, is a person watching a clip and saying good enough or not. Every quality eval here ends with people. 90 raters on Prolific, a paid survey site, cast 450 blind votes between pairs of the ads, and the model judge in [`kill-gate/`](kill-gate/) and the router below are both scored against those votes.
+- The labels behind the thresholds and the judge are mine, 48 exemplars and 42 scenes, and the verdicts were compiled into numbers a scheduler can enforce.
 - One probe battery serves every audience. A category picks which rows gate and which merely report, and the direction of good is set per audience. A coffee ad reads gesture energy upward and a sleep ad flips the same instrument, because calm sells.
 - I stay the final judge. A language-model judge attaches a blind description and a flag to the strip as evidence and never holds the verdict.
 
