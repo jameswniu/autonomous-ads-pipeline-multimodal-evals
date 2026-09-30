@@ -79,4 +79,4 @@ While testing the fix, **the guard blocked the test harness itself**, because th
 
 The compliance numbers come from 15 runs. That is a tally, not a reliability estimate, and it should not be read as a rate that would hold at scale.
 
-The fail-open findings come from synthetic payloads, not from production incidents. Three of the four guards have never actually lost their dependency in a real run. What is measured is what they *would* do.
+The fail-open findings come from synthetic payloads, not from real incidents. Three of the four guards have never actually lost their dependency in a real run. What is measured is what they *would* do.
