@@ -372,6 +372,7 @@ Vendor ids and Slack fields are replaced with `<id>` or dropped, and home direct
 | `probes/` | The ten instruments the panels and gates read: gesture energy, background detail, eye rejection, scene simplicity, face level wander, lip sync, sync lag, replay detection, and the rest and spasm meters the ship gate runs on closers |
 | `guards/` | The four guards, three that run before a paid render and the ship gate that runs before delivery, and the learned rules the prop gate reads back |
 | `evals/` | `derive.py` and `labels.csv`, the labelled exemplars and the tool that brackets every gating constant from them, which derives thresholds and does not score a video. `judge-rubric.json` and `judge-calibration.json`, the rubric for the language-model judge and the 42 eye-labelled scenes it was calibrated on |
+| `kill-gate/` | The kill gate, a separate experiment on the August renders. It asks whether a model judge can stand in for people choosing between versions of an ad, and whether it can safely drop the weakest render, scored against 450 blind human votes. Its own page has the findings |
 
 ## Recounted on every push
 
