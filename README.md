@@ -422,7 +422,7 @@ Every threshold here is a hand-picked number over a measured signal, and no prob
 
 ## Where the claims stop
 
-- The golden set carries one labeller's judgement, mine, and it is internally consistent. A second labeller and an agreement score are the next calibration step.
+- The golden set is one labeller's judgement, mine. `evals/derive.py` checks on every push that each of the ten thresholds sits between its passes and its rejects. A second labeller needs the source renders, and 41 of the 48 labelled rows have none.
 - Only what ships here is claimed, the 48 labelled rows behind the thresholds and the 42 scenes behind the judge.
 - Sample sizes are counts, never rates: 15 governed runs, 42 calibration scenes, 8 lip-sync labels.
 - Every outcome number here is measured on the creative. Hook rate, hold rate and view-through are the buy's numbers and are not on this page.
