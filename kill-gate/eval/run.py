@@ -60,11 +60,22 @@ def load(cohort: str, judge: str):
     votes = [v for v in csv.DictReader((RESULTS / "votes.csv").open())]
     if cohort == "aug24":
         votes = [v for v in votes if pairs[v["pair_id"]]["shoot"] == "ads2-redo"]
-    calls = defaultdict(list)
+    voted = {clip(pairs[v["pair_id"]], s) for v in votes for s in "ab"}
+    calls, reps = defaultdict(list), defaultdict(list)
     for line in (RESULTS / "judge_scores.jsonl").read_text().splitlines():
         d = json.loads(line)
         if d["judge"] == judge:
             calls[d["clip"]].append({a: d[a] for a in AXES})
+            reps[d["clip"]].append(d["rep"])
+    # Only this cohort's renders reach the lines, so only they are checked. Each must carry
+    # calls 1 to N exactly once, with the same N for all. A repeated, lost or stray call would
+    # otherwise move a render's mean, and nothing printed would show it.
+    counts = [len(reps[c]) for c in voted if c in reps]
+    n = statistics.mode(counts) if counts else 0
+    off = sorted(c for c in voted if c in reps and sorted(reps[c]) != list(range(1, n + 1)))
+    if off:
+        sys.exit(f"judge_scores.jsonl does not give {judge} calls 1 to {n} exactly once on every "
+                 f"render in this cohort, refusing it. Off: {', '.join(off)}")
     return pairs, votes, calls
 
 

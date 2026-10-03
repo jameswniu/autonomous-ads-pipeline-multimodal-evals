@@ -70,6 +70,8 @@ for (j, var), rows in sorted(pv.items()):
     print(f"  {j:7s} {var:5s} picked B on {b}/{len(seen)} distinct pairs = {100 * b / len(seen):.0f}%")
     if var == "base":
         base[j] = {p: next(iter(picks)) for p, picks in seen.items()}
+# The tail run repeats the pairwise prompt with the rubric moved after the video frames instead of
+# before them, which is what "rubric after frames" means in the lines printed below.
 # Claude only. GPT's tail run scored 17 pairs twice with one conflicting pick, so a single
 # per-pair figure for it would depend on which call is kept; it is not reported.
 for j in ("claude",):
@@ -90,12 +92,12 @@ for j in ("claude",):
               f"-> tail {100 * bt / len(common):.0f}%")
 
 print("\nCORRELATION of each Claude axis with human value, all 28 renders, all votes")
+# Scores go through load(), which refuses a repeated, lost or stray call.
 S = defaultdict(lambda: defaultdict(list))
-for line in (R / "judge_scores.jsonl").read_text().splitlines():
-    d = json.loads(line)
-    if d["judge"] == "claude":
+for c, xs in load("all", "claude")[2].items():
+    for x in xs:
         for a in AXES:
-            S[d["clip"]][a].append(d[a])
+            S[c][a].append(x[a])
 vals = values(pairs, votes)
 H = {c: v for b in vals for c, v in vals[b].items()}
 clips = sorted(c for c in H if c in S)
@@ -191,9 +193,10 @@ print(f"  folds picked {picks}, held-out human value {100 * tot / len(aug):.1f}%
 
 print(f"\nPICKS among the four finished ads against people's votes, Aug 24, {len(votes24)} votes, human value of the engine picked per brief")
 # A pick chooses one engine's ad per brief after all four ads exist, so it is a selection among finished ads and not a choice a router
-# could make before rendering. The race ledger, races/races.jsonl, keeps two picks for these renders. computed_winner is the engine the
-# probe panel's scorer picks, which is what the README calls the router. recorded_winner is my pick by eye, which predates the panel's
-# scores. The ledger writes heygen where the render names write a0. Human value is defined by values() in run.py.
+# could make before rendering. The race ledger, races/races.jsonl, keeps two picks for these renders. computed_winner is the engine
+# picked by the probe panel, the per-brief rows of pixel and audio probe readings in races/panels.json that tools/score_race.py
+# scores, and the README calls that panel the router. recorded_winner is my pick by eye, which predates the panel's scores.
+# The ledger writes heygen where the render names write a0. Human value is defined by values() in run.py.
 ledger = [json.loads(line) for line in (ROOT.parent / "races" / "races.jsonl").read_text().splitlines()]
 races = [r for r in ledger if r.get("shoot") == "ads2-rescore" and r.get("row_type") == "race"]
 assert sorted(r["brief_id"] for r in races) == sorted(aug), "the ledger needs exactly one race row for each brief"
@@ -224,18 +227,14 @@ for who, xs in by_pick.items():
 print(f"  the panel picked the engine people liked best on: {', '.join(matched) if matched else 'no brief'}")
 
 print("\nCOUNTS")
-variants = {json.loads(l)["variant"] for l in (R / "rubric_variants.jsonl").read_text().splitlines()}
+variants = {json.loads(row)["variant"] for row in (R / "rubric_variants.jsonl").read_text().splitlines()}
 studies = {v["study"] for v in votes}
 print(f"  rubric variants besides the baseline: {len(variants - {'V0_baseline'})}")
 print(f"  Prolific studies: {len(studies)}, raters: {len({v['rater'] for v in votes})}, votes: {len(votes)}")
 
 print("\nOTHER JUDGES, one call each")
 for j in ("gpt", "gemini"):
-    T = defaultdict(list)
-    for line in (R / "judge_scores.jsonl").read_text().splitlines():
-        d = json.loads(line)
-        if d["judge"] == j:
-            T[d["clip"]].append(sum(d[a] for a in AXES))
+    T = {c: [sum(x[a] for a in AXES) for x in xs] for c, xs in load("all", j)[2].items()}
     tots = [statistics.mean(v) for v in T.values()]
     print(f"  {j:7s} {len(set(tots))} distinct totals across {len(tots)} renders, "
           f"{statistics.mean(len(v) for v in T.values()):.0f} call(s) per render")
