@@ -1,28 +1,54 @@
 #!/usr/bin/env bash
 # ship_gate.sh <final.mp4> <sidecar.srt> [directional] [--arrow-ok]
 #
-# MECHANICAL pre-delivery gate. Born 2026-07-25 after I caught the same two
-# regression classes AGAIN on a delivered clip (letterbox borders; backward ocean):
-# both were pre-warned in prop_gate PROSE and skipped under momentum. Lessons kept
-# as prose regress; lessons kept as blocking mechanisms do not (prop_gate attest,
-# the pre-publish gate in tools/). prop_gate guards the LOOK before the render spend; this
-# guards the RENDER before delivery - the stage that had no mechanical check.
+# MECHANICAL pre-delivery gate for a finished video of an AI avatar presenter ("her" below).
+# <final.mp4> is the clip to ship and <sidecar.srt> is its subtitle file. Born 2026-07-25 after I
+# caught the same two regression classes AGAIN on a delivered clip (letterbox borders, and ocean
+# waves running backward). Both were pre-warned in the prose of prop_gate and skipped under momentum.
+# prop_gate.sh is the guard beside this file in guards/. It checks a LOOK (the generated still image
+# of the presenter in one outfit and scene) before any paid RENDER (the HeyGen call that turns a
+# look and a script into video). This file guards the RENDER before delivery, the stage that had no
+# mechanical check. Lessons kept as prose regress. Lessons kept as blocking mechanisms do not.
+# Two examples are prop_gate's attest step, which records a written verdict on a look before a
+# render is allowed, and the pre-publish PII gate in tools/ (tools/pii_scan.sh), which blocks
+# publication when it finds personal data.
+#
+# Words used in these comments:
+#   avatar_iii, avatar_iv  two of HeyGen's avatar render engines. avatar_iii is the cheaper one, about
+#                          1 credit per clip, and avatar_iv costs more. "iii", "avaIII", "iv" and
+#                          "Avatar 4" all mean one of these two.
+#   take                   one render of a scene. Metering means rendering several takes and keeping
+#                          the best one.
+#   the model              the AI agent that runs this pipeline for me.
+#   F1, r3, T2             clips I graded by eye. evals/labels.csv lists their grades. The footage
+#                          is not in this repository.
 #
 # Checks, in order:
 #   1. GEOMETRY  - content band must fill >= 90% of frame height (letterbox = FAIL;
-#                  the fix is a fit=cover re-render, never shipping borders).
-#   2. SPASM     - spasm_probe FAIL (exit 2) blocks. WARN prints for the eye.
-#   3. COHERENCE - rest/lock/phase printed; FLAG prints for the eye (outdoor
-#                  confound means rest alone never hard-blocks here).
-#   4. ARROW     - if "directional" is passed (water/traffic/crowd scenes): builds
-#                  a slit-scan x-t image and EXITS 3 demanding an eye-read. Rerun
-#                  with --arrow-ok only after actually reading the slit-scan
-#                  (forward flow = one-way slope; palindrome V = ping-pong REJECT).
+#                  the fix is a fit=cover re-render, the render option that fills the frame,
+#                  never shipping borders).
+#   2. SPASM     - spasm_probe is DISCLOSED in delivery and never blocks, even on its FAIL (exit 2).
+#                  Spasm is the mouth still working after the last spoken word. The probe reports it
+#                  as a ratio: mouth motion after the last word over mouth motion during speech.
+#   3. COHERENCE - coherence_probe.py asks whether her motion reads as natural or robotic. It prints
+#                  rest (the share of the speech window she holds still), lock (the share of her
+#                  motion bursts that start within half a second of a speech event) and phase (how
+#                  early or late each burst starts against its event). A FLAG prints for the eye.
+#                  The outdoor confound means rest alone never hard-blocks here: a moving background
+#                  leaks motion into the fixed head crop and lowers rest.
+#   4. ARROW     - if "directional" is passed or auto-detected (water/traffic/crowd scenes): builds
+#                  a slit-scan x-t image (a thin strip of every frame, laid side by side in time)
+#                  and EXITS 3 demanding an eye-read. Rerun with --arrow-ok only after actually
+#                  reading the slit-scan (forward flow = one-way slope, palindrome V = ping-pong
+#                  REJECT). The replay probe (step 4b below) runs first. A forward-only verdict
+#                  clears the scene with no eye-read, and a replay verdict HOLDS (exit 3) unless
+#                  REPLAYOK is set.
 #
-# On pass: writes /tmp/.ship-gate-<basename>-<bytes> marker. NOTE: the reader of
-# that marker (deliver.sh) is NOT in this repository, so here the marker is a
-# receipt and nothing enforces it. In the private tree deliver.sh refuses
-# files without a fresh marker, so skipping this gate is not possible by forgetting.
+# On pass: writes /tmp/.ship-gate-<basename>-<bytes> marker. NOTE: the reader of that marker
+# (deliver.sh, my private delivery script) is NOT in this repository, so here the marker is a
+# receipt and nothing enforces it. In the private tree (my working copy, which holds files that
+# are not in this repository) deliver.sh refuses files without a fresh marker, so skipping this
+# gate is not possible by forgetting.
 set -uo pipefail
 F="$1"; SRT="$2"; DIRECTIONAL="${3:-}"; ARROWOK=""
 [[ "${3:-}" == "--arrow-ok" || "${4:-}" == "--arrow-ok" ]] && ARROWOK=1
@@ -34,6 +60,8 @@ F="$1"; SRT="$2"; DIRECTIONAL="${3:-}"; ARROWOK=""
 [ -s "$SRT" ] || { echo "SHIP-GATE ERROR: srt not readable: $SRT"; exit 64; }
 BYTES=$(stat -f%z "$F" 2>/dev/null || stat -c%s "$F" 2>/dev/null || echo 0)
 MARK="/tmp/.ship-gate-$(basename "$F")-$BYTES"
+# SKILL is the directory that holds the probe scripts: PIPELINE_PROBES when set, else the probes/
+# directory next to guards/. The name is historical.
 SKILL="${PIPELINE_PROBES:-$(cd "$(dirname "$0")/../probes" 2>/dev/null && pwd)}"
 
 # 1. geometry
@@ -71,24 +99,22 @@ if [[ "$GEO" != FULLBLEED* ]]; then
   rm -f "$MARK"; exit 64
 fi
 
-# 2 + 3. probes (content-aware). Finals are TRIMMED (settle runway removed by design),
-# which trips spasm_probe's structural no-runway FAIL - so probes run on the RAW take
-# (env RAW=<raw.mp4>) when provided, while geometry/arrow always check the deliverable.
+# 2 + 3. probes (content-aware). Finals are TRIMMED, which removes the settle runway by design.
+# The settle runway is the quiet footage after the last spoken word, where the mouth comes to
+# rest. Without it spasm_probe hits its structural no-runway FAIL. So the spasm, sync, coherence
+# and replay probes run on the RAW take (env RAW=<raw.mp4>) when it is provided. The geometry,
+# time, exposure and slit-scan checks always read the deliverable.
 PROBE_SRC="${RAW:-$F}"
 [ "$PROBE_SRC" != "$F" ] && echo "probes on raw take: $(basename "$PROBE_SRC")"
-# SPASM NOW HOLDS (2026-07-26). It was INFO ONLY, on the reasoning that the mouth band is
-# framing-dependent per look. That reasoning let five one-take briefs ship at 0.65-1.63 - three
-# past the fail bar, one past the 1.44 clip I had already rejected - and I caught every one
-# by eye in a single viewing. Worse, the gate PRINTED those numbers and the model truncated its output
-# with `tail -1`, so the information existed and was thrown away. A number that only prints is a
-# number that gets skipped under momentum; the whole point of this file is mechanisms over prose.
-# The framing caveat is real, so this HOLDS for a declared reason rather than hard-rejecting:
-#   SPASMOK="<why this look's band reads high / why my eye passed it>"
-# The fix when it holds is usually not an override at all - it is the best-take step (meter N takes,
-# ship the lowest; takes of one scene span 0.51-1.44, so selection IS the spasm fix).
-# LIPSYNC (added 2026-07-26). The one metric that reproduces my labels 8/8: mouth-band motion
-# cross-correlated against the audio envelope. My passes run -240..+40ms, my two "lip sync is a bit
-# off" rejects measured +120 and +240ms. A trailing mouth BLOCKS, because it is re-rollable.
+# SPASM POLICY (2026-07-26). Spasm was first info only, then briefly a hold that a
+# SPASMOK="<reason>" override could release. The disclosure below superseded that hold the same
+# day. So spasm never blocks, and the code does not read SPASMOK.
+# LIPSYNC (added 2026-07-26). sync_probe.py cross-correlates mouth-band motion against the audio
+# envelope. It first reproduced my labels 8/8, though that agreement turned out to be mostly luck
+# (the docstring of sync_probe.py has the stability check). My passes run -240..+40ms, and my two
+# "lip sync is a bit off" rejects measured +120 and +240ms. A positive number means the mouth
+# trails the sound. It was first wired as a blocker, because a trailing mouth can be fixed by
+# re-rendering. It was downgraded to a disclosure the same hour, because the number is unstable.
 SYNC_OUT=$(python3 "$SKILL/sync_probe.py" "$PROBE_SRC" 2>&1); SYNC_RC=$?
 echo "$SYNC_OUT" | sed 's/^/  /'
 if [ "$SYNC_RC" -eq 1 ]; then
@@ -100,40 +126,51 @@ fi
 
 SPASM_OUT=$(python3 "$SKILL/spasm_probe.py" "$PROBE_SRC" "$SRT" 2>&1); SPASM_RC=$?
 echo "$SPASM_OUT"
-# THE GRAPH PHASE (2026-07-26): the invariants/pairs handle OSCILLATION (bright-dim) and the
-# PALINDROME (reversal); the GRAPH handles ROBOTIC MOVEMENT, because robotic-ness is not a threshold
-# on one pair, it is whether her state carries coherently node-to-node through time. This probe was
-# built for exactly that and then regressed by DEMOTION, not deletion: wired `|| true`, printed, and
-# truncated away with `tail -1` while it flagged all night. A probe that cannot block and is not read
-# is a no-op.
-# What my labels actually track (n=5, 2026-07-26): DEBT, the accumulated drift between her movement
-# and the speech structure. Both clips I called natural sit at 0.16 and 0.32s; everything I rejected
-# is 0.40s and up (2.0s on the worst). rest and lock are NOT criteria - my one PERFECT clip has
-# rest 0.000, the worst of the set, and the two naturals sit at opposite ends of lock.
-# Provisional boundary 0.35s on n=5 with a narrow 0.32/0.40 gap, so this DISCLOSES rather than blocks
-# until more of my labels firm it up. Do not silently widen it; add labelled clips and re-derive.
+# THE GRAPH READING (2026-07-26). coherence_probe.py walks the clip as a graph. Its nodes are speech
+# events (subtitle cue starts and audio loudness peaks), and it carries her motion state from node to
+# node. The earlier checks compare two things at one moment. They catch flicker between bright and
+# dim and a scene that plays forward then backward (the palindrome). They cannot see ROBOTIC
+# MOVEMENT. That is not a threshold on one pair. It is whether her state carries on coherently from
+# one speech event to the next through time. This reading was built for exactly that and then
+# regressed by DEMOTION, not deletion: wired `|| true`, printed, and truncated away with `tail -1`
+# while it flagged all night. A probe that cannot block and is not read is a no-op.
+# What my labels actually track (n=5, 2026-07-26) is DEBT, the accumulated drift between her movement
+# and the speech structure. Debt is the total seconds her motion started late against its speech
+# events. Both clips I called natural sit at 0.16 and 0.32s. Everything I rejected is 0.40s and up
+# (2.0s on the worst). rest and lock are NOT criteria: my one PERFECT clip has rest 0.000, the worst
+# of the set, and the two naturals sit at opposite ends of lock.
+# Provisional boundary 0.35s on n=5 with a narrow 0.32/0.40 gap, so this DISCLOSES rather than
+# blocks until more of my labels firm it up. Do not silently widen it. Add labelled clips and re-derive.
 COH_OUT=$(python3 "$SKILL/coherence_probe.py" "$PROBE_SRC" "$SRT" 2>&1) || true
 echo "$COH_OUT"
 COH_DEBT=$(echo "$COH_OUT" | grep -oE "debt [0-9.]+" | head -1 | awk '{print $2}')
-# THE CROSSED GRAPH READING (2026-07-26): timing alone never separated my labels, because on iii
-# the robotic-ness is movement being ABSENT, not mistimed, and an absence has no phase. graph_verdict
-# crosses PRESENCE (hand gesture) against TIMING (debt per onset) and is the first model that explains
-# every clip I have labelled - including why r3 and T2 measure almost identically and got opposite
-# verdicts (same stillness, different register). Register is an INPUT: pass REGISTER=calm|excited.
+# THE CROSSED GRAPH READING (2026-07-26). Timing alone never separated my labels, because on iii
+# the robotic-ness is movement being ABSENT, not mistimed, and an absence has no phase.
+# graph_verdict.py crosses PRESENCE (does she make hand gestures at all) against TIMING (debt per
+# motion onset). It is the first reading that explains every clip I have labelled. That includes why
+# r3 and T2 measure almost identically and got opposite verdicts: the same stillness in a different
+# register. Register is how calm or excited the script's delivery is. It is an INPUT, so pass
+# REGISTER=calm or REGISTER=excited. graph_verdict.py is not in this repository, so this step is
+# skipped here unless the file is present.
 if [ -f "$SKILL/graph_verdict.py" ]; then
   python3 "$SKILL/graph_verdict.py" "$PROBE_SRC" "$SRT" --register "${REGISTER:-unspecified}" 2>&1 | sed 's/^/  /'
 fi
+# The debt is saved to /tmp/.debt-<basename> and, above 0.35s, printed as a DISCLOSE IN DELIVERY
+# note. "My naturals" in that note are the clips I judged natural by eye.
 if [ -n "$COH_DEBT" ]; then
   echo "${COH_DEBT}" > "/tmp/.debt-$(basename "$F")"
   python3 -c "import sys; sys.exit(0 if float('$COH_DEBT') > 0.35 else 1)" &&     echo "  >>> DISCLOSE IN DELIVERY: graph debt ${COH_DEBT}s (my naturals 0.16-0.32s). This is the" &&     echo "  >>> ROBOTIC-movement axis, not the mouth: her motion drifts out of step with the speech."
 fi
 # SINGLE TAKE IS THE STANDING DEFAULT on avatar_iii (2026-07-26: "single take always pls on
-# avaIII, unless i say so otherwise!!"). So spasm does NOT block: the only remedy for a high ratio is
-# metering several takes, and that spend is now forbidden by default, which would make a blocking gate
-# a thing the model overrides every single time - the exact rationalization this file exists to prevent.
-# Instead the ratio is DISCLOSED, loudly, and written to a sidecar so the delivery can carry the
-# number to my eye. I chose 1 credit per clip with informed eyes over 3 credits with a
-# guaranteed settle; the gate's job is to make sure I is informed, not to relitigate my choice.
+# avaIII, unless i say so otherwise!!"). So spasm does NOT block. The only remedy for a high ratio
+# is metering: render several takes of the same scene and ship the one with the lowest ratio (the
+# best-take step). Takes of one scene span 0.51-1.44, so selection is the real fix. But that spend
+# is now forbidden by default, and a blocking gate would be something the model overrides every
+# single time, which is the exact rationalization this file exists to prevent.
+# Instead the ratio is DISCLOSED. It is printed above and saved to a sidecar file in /tmp for the
+# delivery to carry to my eye, and a probe FAIL (no settle runway, exit 2) adds the DISCLOSE IN
+# DELIVERY lines below. I chose 1 credit per clip with informed eyes over 3 credits with a
+# guaranteed settle. The gate's job is to make sure I am informed, not to relitigate my choice.
 SPASM_R=$(echo "$SPASM_OUT" | grep -oE "ratio [0-9.]+|ratio inf" | head -1 | awk '{print $2}')
 echo "${SPASM_R:-unmeasured}" > "/tmp/.spasm-$(basename "$F")"
 if [ "$SPASM_RC" = "2" ]; then
@@ -142,11 +179,12 @@ if [ "$SPASM_RC" = "2" ]; then
   echo "  >>> Metering several takes (the best-take step) is the only fix, and needs my explicit go."
 fi
 
-# 3b. her<->TIME, MECHANICAL (2026-07-26, after the model attested a sunrise beach for a
-# night-time script and I caught it: the excuse was written in the model's own
-# attestation prose, which is exactly what the probe says to fail on). Scene light
-# class must agree with the delivery clock, or the gate HOLDS for an explicit
-# --time-ok <reason>. Prose can no longer talk past this.
+# 3b. her<->TIME, MECHANICAL (2026-07-26, after the model passed a sunrise beach look through
+# prop_gate's attest step for a night-time script and I caught it. The excuse was written in the
+# model's own attestation prose, which is exactly what prop_gate's probe says to fail on). The
+# light in the frame must agree with the clock when the clip is delivered, or the gate HOLDS
+# (exit 5) until TIMEOK is set to a reason. Setting TIMEOK="<reason>" in the environment skips this
+# whole check. Prose can no longer talk past this.
 if [ -z "${TIMEOK:-}" ]; then
   LUM=$(python3 - "$F" <<'PY'
 import subprocess, sys
@@ -202,6 +240,8 @@ PY
   # value across the clip, not just match the clock at one sample: a pulsing scene asserts a
   # different moment at different times. Measured on the pair: iii swings ~15 luma with ~40%
   # spikes every ~20s, iv swings 2. Background only, so her motion does not count as drift.
+  # The NOTE printed below mentions a "reverse splice". That is the replay defect of step 4b,
+  # where a long iii clip fills its time by playing its scene motion backward.
   DRIFT=$(python3 - "$F" <<'PY'
 import subprocess, sys
 import numpy as np
@@ -268,14 +308,16 @@ PY
   echo "background side-band motion: $BG (directional threshold 0.6)"
   python3 -c "import sys; sys.exit(0 if float('$BG') > 0.6 else 1)" && DIRECTIONAL="auto"
 fi
-# 4b. palindrome probe (2026-07-26). The probe detects the refill MECHANICALLY (8/8 on the
+# 4b. palindrome probe (2026-07-26). On a long clip avatar_iii fills the extra time by playing its
+# scene motion forward, then backward, then forward again. Call that the refill. It is how water
+# ends up running backward. mirror_probe.py detects the refill MECHANICALLY (8/8 on the
 # eye-labelled set: periods 38-60s, turnarounds on half-period multiples). Whether the refill
 # is VISIBLE is a fact about the scene the pixels would not give up: two metrics tried the same
 # morning (side-band diff 0.23 on water I saw reverse; phase-correlation drift ~0 on every
 # clip) both failed the labelled set. So visibility is DECLARED, never inferred: on REPLAYS the
 # gate HOLDS and forces the call. REPLAYOK="<why the scene hides it>" passes a genuinely static
-# scene (my approved lamp-lit interiors), logged like TIMEOK. It can never silently pass a
-# replaying clip again (the scheduled-replay failure), and never auto-kills an approved static.
+# scene (my approved lamp-lit interiors) and prints a REPLAY OVERRIDE line. It can never silently
+# pass a replaying clip again, and never auto-kills an approved static.
 # (First wiring was removed by a blanket rebase I requested for other reasons; restored the
 # same morning on the grounds that it should never have been dropped.)
 MP="$SKILL/mirror_probe.py"
@@ -366,10 +408,10 @@ if [ -n "$DIRECTIONAL" ] && [ -z "$ARROWOK" ]; then
   DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$F")
   T0=$(python3 -c "print(max(0,float('$DUR')-11))"); T1=$(python3 -c "print(float('$DUR')-1)")
   ffmpeg -y -v error -ss "$T0" -to "$T1" -i "$F" -vf "crop=2:ih*0.4:iw*0.8:ih*0.25,scale=2:200" -f rawvideo -pix_fmt gray "${TMPDIR:-/tmp}/.slit.$$.raw"
-  python3 - "$SLIT" <<'PY'
+  python3 - "$SLIT" "${TMPDIR:-/tmp}/.slit.$$.raw" <<'PY'
 import numpy as np, sys
 from PIL import Image
-raw = np.fromfile(""${TMPDIR:-/tmp}/.slit.$$.raw"", dtype=np.uint8)
+raw = np.fromfile(sys.argv[2], dtype=np.uint8)
 n = len(raw)//400
 xt = raw[:n*400].reshape(n,200,2).mean(axis=2).T
 Image.fromarray(xt.astype(np.uint8)).resize((n*3,600), Image.NEAREST).save(sys.argv[1])
