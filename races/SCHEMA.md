@@ -115,6 +115,13 @@ both exist and null when comparison is impossible. `recorded_reason` preserves
 the hand explanation. A false agreement has a factual `disagreement_reason`;
 the scorer is never adjusted to force agreement.
 
+The README line numbers quoted inside `tools/score_race.py` and `races/panels.json`
+point at README.md as it stood at commit `61026fd`, the commit that last changed
+both files. Read them there, for example with
+`git show 61026fd:README.md | sed -n 230,231p`. The page has moved since. The two
+files keep their text because `scorer_sha256` and `panels_sha256` pin them byte
+for byte.
+
 `score` is the scorer audit object: `winner`, a row-win count per engine in
 `row_wins`, all best engines per probe in `row_winners`, any count-tied leaders,
 the gate winners considered, and `decided_by`. Equal best values award the row
