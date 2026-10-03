@@ -125,7 +125,7 @@ The voice pipeline is the cleanest example of the loop, because the defect was h
 
 ## What this does not claim
 
-The labelled sets are one labeller's judgement, mine. `evals/derive.py` checks on every push that each of the ten thresholds sits between its passes and its rejects. A second labeller needs the source renders. 41 of the 48 labelled rows have none, and the 42 scene clips are not in this repo.
+The labelled sets are one labeller's judgement, mine. `evals/derive.py` checks on every push that each of the ten thresholds sits between its passes and its rejects. A second labeller needs the source renders. 41 of the 48 labelled rows ship without theirs, and the 42 scene clips are not in this repo.
 
 Sample sizes are small and stated as counts, never as rates: 48 labelled rows behind the thresholds and 5 draws behind the voice-drift figure. A percentage computed on those denominators would imply a precision the data cannot support.
 

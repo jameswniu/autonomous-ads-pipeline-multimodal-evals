@@ -4,7 +4,7 @@
 #   pixels=<path>     the frame ships here. derive.py re-measures it with the
 #                     probe's OWN function and fails if the number does not come
 #                     back. A stranger can check it.
-#   pixels=withheld   the source render is not retained. `measured` is the number
+#   pixels=withheld   the source render is not in this repo. `measured` is the number
 #                     recorded in the probe's docstring at derivation time.
 #                     Attested, not reproducible. Counted separately, never quietly.
 #

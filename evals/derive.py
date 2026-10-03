@@ -327,8 +327,8 @@ def main():
     verb = ("were recomputed" if n_ok == n_live
             else f"ship pixels, {n_ok} of which recomputed")
     print(f"\n{n_live} of {len(rows)} labelled rows {verb}. "
-          f"The rest are attested from the derivation notes; those source renders are "
-          f"not retained.")
+          f"The rest are attested from the derivation notes; their source renders are "
+          f"not in this repository.")
 
     if failures:
         print("\nFAILURES")
