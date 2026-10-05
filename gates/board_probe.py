@@ -84,11 +84,18 @@ def register_ok(narration):
     return not THIRD_PERSON.search(narration)
 
 def chain_ok(sp, scenes):
-    """True when the spot has no chain, or its chain lists its own scenes once each and can name her."""
+    """True when the spot has no chain, or its chain lists its own scenes once each and can name her. With
+    no slots the build plays the first three scene keys in turn, one to each sentence, so the chain has to
+    be shot in that order and hold only scenes the cut plays, or a scene would follow one it never started
+    from. A chain may skip a scene the cut plays between two of its shots: that scene is a cutaway, and the
+    next chained shot still opens on the frame the one before it ended on, which is the cut back. With
+    slots, the slots check holds the chain to the order they play in, cutaways allowed the same way."""
     chain = sp.get("chain")
     if chain is None:
         return True
     if not isinstance(chain, list) or not chain or len(set(chain)) != len(chain) or any(k not in scenes for k in chain):
+        return False
+    if not sp.get("slots") and [k for k in sorted(scenes)[:BUILDER_SLOTS] if k in chain] != chain:
         return False
     return bool(sp.get("character_noun")) or not any(PLACEHOLDER in scenes[k] for k in chain)
 

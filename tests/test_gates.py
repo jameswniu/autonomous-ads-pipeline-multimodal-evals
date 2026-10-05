@@ -193,6 +193,9 @@ def test_board_probe_holds_a_chain_to_the_spots_own_scenes(tmp_path):
     assert _chain_check(tmp_path, []) is False, "an empty chain passed"
     assert _chain_check(tmp_path, "abc") is False, "a chain that is not a list passed"
     assert _chain_check(tmp_path, ["a", "b"], noun=None) is False, "a chained character with no noun to name her passed"
+    # With no slots the build plays a, b and c in turn, so a chain shot in another order would be cut out of it.
+    assert _chain_check(tmp_path, ["a", "c", "b"]) is False, "a chain shot out of the order the cut plays it passed"
+    assert _chain_check(tmp_path, ["b", "a"]) is False, "a chain shot out of the order the cut plays it passed"
 
 
 NO_SLOTS = object()
