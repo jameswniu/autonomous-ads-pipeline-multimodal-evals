@@ -92,19 +92,19 @@ Every spot ends on the closer, a presenter who speaks the brand line to camera, 
 
 | Step | What it has to prove before the next step may start | How it fails |
 |:---|:---|:---|
-| Board | Eleven mechanical checks, read off the board's text, free, before a cent is spent. Five are about the idea (the product absent before the payoff, the escalation declared, the quirk never spoken by the narration, mouths closed under narration, the centre-crop clause present). Six hold the shoot together, the last four only when a spot declares them (every person written as the one story character, so the render can hold her face; narration with no he, she or her in it, so it talks to the viewer; a shot chain that names real scenes, each once; which shots play under each narration sentence; where the switching sound goes; and a clean list of the props every shot must keep). Then four judgment rows I score 0 to 3 by eye, which `board_probe.py` prints as questions when run by hand and the graph does not collect | The board goes back |
+| Board | Eleven free checks on the board's text, before a cent is spent<br>• five on the idea, such as no scene naming the product before the payoff<br>• six that keep the shoot consistent, such as every person written as the one story character and narration with no he or she in it, four of them only when a spot declares them<br>• then four judgment rows I score 0 to 3 by eye, which the graph does not collect | The board goes back |
 | Render | Every vendor request and its landing appended to the ledger, the vendor's own rejection text included, with the three voice draws logged as one request | Recorded, each broken scene is re-rolled once, and a second failure stops the run |
 | Closer | Identity pin on the voice and avatar ids, prop gate on the look, jaw measured on the raw render and read against the band | The pins and the look fail before the spend, the jaw read after the render |
 | Build | The closer's video starts within 40 ms of where its audio was placed | Measured in frames, from the build's own segments |
 | Ad gates | Every caption cue matches the transcript of the audio in the cut (text to 0.90, numbers exact), within 0.5 s before or 0.3 s after its first word. The closer's mouth tracks its audio | A failure stops the run, and a mouth that reads REVIEW or lags 0.12 s or more goes to the eye |
-| Ship gate | The frame has no letterbox, the light in it agrees with the clock and the spoken words (the graph waives the clock for ad fiction and logs that it did), a one-way flow is read by eye unless the replay probe finds it runs only forward, and the mouth-settle and coherence readings are disclosed. Exit 64 on unreadable input | Fails closed |
+| Ship gate | No letterbox<br>• light that agrees with the clock and the words, a check the graph waives for ad fiction and logs<br>• one-way motion read by eye, unless the replay probe finds it runs only forward<br>• mouth-settle and coherence readings disclosed<br>• exit 64 on unreadable input | Fails closed |
 | Deliver | A defective delivered cut is withdrawn, replaced, and the withdrawal ledgered with its reason | On the record |
 
 ### The redo, as a ledger reads it
 
 Four invented-brand spots were shot again after I kept rejecting boards. I review every cut by eye, and I am the only human in the loop.
 
-- Each spot shipped two ways. One leg ran on the engine I had picked from the four-engine race in section 3, the other on Omni Flash, from the same boards, narrations, closers, beds and captions. The only variable between the columns is the engine. The 2026-09-19 rescore later overturned my pick for Lantern, Harbor and Slow Road, so those three legs raced Wan 3.0, Wan 3.0 and Seedance 2.0 rather than the panel's winners. The redo's own scores in the ledger are unchanged.
+- Each spot shipped two ways. One leg ran on the engine I had picked from the four-engine race in section 3, the other on Omni Flash, from the same boards, narrations, closers, beds and captions. The only variable between the columns is the engine. A later rescore overturned my pick for Lantern, Harbor and Slow Road, so those three legs raced Wan 3.0, Wan 3.0 and Seedance 2.0 rather than the panel's winners. The redo's own scores in the ledger are unchanged.
 - The [ledgers](shoots/) hold four rounds behind them, 16, 16, 12 and 15 engine requests, 59 in all, two of them music beds, for eight shipped versions.
 
 <table>
@@ -214,7 +214,7 @@ The same loop ran against ten real, currently shipping AI products.
 |:---|:---|:---|:---|
 | Claude | A thoughtful collaborator for serious work, until the answer is one page | claude.com and anthropic.com | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-claude.mp4) |
 | Claude Code | The agent in your terminal that reads the codebase, fixes the bugs and ships the feature | The product page and its documentation | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-claudecode.mp4) |
-| Google Pics | Image creation and editing that brings your exact vision to life, down to a single object | Google's own I/O 2026 announcement | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-pics.mp4) |
+| Google Pics | Image creation and editing that brings your exact vision to life, down to a single object | Google's own I/O announcement | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-pics.mp4) |
 | Gemini | Google's personal assistant, hands free, across the apps you already use | gemini.google.com | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260827-gemini.mp4) |
 | Z.ai | Frontier open models, the same weights the big labs guard, priced for builders | z.ai and its developer documentation | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260927-zai-neurons-av7.mp4) |
 | Kimi | A million pages read in a breath, answered with the one line that matters | moonshot.ai and kimi.com | [&#9654;](https://github.com/jameswniu/autonomous-ads-pipeline-multimodal-evals/releases/download/media-2026-08/shoot-20260830-kimi.mp4) |
@@ -258,7 +258,7 @@ Orchard Hill Coffee sells morning energy and craving, so its panel gates gesture
 | Scene simplicity, lower is calmer, reports | 7.37 | **6.7** | 8.10 | **6.7** |
 | Face level wander, lower is steadier, reports | 148.9 | 150.6 | 150.3 | **114.5** |
 
-Re-run on 2026-09-05 against the released Seedance master, face level 114.5, eye rejection 7.69 and background clutter 6.57 came back exactly, gesture 0.667 and scene 6.78 within probe scatter. Any row reproduces with `python3 probes/<probe>.py <master.mp4>`, and the redo's probe outputs ship in [`shoots/ads6-omni/probe-outputs/`](shoots/ads6-omni/probe-outputs/). The table is the 2026-08-24 reading, and the 2026-09-19 rescore in the ledger measured the released masters again, so nine of these twenty cells differ slightly and no row's best reading changes.
+Re-run against the released Seedance master, face level 114.5, eye rejection 7.69 and background clutter 6.57 came back exactly, gesture 0.667 and scene 6.78 within probe scatter. Any row reproduces with `python3 probes/<probe>.py <master.mp4>`, and the redo's probe outputs ship in [`shoots/ads6-omni/probe-outputs/`](shoots/ads6-omni/probe-outputs/). The table is the first reading. A later rescore in the ledger measured the released masters again, so nine of these twenty cells differ slightly and no row's best reading changes.
 
 The same four engines shot Quiet Hours, a brief that sells permission to rest, and here the premium baseline swept the calm rows.
 
@@ -289,7 +289,7 @@ The first-race clips of the other three winners.
   </tr>
 </table>
 
-All five races were scored from the released masters on 2026-09-19, and every probe value now sits on the ledger under the `ads2-rescore` cohort. The panel agreed with the eye on Orchard and Quiet and overturned it on Lantern, Harbor and Slow Road. Both calls are kept, the hand call still as `recorded_winner` and now with `agrees` false, beside the numbers that overturned it. The WINNER column is the panel's answer, because the panel is the router. The ledger is `races/races.jsonl`, `tools/score_race.py` recomputes each winner from it, and `tests/test_races.py` runs that check.
+All five races were scored from the released masters, and every probe value now sits on the ledger under the `ads2-rescore` cohort. The panel agreed with the eye on Orchard and Quiet and overturned it on Lantern, Harbor and Slow Road. Both calls are kept, the hand call still as `recorded_winner` and now with `agrees` false, beside the numbers that overturned it. The WINNER column is the panel's answer, because the panel is the router. The ledger is `races/races.jsonl`, `tools/score_race.py` recomputes each winner from it, and `tests/test_races.py` runs that check.
 
 No engine sweeps the catalogue. On the 398 blind Prolific votes for these four-engine ads people preferred Wan 3.0 on Orchard, Omni Flash on Harbor and Seedance 2.0 on the other three briefs, so the panel's pick matched theirs on Harbor only. Its picks, made with all four ads already scored, win 52% of their head-to-head votes on average, where a coin wins 50% and always choosing Seedance 2.0 wins 59%, so the panel has not earned the router's job yet. `kill-gate/eval/facts.py` prints each of these figures.
 
@@ -330,7 +330,14 @@ One loop, seven steps, and it ran unattended. The gates are where the system sto
 
 The figure is generated by `tools/render_map.py` from a declared step list. CI fails if the committed file drifts from the generator, or if the seven step names stop matching the process table above.
 
-The same loop drawn as a graph, and `pipeline/graph.py` is the LangGraph that runs it. After `pip install -r requirements.txt`, `python -m pipeline.run --board shoots/graph-zai-shots/boards.json --spot zai --mode dry` walks it with no keys. It runs the board gate for real, writes the scene requests a live run would send with what they would cost, and stops before the first spend, and CI does the same on every push and diffs the ledger it writes against a pinned one. A live run needs vendor keys and the pinned presenter identity, which are not in this repo. A scene that fails its cast or continuity check is re-rolled once, and past that a failed gate stops the run until a person resumes it, because rebuilding the same inputs would repeat the fault. The run waits for a person in two places. The eye takes a REVIEW off the ad gates. Its approval sends the cut on to the ship gate, and its rejection sends the run back to the scene, the closer or the build. The review comes after delivery, and it can withdraw the cut and send the run back to the step that fixes it. Who owns a gate is in the stroke, and the table under the graph reads it.
+The same loop as a graph, and `pipeline/graph.py` is the LangGraph that runs it.
+
+- `python -m pipeline.run --board shoots/graph-zai-shots/boards.json --spot zai --mode dry` walks it with no keys, after `pip install -r requirements.txt`. It runs the board gate for real, writes the scene requests a live run would send with their cost, and stops before the first spend.
+- CI runs the same dry run on every push and diffs its ledger against a pinned one.
+- A live run needs vendor keys and the pinned presenter identity, which are not in this repo.
+- A scene that fails its cast or continuity check is re-rolled once. Past that, a failed gate stops the run until a person resumes it, since rebuilding the same inputs would repeat the fault.
+- A person steps in twice. The eye takes a REVIEW off the ad gates and approves the cut or sends it back to the scene, the closer or the build. After delivery, the review can withdraw the cut and send the run back.
+- Who owns a gate is in the stroke, and the table under the graph reads it.
 
 
 ```mermaid
@@ -378,14 +385,14 @@ Vendor ids and Slack fields are replaced with `<id>` or dropped, and home direct
 
 | Where | What it is |
 |:---|:---|
-| `shoots/` | The batches and their ledgers. `ads2-redo/` is the race, `ads3/` to `ads5/` the redo rounds, `ads6-omni/` the Omni Flash leg with its panel scores and probe outputs, and `ads7-real/` and `ads8-real/` the ten spec ads. Each batch holds `boards.json`, a `build-*.sh` driver and the append-only `requests.jsonl` and `landings.jsonl`. `build-ad.sh` is the shared assembly, `master.sh` masters its loudness, and `switches.sh` and `switch_times.py` place the switching sound. The `graph-zai-*` boards are what the graph's tests and the CI dry run read, and `graph-grok-hook/` holds one recorded graph run |
-| `gates/` | What a board, a shot, the narration and a master must clear. `board_probe.py` is the free check before any spend. On each shot, `cast_gate.py` asks whether the person is the story's character, `continuity_gate.py` whether the shot stays what it was from first frame to last, and `edge_clip_probe.py` what the frame cuts off. On the narration, `voice_take.sh` draws the takes, `voice_probe.py` throws out a take that drifts from the others and keeps one of the rest, and `script_match.sh` checks it says the script, with `textnorm.py` shared with `caption_gate.py`. On the closer, `source_gate.py` measures the jaw on the raw render and `jaw_gate.py` refuses it past 0.17. On the master, `ad_gates.sh` runs `caption_gate.py` and `mouth_sync_probe.py` and checks the closer's placement, `frontload_gate.py` flags a slow open, and `loudness_gate.py` checks loudness and true peak. The framing checks on the look run in look generation, which stays out of the repo |
-| `probes/` | The eleven instruments the panels and gates read: gesture energy, background detail, eye rejection, scene simplicity, face level wander, lip sync, sync lag, replay detection, the rest and spasm meters the ship gate runs on the closer, or on the whole master in a graph run, and `graph_verdict.py`, which crosses whether she gestures at all against when, and only reports |
-| `guards/` | The four guards, three that run before a paid render and the ship gate that runs before delivery, `arrow_probe.py`, which measures her apparent scale over time for the prop gate's arrow scan, and the learned rules the prop gate reads back |
-| `pipeline/` | The loop as code, the graph the August runs converged on. `graph.py` is the LangGraph, with the seven steps from `steps.py`, each gate an edge, and a person at the eye and at the review. `run.py` runs a board through it, and in dry mode it needs no keys. `toolkit.py` is what its nodes act through, `live.py` is the part that spends, `ledger.py` writes the append-only run ledger, and `replay.py` checks the August ledgers against the graph's edges. `SCHEMA.md` is the ledger's format, and `expected/` pins the dry run's ledger for CI |
-| `evals/` | `derive.py` and `labels.csv`, the labelled exemplars and the tool that brackets the gating thresholds on its list from them, which derives thresholds and does not score a video. `judge-rubric.json` and `judge-calibration.json`, the rubric for the language-model judge and the 42 eye-labelled scenes it was calibrated on |
+| `shoots/` | Every batch, with its boards and ledgers<br>• `ads2-redo/` the race, `ads3/` to `ads5/` the redo rounds, `ads6-omni/` the Omni Flash leg, `ads7-real/` and `ads8-real/` the ten spec ads<br>• each holds `boards.json`, a `build-*.sh` driver, `requests.jsonl` and `landings.jsonl`<br>• `build-ad.sh` assembles a spot, `master.sh` sets its loudness, `switches.sh` and `switch_times.py` place the switching sound<br>• the `graph-zai-*` boards feed the graph's tests and the CI dry run, and `graph-grok-hook/` is one recorded graph run |
+| `gates/` | What a board, a shot, the narration and a master must pass<br>• `board_probe.py` checks the board, free, before any spend<br>• on each shot, `cast_gate.py` (the right character), `continuity_gate.py` (props and background hold from first frame to last) and `edge_clip_probe.py` (what the frame cuts off)<br>• on the narration, `voice_take.sh` draws takes, `voice_probe.py` drops one that drifts, and `script_match.sh` checks the words, with `textnorm.py` shared with `caption_gate.py`<br>• on the closer, `source_gate.py` measures the jaw and `jaw_gate.py` refuses it past 0.17<br>• on the master, `ad_gates.sh` (captions, mouth sync, closer placement), `frontload_gate.py` (a slow open) and `loudness_gate.py` (loudness and true peak)<br>• the look's framing checks run in look generation, which stays out of the repo |
+| `probes/` | The eleven instruments the panels and gates read<br>• gesture energy, background detail, eye rejection, scene simplicity and face level wander<br>• lip sync, sync lag, replay detection, and the rest and spasm meters the ship gate runs<br>• `graph_verdict.py`, which only reports |
+| `guards/` | Four guards, three before a paid render and the ship gate before delivery<br>• `arrow_probe.py` measures her apparent scale over time for the prop gate's arrow scan<br>• the learned rules the prop gate reads back |
+| `pipeline/` | The loop as code<br>• `graph.py` is the LangGraph, `steps.py` its seven steps, and `run.py` runs a board through it, with no keys in dry mode<br>• `live.py` is the part that spends, and `toolkit.py` is what the nodes act through<br>• `ledger.py` writes the run ledger, `SCHEMA.md` is its format, and `expected/` pins the dry run's ledger for CI<br>• `replay.py` checks the older shoots' ledgers against the graph's edges |
+| `evals/` | The labels the thresholds come from<br>• `labels.csv`, the labelled exemplars, and `derive.py`, which brackets the thresholds on its list from them and scores no video<br>• `judge-rubric.json` and `judge-calibration.json`, the language-model judge's rubric and the 42 eye-labelled scenes it was calibrated on |
 | `races/`, `tools/`, `tests/` | The race ledger and its panels, the scorer and the other tools CI runs, and the tests that check them |
-| `kill-gate/` | The kill gate, a separate experiment on the August renders. It asks whether a model judge can stand in for people choosing between versions of an ad, and whether it can safely drop the weakest render, scored against 450 blind human votes. Its own page has the findings |
+| `kill-gate/` | A separate experiment on the ad renders<br>• asks whether a model judge can stand in for people choosing between versions of an ad, and whether it can safely drop the weakest render<br>• scored against 450 blind human votes, with the findings on its own page |
 
 ## Recounted on every push
 
@@ -409,7 +416,7 @@ A mixed read is the design, not a broken run. Most probes report and do not refu
 | `caption_gate.py` | **Blocks.** A caption cue whose text does not match the transcript, or that drifts outside its window, fails the master |
 | Closer assembly drift | **Blocks** past 40 ms between where the closer's video starts and where its audio was placed |
 | `mouth_sync_probe.py` | **Blocks** at FAIL, which is correlation under 0.10, the mouth unrelated to the audio, and when no face is found. REVIEW passes with a logged line and the eye decides |
-| `sync_probe.py` | **Speaks only.** Demoted on 2026-08-27 after controls with a known 0.4 s shift moved it 80 ms in the wrong direction |
+| `sync_probe.py` | **Speaks only.** Demoted after controls with a known 0.4 s shift moved it 80 ms in the wrong direction |
 | `source_gate.py` | **Speaks only.** Prints jaw travel, settle ratio and loop jump as three raw numbers with no verdict, so the metric and the line can be argued separately |
 | `probes/` | **Speak only** to the panels and the gates that read them |
 
@@ -428,7 +435,7 @@ Every threshold here is a hand-picked number over a measured signal, and none of
 - Only what ships here is claimed, the 48 labelled rows behind the thresholds and the 42 scenes behind the judge.
 - Sample sizes are counts, never rates: 15 governed runs, 42 calibration scenes, 8 lip-sync labels.
 - Every outcome number here is measured on the creative. Hook rate, hold rate and view-through are the buy's numbers and are not on this page.
-- Engine prices and product positioning are as of August 2026, when the shoots ran, and are not re-checked.
+- Engine prices and product positioning are from when the shoots ran, and are not re-checked.
 - The pinned identity is not in this repo. The voice id, avatar group and look ids are environment variables or `<id>` in the ledgers. The scripts read end to end, and rendering again needs an identity and vendor accounts of your own.
 
 This repository holds the autonomous pipeline: the graph, the probes, the gates, the guards, the labelled exemplars and the derivation. Apache-2.0.
