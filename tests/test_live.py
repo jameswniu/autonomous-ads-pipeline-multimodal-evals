@@ -663,6 +663,111 @@ def test_a_re_roll_sends_only_the_broken_scene_and_keeps_the_narration(live, mon
     assert len(calls_to(run, "gates/voice_take.sh")) == 1, "the narration was redrawn on a re-roll"
 
 
+def _new_words(tmp_path, first):
+    """A copy of the board whose narration opens with a different sentence, everything else as it was."""
+    board = json.load(open(BOARD))
+    old = board["spots"]["zai"]["narration"]
+    board["spots"]["zai"]["narration"] = first + " " + old.split(". ", 1)[1]
+    assert board["spots"]["zai"]["narration"] != old
+    path = tmp_path / "edited-boards.json"
+    path.write_text(json.dumps(board))
+    return str(path), board["spots"]["zai"]["narration"]
+
+
+def test_a_narration_whose_words_changed_is_voiced_again_and_the_same_words_are_not(live, monkeypatch, tmp_path):
+    """The narration take is kept on a re-entry only while it says the board's words. A take drawn
+    for the old words used to be kept because its file was there, and the spot shipped the old line.
+    Changed words are drawn again and land beside their own script.txt, and the same words keep the
+    take and pay for nothing."""
+    tk, state = live
+    monkeypatch.setattr(L, "http", Vendor())
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert tk.render(state)["failed"] == []
+    assert len(calls_to(run, "gates/voice_take.sh")) == 1
+    board, words = _new_words(tmp_path, "Your desk is smaller than the problem you're solving.")
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id)
+    assert again.render(dict(state, board=board))["failed"] == []
+    assert len(calls_to(run, "gates/voice_take.sh")) == 2, "the take drawn for the old words was kept"
+    vo = os.path.join(state["run_dir"], "takes", "zai-vo")
+    assert open(os.path.join(vo, "script.txt")).read().strip() == words
+    draws = [r for r in again.ledger.rows() if r["kind"] == "request" and r.get("engine") == "elevenlabs/eleven_v3"]
+    assert [r["text"] for r in draws][-1] == words, draws
+    assert again.render(dict(state, board=board))["failed"] == []
+    assert len(calls_to(run, "gates/voice_take.sh")) == 2, "the same words were paid for again"
+
+
+def test_a_failed_draw_for_new_words_never_passes_the_old_take_off_as_theirs(live, monkeypatch, tmp_path):
+    """voice() writes the new script.txt before it draws, so a draw for new words that fails leaves the
+    old take beside a script.txt that already says the new words. The re-roll after it has to draw
+    again. Kept, the old take would be recorded as matched to words it never said, and shipped."""
+    tk, state = live
+    monkeypatch.setattr(L, "http", Vendor())
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    assert tk.render(state)["failed"] == []
+    board, words = _new_words(tmp_path, "Your desk is smaller than the problem you're solving.")
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(voice_ok=False))
+    v = again.render(dict(state, board=board))
+    assert v["failed"] == ["narration"], v
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    before = len(again.ledger.rows())
+    assert again.render(dict(state, board=board, verdict={"render": v}))["failed"] == []
+    assert len(calls_to(run, "gates/voice_take.sh")) == 1, "the old take was kept for words it never said"
+    kept = [r for r in again.ledger.rows()[before:] if r.get("status") == "REUSED" and "zai-vo" in r.get("file", "")]
+    assert not kept, kept
+
+
+def test_a_draw_that_dies_before_it_is_ledgered_leaves_the_old_words_beside_the_old_take(live, monkeypatch, tmp_path):
+    """voice() puts the draw on the ledger before it changes script.txt. A run that died between the two
+    with script.txt changed first would leave the new words beside the old take with no draw newer than
+    its match, and the next pass would keep the old take for words it never said."""
+    tk, state = live
+    monkeypatch.setattr(L, "http", Vendor())
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
+    assert tk.render(state)["failed"] == []
+    board, words = _new_words(tmp_path, "Your desk is smaller than the problem you're solving.")
+    again = L.LiveToolkit(state["run_dir"], tk.ledger.run_id)
+    append = again.ledger.append
+
+    def dies_at_the_draw(kind, step, **fields):
+        if kind == "request" and fields.get("engine") == "elevenlabs/eleven_v3":
+            raise KeyboardInterrupt("the process died before the draw reached the ledger")
+        return append(kind, step, **fields)
+    monkeypatch.setattr(again.ledger, "append", dies_at_the_draw)
+    with pytest.raises(KeyboardInterrupt):
+        again.render(dict(state, board=board))
+    vo = os.path.join(state["run_dir"], "takes", "zai-vo")
+    assert open(os.path.join(vo, "script.txt")).read().strip() != words, "script.txt changed before the draw was ledgered"
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    assert L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(dict(state, board=board))["failed"] == []
+    assert len(calls_to(run, "gates/voice_take.sh")) == 1, "the old take was kept for the new words"
+
+
+def test_a_take_the_run_died_before_reading_back_is_drawn_again_not_kept(live, monkeypatch):
+    """A run that dies after the draw and before the take is read back leaves a take whose script.txt
+    says the board's words but that nothing ever matched to them. The next pass draws it again rather
+    than keep a take nobody checked."""
+    tk, state = live
+    vendor = Vendor()
+
+    def dies_at_the_read_back(method, url, headers, body=None, timeout=120):
+        if url.endswith("/speech-to-text"):
+            raise KeyboardInterrupt("the process died before the take was read back")
+        return vendor(method, url, headers, body, timeout)
+    monkeypatch.setattr(L, "http", dies_at_the_read_back)
+    run = scripts()
+    monkeypatch.setattr(L.LiveToolkit, "script", run)
+    with pytest.raises(KeyboardInterrupt):
+        tk.render(state)
+    assert len(calls_to(run, "gates/voice_take.sh")) == 1
+    monkeypatch.setattr(L, "http", vendor)
+    assert L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(state)["failed"] == []
+    assert len(calls_to(run, "gates/voice_take.sh")) == 2, "a take that was never read back was kept"
+
+
 def test_a_scene_named_in_an_answer_must_be_one_of_the_spots(live, monkeypatch):
     tk, state = live
     vendor = Vendor()

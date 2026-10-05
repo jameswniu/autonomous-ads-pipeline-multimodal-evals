@@ -410,17 +410,28 @@ class LiveToolkit(Toolkit):
 
     # The voice: drawn, checked for accent drift, read back, and matched to the script.
 
+    @staticmethod
+    def scripted(audio, text):
+        """Whether the script.txt beside a take says this text. voice() writes it before it draws, so
+        a script.txt that says other words belongs to a take drawn for those words."""
+        script_path = os.path.join(os.path.dirname(audio), "script.txt")
+        if not os.path.isfile(script_path):
+            return False
+        with open(script_path) as fh:
+            return fh.read().strip() == text.strip()
+
     def voiced(self, step, spot, audio, text):
         """A take this run already drew and matched to this script, kept rather than paid for
         again when a step is re-entered."""
-        script_path = os.path.join(os.path.dirname(audio), "script.txt")
-        if not (os.path.isfile(audio) and os.path.isfile(script_path)):
+        if not (os.path.isfile(audio) and self.scripted(audio, text)):
             return False
-        with open(script_path) as fh:
-            if fh.read().strip() != text.strip():
-                return False
         matches = self.rows("gate", step=step, spot=spot, check="script match")
-        return bool(matches) and matches[-1].get("passed") is True
+        if not matches or matches[-1].get("passed") is not True:
+            return False
+        # The match has to be the newest draw's. A draw for new words that fails leaves the old take on
+        # disk beside the new script.txt, and the old take's match is still the last one on the ledger.
+        draws = self.rows("request", step=step, spot=spot, engine="elevenlabs/eleven_v3")
+        return not draws or matches[-1]["seq"] > draws[-1]["seq"]
 
     def voice(self, step, spot, text, out_dir, stem):
         """Draw three takes through gates/voice_take.sh, keep a survivor, transcribe it, and
@@ -437,12 +448,15 @@ class LiveToolkit(Toolkit):
                            voice=fingerprint(voice_id), said=said if rc else "")
         if rc != 0:
             return False, "the voice is not the pinned clone"
-        script_path = os.path.join(out_dir, "script.txt")
-        with open(script_path, "w") as fh:
-            fh.write(text.strip() + "\n")
+        # The draw goes on the ledger before script.txt changes. voiced() keeps a take only when its match
+        # is newer than the last draw, so a run that dies between the two never leaves new words beside an
+        # old take that still looks matched to them.
         rid = new_request_id()
         self.ledger.append("request", step, request_id=rid, spot=spot, engine="elevenlabs/eleven_v3",
                            voice=fingerprint(voice_id), draws=3, text=text.strip())
+        script_path = os.path.join(out_dir, "script.txt")
+        with open(script_path, "w") as fh:
+            fh.write(text.strip() + "\n")
         r = self.script("gates/voice_take.sh", script_path, audio, "3", timeout=900)
         if r.returncode != 0 or not os.path.isfile(audio):
             self.ledger.append("landing", step, request_id=rid, status="FAILED", error=self.clean((r.stdout + r.stderr)[-600:]))
@@ -1080,7 +1094,13 @@ class LiveToolkit(Toolkit):
         if unconfirmed:
             return verdict      # the narration waits with the scenes
         vo = self.dir(f"{spot}-vo")
-        if not os.path.isfile(os.path.join(vo, "narration.mp3")) or "narration" in (last.get("failed") or []):
+        narration = os.path.join(vo, "narration.mp3")
+        # A take is kept only while voiced() says it is this run's take of the board's words, read back
+        # and matched after its draw. The board's narration can change between passes, and a take drawn
+        # for the old words would ship them, so a script.txt that no longer says the board's narration
+        # sends it back to voice() to be drawn again. So does a draw that never reached its match, as
+        # when the run died after the draw. The same words, matched, keep the take and pay for nothing.
+        if "narration" in (last.get("failed") or []) or not self.voiced("render", spot, narration, spot_def["narration"]):
             ok, reason = self.voice("render", spot, spot_def["narration"], vo, "narration")
             if not ok:
                 failed.append("narration")
