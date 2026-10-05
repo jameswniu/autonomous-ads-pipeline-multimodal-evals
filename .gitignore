@@ -47,3 +47,10 @@ tools/pii_names.txt
 .pytest_cache/
 .coverage
 .reports/
+
+# A kept graph run commits its ledger and run.json. The takes, masters and deliveries are
+# media, and the checkpoint is the run's working state.
+shoots/*/takes/
+shoots/*/masters/
+shoots/*/delivered/
+shoots/*/checkpoint.sqlite*
