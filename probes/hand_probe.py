@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """hand_probe.py <video.mp4> - does she GESTURE? The axis none of the other probes measure.
 
+"She" is the AI presenter, the avatar who speaks the brand line to camera at the end of each spot.
+A probe is a script that reads one number off a clip; this one reads how much her hands and arms
+move compared with her head.
+
 Built 2026-07-26 after every timing/level/mouth meter failed to predict my "natural" calls.
-My naturals (avatar_v) have visible hand gesture; the avatar_iii rejects are talking heads with hands
+My naturals (made on avatar_v, one of the video vendor's avatar engines) have visible hand
+gesture; the avatar_iii rejects (made on another of its engines) are talking heads with hands
 frozen or absent. So measure the hand/arm band directly: motion energy BELOW the shoulder line,
 excluding her head, as a fraction of the head's own motion.
 
   gesture_ratio = (motion in the hand/arm band) / (motion in the head band)
 
 A talking head with still hands scores near 0. A person gesturing with the words scores high.
-This is deliberately NOT a naturalness verdict on its own - it is the missing INPUT that the
-state<->movement pair (INVARIANTS #10) needs, since "her movement" was never being measured.
+This is deliberately NOT a naturalness verdict on its own - it is the missing INPUT for invariant 10
+of my doctrine (my written rulebook for how a spot must be made), which says her movement must fit
+the script, calm lines still and excited lines moving. "Her movement" was never being measured.
 """
 import subprocess, sys
 import numpy as np
@@ -40,7 +46,8 @@ def main():
     hands = band.mean()
     ratio = hands/max(head,1e-6)
     print(f"HAND gesture ratio {ratio:.3f}  (head-band motion {head:.2f}, hand-band motion {hands:.2f})")
-    print("  reference: avatar_v clips I call natural show visible gesture; a frozen talking head ~0.2 or less")
+    print("  reference: clips I call natural (made on the video vendor's avatar_v engine) show visible "
+          "gesture; a frozen talking head ~0.2 or less")
     sys.exit(0)
 
 if __name__ == "__main__":

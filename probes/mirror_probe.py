@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
 """mirror_probe.py — does the scene ping-pong, and is the answer even measurable?
 
-Mechanical replacement for "render the slit-scan and have the operator read it". That older
-shape held the clip and asked me to look, which is the step that gets rationalised at 4am;
-this one decides. (Distinct from guards/arrow_probe.py, which tracks HER apparent scale over time;
-this one looks for the scene replaying itself.)
+Mechanical replacement for "render the slit-scan (one thin strip of every frame, laid side by side
+in time) and have the operator read it". That older shape held the clip and asked me to look, which
+is the step that gets rationalised at 4am; this one decides. (Distinct from guards/arrow_probe.py,
+which tracks how big HER, the AI presenter, appears to be over time; this one looks for the scene
+replaying itself.)
 
 ## The mechanism it measures (established 2026-07-26, two clips, exact integers)
 
+In this file avatar_iii and avatar_iv are two of the video vendor's avatar render engines, the
+cheaper and the pricier, and "iii" and "iv" are short for them. A take is one render of a scene.
+The "iv benchmark" is the avatar_iv clip I labelled a clean pass. A vertex is a moment where
+playback turns around, and the period is how long the scene takes to repeat.
+
 avatar_iii generates roughly 26-30s of scene motion and then FILLS the remaining duration by
 playing that segment forward, backward, forward. So the background repeats exactly with a
-period of twice the generated length, and the mirror vertices land on odd multiples of half
+period of twice the generated length, and the vertices land on odd multiples of half
 the period:
 
-    iii 131s take A: repeat period 60s, mirror vertices measured at 30, 60, 90
-    iii 131s take B: repeat period 53s, mirror vertices measured at 26.6, 53.3, 106.7
+    iii 131s take A: repeat period 60s, vertices measured at 30, 60, 90
+    iii 131s take B: repeat period 53s, vertices measured at 26.6, 53.3, 106.7
     iv  131s:        no repeat at any period (best 74% of the unrelated-frame distance)
 
 That is why water runs backwards past the half-period, why a clip at or under ~30s is clean
@@ -28,7 +34,8 @@ signal. Two detectors follow, and REPEAT is the sensitive one:
 
 ## Two rules learned by getting it wrong the same night
 
-  1. SIGNAL FLOOR. A region only votes if its own control clears CONTROL_FLOOR. The model once probed
+  1. SIGNAL FLOOR. A region only votes if its own control (the typical difference between unrelated
+     frames of that region) clears CONTROL_FLOOR. The AI agent that runs this pipeline once probed
      a nearly-static band, got a control of 0.6 (no signal at all), read "no reversal", and
      reported a 131s iii take as the first clean two-minute one. It ping-ponged at t=80.
      A dead band cannot exonerate a clip, so a frame too static to measure is UNJUDGEABLE,

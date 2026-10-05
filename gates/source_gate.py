@@ -3,6 +3,13 @@
 2026-08-27 ("Her jaw/chin always gets stretched", "movement becomes super robotic towards
 the back. It doesn't end smoothly") on the FLAT HeyGen render, before any glass conversion.
 
+FLAT is the plain 2D video the avatar vendor HeyGen returns for a closer, the last shot of a spot,
+where an AI presenter speaks the brand line to the camera. A glass conversion is the later step that
+turns that flat clip into a hologram video for a Looking Glass display, and it is not in this
+repository. Measuring before it means the numbers describe the source render and nothing the
+conversion adds. This is the measuring half of the closer's jaw check, and gates/jaw_gate.py runs
+it and rules on the numbers.
+
 Prints three numbers, no verdicts. Thresholds live with the caller, calibrated against
 clips whose verdicts the author actually gave. Raw numbers only, so the metric and the gate
 can be argued about separately.
@@ -97,7 +104,9 @@ def main():
         overshoot = np.abs(d_chin - d_lip) / fh
         jaw = float(np.percentile(overshoot, 95))
         print(f"jaw_rubber {jaw:.4f}")
-        # Face height as a fraction of frame height, the look-side feature the pre-gate needs.
+        # Face height as a fraction of frame height, the look-side feature the pre-gate needs. A
+        # look is the still image of the presenter that a closer render starts from, and the
+        # pre-gate is the check on a look before any paid render.
         # Three looks so far read 0.125 / 0.172 / 0.193 on jaw_rubber with the same engine and
         # voice, so the look is the lever; this number is logged per brief until enough points
         # exist to set a rule, rather than guessing one from three.

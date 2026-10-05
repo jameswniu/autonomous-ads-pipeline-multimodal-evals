@@ -1,15 +1,27 @@
 #!/usr/bin/env python3
 """arrow_probe.py <video.mp4> - the 4D arrow gate's MEASUREMENT layer (her body, not the backdrop).
 
+The arrow gate asks whether anything in a finished clip runs backward in time. Frames only move
+forward, so a presenter who drifts back from the camera with no gait, or any process that undoes
+itself, reads as a rewind, and checking single frames cannot see it. This script is the measured
+half of that gate (a person watching the clip is the other half). It tracks how large she (the AI
+avatar presenter) appears over time and prints a verdict. guards/prop_gate.sh, the guard that
+checks her look (a generated still of her) before a paid render, runs this script as its
+scan-arrow step on the finished clip.
+
 Tracks HER apparent scale over time (template match at multiple scales). Verdict rules were
-calibrated 2026-07-25 against the seven clips the author judged by eye that night:
+calibrated 2026-07-25 against the seven clips the author judged by eye that night. The clip names
+below (coastal, walk B, cup B and so on) are his labels for test renders of her, and the footage is
+not in this repository:
   FAIL   - the classic early shrink: her scale drops below 0.96x baseline inside the first 6s
            with no prior forward move (the original coastal clip: 0.95x at t=2 -> the author rejected it).
-  REVIEW - a big ease-back after a forward peak (>8% below running peak): walk B did 1.16->0.97
-           and the author ACCEPTED it as funded sway, so this is flagged for the author's eye, never auto-failed.
+  REVIEW - a big ease-back after a forward peak (>8% below running peak): walk B, a test clip of her
+           walking, did 1.16->0.97 and the author ACCEPTED it as funded sway (sway the scene gives
+           a reason for), so this is flagged for the author's eye, never auto-failed.
   PASS   - everything else: hold + sway (planted 0.97-1.03), gentle approach (cup B), night street.
 Exit codes: 0 PASS, 1 FAIL, 2 REVIEW. Prints the trace either way; the numbers are evidence, not
-the rule - the rule is the forward arrow (prop_gate.sh probe).
+the rule. The rule is the forward arrow: she may move toward the camera or hold still, and never
+steps back (guards/prop_gate.sh probe prints it in full).
 """
 import sys, cv2, numpy as np
 

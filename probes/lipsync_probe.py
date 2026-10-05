@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
 """lipsync_probe.py <video.mp4> - the her<->VOICE pair's measurement layer (post-render).
 
+In plain words: does the AI presenter's mouth keep time with the voice? "Her" is the presenter, VOICE
+is the audio, and the pair is my doctrine's rule (the written rulebook for how a spot must be made)
+that the two must agree.
+
 The pair: the audio is an in-frame element claiming "these syllables are being sung/said NOW";
-her mouth must pay each claim, on time. Calibrated 2026-07-25 on my judged pair:
+her mouth must pay each claim, on time. Calibrated 2026-07-25 on my judged pair, two renders of one
+dance clip (M8) from the video vendor's lip-sync tool, in its fast "speed" mode and in its
+higher-quality "precision" mode:
   speed-mode M8 dance   = known FAIL (mouth misses vocal onsets by 400-700ms, sings through a
                           closed smile at 5.7s and 9.4s)
   precision-mode M8     = the PASS reference ("tight singing sync")
-Two modes, chosen by the audio's shape:
+The probe itself has two modes, chosen by the audio's shape:
   ONSET mode  (gappy audio, songs): per sharp vocal onset, when does mouth motion respond?
               lag per onset + dropped-phrase count.
   CORR mode   (continuous speech, talking heads): cross-correlate mouth motion vs audio
               envelope over +-0.6s; report best lag + correlation.
-ROI: mouth/face band. Default fits centered talking heads; override for off-center faces:
+ROI (region of interest) is the mouth/face band. Default fits centered talking heads; override
+for off-center faces:
   LIPSYNC_ROI="x0,y0,x1,y1" (fractions), e.g. dance clips: LIPSYNC_ROI="0.50,0.12,0.92,0.55"
 Exit codes: 0 PASS, 1 FAIL, 2 REVIEW/INCONCLUSIVE. Numbers are evidence; the pair is the rule.
 """
@@ -21,9 +28,9 @@ import numpy as np
 W = 360
 HZ = 20.0
 
-# Every number this probe refuses a clip with, named. They were inline literals, which meant
-# evals/derive.py could not bracket them and reported them in neither the derived count nor its
-# denominator: its own docstring called this out as "lipsync_probe's nine" (2026-09-21).
+# Every number this probe refuses a clip with, named. They were inline literals, so evals/derive.py,
+# the script that tests each named threshold against clips a person labelled pass or reject, could
+# not test them, and counted them neither as derived from labels nor in its total (2026-09-21).
 ONSET_LOUD = 0.45        # envelope above this, after quiet, is a vocal onset
 ONSET_QUIET = 0.18       # the preceding quarter second has to be below this
 ONSET_GAP_S = 1.5        # onsets closer together than this are one onset
@@ -145,9 +152,10 @@ def main():
         me = mouth - mouth.mean(); ee = env - env.mean()
         # The correlation is sampled in 1/HZ bins, so the raw peak can only ever land on a 50 ms
         # grid. Taking it whole gave 164 ms of scatter against a known shift, four times the
-        # resolution a threshold on this axis needs, which a certification check on controls called BLIND. Fitting
-        # a parabola through the peak and its two neighbours recovers the sub-bin position
-        # (2026-09-21).
+        # resolution a threshold on this axis needs. A certification check, which feeds the probe
+        # controls (clips whose audio is shifted by a known amount), called that BLIND, meaning too
+        # coarse to see the shift. Fitting a parabola through the peak and its two neighbours
+        # recovers the sub-bin position (2026-09-21).
         curve = {}
         for lag_bins in range(-int(0.6*HZ), int(0.6*HZ) + 1):
             if lag_bins < 0: x, y = me[-lag_bins:], ee[:lag_bins] if lag_bins else ee

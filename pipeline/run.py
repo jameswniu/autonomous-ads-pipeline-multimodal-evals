@@ -1,5 +1,13 @@
 """Run one spot through the graph, or resume a run that is waiting for a person.
 
+A spot is one short ad film, and the graph is pipeline/graph.py, the LangGraph state machine that makes
+it in seven steps (board, render, closer, build, ad gates, ship gate, deliver). The board is the written
+plan for the spot, a boards.json file. The closer is the last shot, where the narrator, an AI avatar
+presenter, speaks the brand line to the camera. The ledger is the append-only log of every vendor request
+and what came back. The run pauses for a person in two places. The eye is the pause where it waits for
+someone to watch the cut and approve it or send it back, and the review is a later pause, after delivery,
+where the person can withdraw the delivered cut.
+
     python -m pipeline.run --board shoots/graph-zai-shots/boards.json --spot zai --mode dry
     python -m pipeline.run --board <boards.json> --spot <name> --mode live --run-dir shoots/<run>
     python -m pipeline.run --resume shoots/<run> --answer '{"verdict": "keep"}'
@@ -14,8 +22,10 @@ eye or the review and nobody is at a terminal to answer, it prints what the pers
 see and exits 3, and the run waits there for as long as the person takes, until it is resumed
 with an answer. An answer the graph could not act on is refused here, before it is used, and
 the run keeps waiting. --eye and --review answer ahead of time, marked as presets on the
-ledger, and never for a flag a person has to read off a picture: a directional scene, a
-replay, or a prop the edge probe saw cut by the frame.
+ledger, and never for a flag a person has to read off a picture: a directional scene (water,
+traffic or a crowd flowing one way), a replay (a scene padded out by playing it forward, then
+backward), or a prop the edge probe, the check for story props cut off at the frame's edge, saw
+cut by the frame.
 
 --from re-enters a run from its checkpoint just before a step, after a defect in that step is
 fixed, without paying again for the steps before it. Re-entering is a person's decision to
@@ -116,6 +126,8 @@ def check(packet, answer, meta):
     if key not in scenes:
         return f"the answer asks for scene {answer['scene']!r}; this spot's scenes are {', '.join(sorted(scenes))}"
     if answer.get("prompt") and not cast_ok(answer["prompt"]):
+        # The story's character is the only person a scene may show, written as the placeholder. The
+        # narrator, the presenter who speaks the brand line, appears only in the closer, the last shot.
         return (f"the new prompt shows a person who is not the story's character, so write {PLACEHOLDER} where "
                 "she appears and leave the narrator to the closer")
     return None

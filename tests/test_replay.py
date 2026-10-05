@@ -1,5 +1,16 @@
 """The August ledgers replayed against the graph, pinned.
 
+The graph (pipeline/graph.py) is the state machine that makes one spot, a short ad film, in seven
+steps: board, render, closer, build, ad_gates, ship_gate and deliver. The board is the written plan
+for the spot, checked before any money is spent. Render draws the scene clips and the narration. The
+closer is the spot's last shot, where the AI avatar presenter speaks the brand line to the camera.
+Build cuts it all into one video, the ad_gates are pass or fail checks on that video's captions,
+timing and closer mouth, and the ship_gate is the last check before delivery. A person pauses the
+run twice. The eye is the pause where someone watches the cut and approves it or sends a scene
+back, and the review is a later pause, after delivery, where the delivered cut can be withdrawn.
+The ledger step closes every run on the record. A ledger is the append-only log of every vendor
+request and what came back, and each August shoot, a folder under shoots/, kept its own by hand.
+
 pipeline/replay.py reads the seven hand-written ledgers and reports what they record as
 graph transitions, what the graph could not have written, where a loop ran past a bound
 the graph now enforces, and what the ledgers never recorded. History does not change, so
@@ -23,6 +34,12 @@ pytest.importorskip("langgraph")
 from pipeline import graph as G  # noqa: E402
 from pipeline import replay as R  # noqa: E402
 
+# One entry per August shoot. ads2-redo is the four-engine race, where an engine is a video model,
+# ads3 to ads5 are the redo rounds, ads6-omni is the leg shot on the Omni Flash model, and ads7-real and
+# ads8-real are the ten spec ads for real products, each spot named for its product. A count is how
+# many times that ledger states a move from one step to the next, so render to render is a scene
+# drawn again, eye to render a scene the eye sent back, and ledger to board a new run that starts
+# from the record of the run whose cut it replaces.
 MOVES = {
     "ads2-redo": {"render->render": 2},
     "ads3": {"render->render": 2},
@@ -88,6 +105,10 @@ OUTSIDE = {
     "ads8-real": ["8 music-bed requests; the graph reuses a bed and has no step that makes one"],
 }
 
+# What the August ledgers never recorded and the graph writes on every run. The seven in EVERYWHERE
+# are missing from all of them. The rest differ by shoot: a row for the closer's own render, a row
+# saying a cut was delivered, the earlier rolls (draws of a scene) or earlier builds before the one
+# on record, and a name on who approved at the eye.
 EVERYWHERE = {"board verdict", "build parameters", "landings", "request ids", "ship-gate readings",
               "time of day", "voice take"}
 NEVER = {

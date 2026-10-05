@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
 # GATE: does the synthesised audio actually say the script? Run BEFORE spending a render.
+# The audio is the narration drawn from a text-to-speech vendor (ElevenLabs), and a render is the paid
+# video generation that uses it.
 #
 # WHY THIS EXISTS (2026-07-26, the author: "i thought our voice/intent engine is supposed to catch this
-# kinda nonsense"): there was no such engine. Step 2b of SKILL.md was the ONLY pre-render check in the
-# whole pipeline with no executable behind it - prop_gate, ship_gate, settle_pad, subs_style and
-# deliver all exit non-zero, 2b just asked nicely. So when ElevenLabs rendered eve's "notice what you
-# WERE actually looking for" as "what you ARE", the STT read-back surfaced it, I decided it was the
-# transcriber mishearing, and rendered anyway. HeyGen's caption (same audio) also said "are", so the
-# flip was real and a clip shipped saying something I did not write. Detection was never the problem.
+# kinda nonsense"): there was no such engine. Step 2b of SKILL.md (the author's long written procedure
+# for making a video, kept outside this repository) was the ONLY pre-render check in the whole pipeline
+# with no executable behind it. prop_gate (checks the presenter's look, a generated still, before a
+# render is paid for), ship_gate (checks the finished video before delivery), settle_pad (adds a short
+# silent beat after the narration and checks it is there), subs_style (supplies the subtitle style and
+# refuses an unspecified one) and deliver (refuses a video with no ship_gate pass) all exit non-zero
+# when they fail, and 2b just asked nicely. So when ElevenLabs rendered the avatar presenter's "notice
+# what you WERE actually looking for" as "what you ARE", the speech-to-text (STT) read-back surfaced it,
+# the difference was put down to the transcriber mishearing, and the render went ahead anyway. HeyGen's
+# own caption (HeyGen is the avatar vendor), made from the same audio, also said "are", so the flip was
+# real and a clip shipped saying something the script never said. Detection was never the problem.
 # Enforcement was. This file is the enforcement.
 #
 # Usage:

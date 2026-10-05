@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
 # voice_take.sh - draw N narrations, keep the one where she sounds like herself.
 #
+# She is the AI avatar presenter. Her narration, the spoken script of a spot (one short ad film),
+# comes from a text-to-speech vendor that redraws the voice on every request, and a draw is one such
+# request for the same script. This script makes N draws, has voice_probe.py drop any that drifted
+# off her voice, and writes one survivor as the narration the spot is built from.
+#
 # WHY (the author, 2026-07-26): "sometimes it gets [messed up] the accent. 2nd time it's happening. not
 # often, but happens." Measured that night: five draws of IDENTICAL text with IDENTICAL settings
 # produced F1 537 / 616 / 727 / 573 / 558. One in five landed 27% off the consensus vowel space,  (F1 in Hz across five draws, pii-allow)
-# which is what the ear reads as a changed accent. A single blind draw is therefore a coin flip on
-# whether she sounds like herself, exactly as a single blind render was a coin flip on the spasm.
+# which is what the ear reads as a changed accent (F1 is the first vowel resonance, set by tongue
+# height). A single blind draw is therefore a coin flip on whether she sounds like herself, exactly
+# as a single blind render was a coin flip on the spasm (her mouth still working after the last
+# spoken word).
 #
 # THIS IS NOT A SPEND DECISION. the author's standing rule "single take always pls on avaIII" governs
-# avatar_iii RENDER credits. TTS draws cost ZERO HeyGen credits, so there is no cost tradeoff to
-# put to him here: shipping one blind audio draw is strictly worse than drawing three and keeping
+# avatar_iii RENDER credits (avaIII is avatar_iii, the video vendor's cheaper engine for rendering
+# the presenter). TTS (text-to-speech) draws cost ZERO HeyGen credits, so there is no cost tradeoff
+# to put to him here: shipping one blind audio draw is strictly worse than drawing three and keeping
 # the best. Metering audio is free; metering renders is not. Do not conflate the two.
 #
 # Usage:
@@ -17,17 +25,19 @@
 #
 # The OUT extension picks the format. .wav = LOSSLESS: ElevenLabs output_format=pcm_44100 (raw s16le,
 # 44.1k mono, no container) wrapped into WAV by ffmpeg with no re-encode. .mp3 = the legacy lossy
-# path, code unchanged. the author, 2026-08-30, judged by eye on the burgundy closer take: the mp3 ->
-# libmp3lame -> mp3 chain is two lossy generations and synced worse than the PCM chain.
+# path, code unchanged. the author, 2026-08-30, judged by eye on the closer take he labelled burgundy
+# (a closer is the last shot of a spot, where the presenter speaks the brand line to camera): the
+# mp3 -> libmp3lame -> mp3 chain is two lossy generations and synced worse than the PCM chain.
 #
 # Needs ELEVENLABS_API_KEY in env (never printed). Writes the winning draw to <out> and leaves
 # the rejected draws beside it as <out>.draw-1.<ext> ... so a drifted take stays inspectable as a
-# failure exemplar - INVARIANTS.md: failure exemplars are load-bearing.
+# failure exemplar, by the author's standing rule that failure exemplars are load-bearing (a failed
+# take is the evidence of what the defect sounds like, so it is kept).
 #
 # Exit 0 winner written / 1 draws disagreed, nothing written / 64 usage or missing key.
 set -uo pipefail
 SKILL="$(cd "$(dirname "$0")" && pwd)"
-VID="${ELEVENLABS_VOICE_ID:?set ELEVENLABS_VOICE_ID to the pinned voice}"  # the pinned clone, never substitute
+VID="${ELEVENLABS_VOICE_ID:?set ELEVENLABS_VOICE_ID to the pinned voice}"  # the pinned clone, the one voice the vendor holds for her, never substitute
 DEFAULT_N=3
 
 SCRIPT="${1:-}"; OUT="${2:-}"; N="${3:-$DEFAULT_N}"
@@ -60,7 +70,9 @@ text = open(sys.argv[1]).read().strip()
 # audio's energy (HeyGen docs, verified 2026-08-31 research pass), and the old settings'
 # energy spikes drove the gesture twitch he kept flagging. Measured same night: calm
 # settings also tightened take-length spread (9.1% -> 2.1-5.6% across three draws).
-# Env override for a deliberately expressive clip: AJ_VOICE_STABILITY / AJ_VOICE_STYLE.
+# Env override for a deliberately expressive clip: AJ_VOICE_STABILITY / AJ_VOICE_STYLE. Both share
+# one prefix that only marks this pipeline's own settings. Stability is how steady the delivery
+# stays and style is how strongly the voice exaggerates the speaker's manner.
 import os
 _stab = float(os.environ.get("AJ_VOICE_STABILITY", "1.0"))
 _style = float(os.environ.get("AJ_VOICE_STYLE", "0.0"))

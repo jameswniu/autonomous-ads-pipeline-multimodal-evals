@@ -1,5 +1,11 @@
 """The seven steps of the pipeline, declared once.
 
+The pipeline shoots one spot, a short ad film, by running it through these seven steps in order, and each
+step has a gate, a pass or fail check, that has to hold before the next step starts. A gate belongs to one
+of the three tiers of evals the README names. Process asks whether every step ran and its gate fired,
+outcome asks whether what shipped is true to the brief and its facts, and quality asks whether it meets
+the bar for its audience.
+
 `pipeline/graph.py` builds its nodes from this list, `pipeline/replay.py` reads the
 ledgers against it, and tests/test_gates.py holds the numbers each step says it
 enforces to the gate files that set them. The system map is still drawn from its own
@@ -21,8 +27,20 @@ class Step:
     card: str        # the one line the system map prints on the step's card
     footer: str      # the code path the system map prints under it
     tier: object     # the tier that owns the step's gate, or a tuple of the tiers that share it
+                     # (process, outcome or quality, as the module docstring explains them)
 
 
+# Words the step texts below use. A board is the written plan for one spot, a boards.json file with its
+# scenes, narration, props and rules. A scene is one generated video clip, and the narration is the
+# spoken voice-over. The closer is the last shot of every spot, where the narrator, an AI avatar
+# presenter, speaks the brand line to the camera. The story's character is the one person written into
+# the scenes, and she is never the narrator. A look is the generated still image of the narrator in one
+# outfit and setting, which a closer render starts from. The master is the finished video after loudness
+# mastering. The ledger is the append-only log of every vendor request and what came back. The eye is the
+# pause where the run waits for a person to watch the cut and approve it or send it back, and the eye rows
+# are the board's four judgment questions (hook, realism, absurdity and logic), which a person scores
+# 0 to 3 by eye rather than by a mechanical check. A REVIEW is the mouth check's middle verdict, neither
+# pass nor fail, and it goes to the eye.
 STEPS = (
     Step("board", "Board",
          "Eleven mechanical checks, free, before a cent is spent (the product absent before the "

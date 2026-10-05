@@ -12,6 +12,15 @@ character is rendered from her face and read back against it, and never passes a
 And the gates' exits and
 machine lines become the causes the graph routes on. Several tests exist because a mutation of
 the code they name survived the suite.
+
+Words used below. A spot is one short ad film and its board is the written plan for it, a
+boards.json file. A scene is one generated video clip in a spot, and a take is one render attempt
+of it. The ledger is the append-only log of every vendor request and what came back. The graph
+(pipeline/graph.py) is the state machine that runs a spot through its steps, and the eye is its
+pause where a person watches the cut and approves it or sends a scene back. A flag is a note a
+check leaves for the eye about a scene or build it cannot rule on itself. The cast gate reads
+whether the person in a scene is the story's character, and the continuity gate whether a prop or
+the background changes or moves partway through a scene.
 """
 import hashlib
 import importlib.util
@@ -28,6 +37,7 @@ sys.path.insert(0, ROOT)
 from pipeline import live as L  # noqa: E402
 
 REAL_GUARD = L.LiveToolkit.guard
+# ads8-real is the eighth batch of ads shot, spec ads for real products, and its board is the one most tests read.
 BOARD = os.path.join(ROOT, "shoots", "ads8-real", "boards.json")
 VOICE = "VOICEIDXYZ1234567890"  # pii-allow: a made-up id
 LOOK = "LOOKID0123456789ABCDEF"
@@ -1420,7 +1430,8 @@ def _cuts_build(stamp):
 def test_a_slow_open_flags_the_eye_and_never_stops_or_re_rolls_the_build(live, monkeypatch, tmp_path):
     """A slow open is a board problem: a "cuts" build whose first switch lands past
     gates/frontload_gate.py's FRONTLOAD_MAX only flags, naming the measured time and the limit,
-    on the landing row and in the verdict the eye reads flags from. It never fails the build
+    on the landing row and in the verdict the eye (the person who looks at flagged scenes before
+    a cut ships) reads flags from. It never fails the build
     and never asks for another one, the same build that already spent stays."""
     tk, state = live
     monkeypatch.setattr(L.LiveToolkit, "join", lambda self, srcs, out: open(out, "wb").write(b"j") > 0)

@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """spasm_probe.py — "face spasm" detector for talking-head renders (v3, silence-mouth).
 
-WHAT THE DEFECT ACTUALLY IS (calibrated 2026-07-25, the morning stage episode): after the
+In plain words: does the AI presenter's mouth keep working after she has stopped talking? "Her" and
+"she" are that presenter, a take is one render of a scene, "silence-mouth" means this version
+measures mouth motion while the audio is quiet, and her<->VOICE coherence is my doctrine's rule (the
+written rulebook for how a spot must be made) that her mouth must agree with the voice.
+
+WHAT THE DEFECT ACTUALLY IS (calibrated 2026-07-25 on takes I labelled by hand): after the
 last spoken word (and inside long pauses), the engine keeps the mouth and lower face
 WORKING — churn with nothing being said. That violates her<->VOICE coherence in both
 directions (a sung syllable implies a mouth shape; SILENCE implies a settling mouth)
@@ -10,7 +15,7 @@ frame-scale motion metrics (translation reversals, rotation shear, flicker index
 scored the labeled-bad regions UNREMARKABLE — the artifact is not fast oscillation,
 it is mouth activity where the audio says quiet.
 
-Discriminability on hand-labeled takes (post/speech mouth-energy ratio):
+Discriminability on hand-labeled takes, named variant then setting (post/speech mouth-energy ratio):
     fix-beach  1.44  <- "there's still spasm" (the take I called out)
     fix-nook   1.00
     fix-flower 0.71
@@ -23,8 +28,9 @@ activity; SRT sidecar gives speech spans (same audio => same cues for every take
 Score = post-speech mean / speech mean, plus the worst 1s post window and the
 inter-cue-gap ratio.
 
-Verdict: FAIL when post-speech runway is under 0.30 * fps frames, else REPORT;
-no PASS or WARN is ever emitted. Exit 0 REPORT / 2 FAIL.
+Verdict: FAIL when the post-speech runway (the quiet footage after the last spoken word, where the
+mouth comes to rest) is under 0.30 * fps frames, else REPORT; no PASS or WARN is ever emitted.
+Exit 0 REPORT / 2 FAIL.
 Usage: spasm_probe.py <clip.mp4> <sidecar.srt> [--json]
 """
 import json
@@ -48,7 +54,7 @@ def clip_fps(path: str) -> float:
 def content_band(path: str):
     """Detect real content rows (letterbox padding is flat white): (y0, content_h, w, h).
     A fixed-fraction crop on a letterboxed frame lands in static padding and skews
-    the ratio (r6 episode); geometry is detected, never assumed."""
+    the ratio (seen on r6, a letterboxed clip); geometry is detected, never assumed."""
     probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
                             "-show_entries", "stream=width,height", "-of", "csv=p=0", path],
                            capture_output=True, text=True)
@@ -109,7 +115,11 @@ def main():
     ratio = po / max(sp, 0.01)
     if post.sum() < 0.30 * fps:
         # audio (and clip) end at the last word: no settle runway exists at all — the
-        # boundary-cram condition itself. Structural FAIL regardless of measured ratio.
+        # boundary-cram condition itself (speech crammed against the end of the clip).
+        # Structural FAIL regardless of measured ratio.
+        #
+        # The settle-pad step is a script, not in this repo, that adds silence after the last spoken
+        # word so she has time to settle.
         #
         # THRESHOLD ALIGNED 2026-07-26. It was 0.5*fps, which is STRICTER than the settle-pad step's own
         # contract (--check passes at 0.4s, default pad 0.6s). Correctly padded clips measured
@@ -128,14 +138,16 @@ def main():
         # breathing, emoting and moving between sentences, so an EXCITED clip is marked down for
         # being excited - the defect is manufactured by the denominator, not observed.
         #
-        # Proof it inverts: M1 measured 1.45 here, nearly 2x the old fail bar and beside a 1.44 I
-        # had rejected by eye, and my verdict on M1 was "this is ok". Its ABSOLUTE motion is low
-        # (speech 2.72); she simply does not go still in the gaps.
+        # Proof it inverts: M1, one of my hand-labelled clips, measured 1.45 here, nearly 2x the old
+        # fail bar and beside a 1.44 I had rejected by eye, and my verdict on M1 was "this is ok".
+        # Its ABSOLUTE motion is low (speech 2.72); she simply does not go still in the gaps.
         #
-        # This is invariant 10 (state-movement coherence), which was already written down and then
-        # ignored here for a fixed number. So the probe now reports ENERGY and stops adjudicating.
-        # Only the caller knows the script's register, and per this skill's standing rule my eye
-        # outranks the meter. Callers: read `energy` and `ratio` TOGETHER against the register.
+        # This is invariant 10 of my doctrine (the written rulebook for how a spot must be made),
+        # state-movement coherence: her movement must fit the script. It was already written down
+        # and then ignored here for a fixed number. So the probe now reports ENERGY and stops
+        # adjudicating. Only the caller knows the script's register (how calm or excited its
+        # delivery is), and per my doctrine's standing rule my eye outranks the meter. Callers:
+        # read `energy` and `ratio` TOGETHER against the register.
         verdict = "REPORT"
     energy = max(sp, po, ga)
     out = {"clip": path, "fps": round(fps, 2), "speech_mouth": round(sp, 2),
@@ -146,7 +158,8 @@ def main():
         print(json.dumps(out))
     elif verdict == "FAIL":
         print(f"SPASM FAIL (structural): the clip ends at the last word, so no settle runway "
-              f"exists at all (speech {sp:.2f}, post {po:.2f}). Fix with the settle-pad step, not a re-roll.")
+              f"exists at all (speech {sp:.2f}, post {po:.2f}). Fix by adding silence after the last word "
+              f"(the settle-pad step), not by rendering the clip again.")
     else:
         print(f"SPASM REPORT: energy {energy:.2f} | ratio {ratio:.2f} "
               f"(speech {sp:.2f}, post {po:.2f}, worst1s {worst:.2f}, gaps {ga:.2f})")

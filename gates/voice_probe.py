@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """voice_probe.py — pick the take where she sounds like HERSELF, and name the ones that drifted.
 
+She is the AI avatar presenter, and her narration is drawn from a text-to-speech vendor, so each
+draw of the same script comes out a little different. This probe measures several draws (takes) of
+one script and flags any whose vowel sounds drifted off the rest, which a listener hears as a
+changed accent. It reads audio files only and spends nothing.
+
 ## The defect this exists for (the author, 2026-07-26)
 
 "sometimes it gets [messed up] the accent. 2nd time it's happening. not often, but happens."
 
 An intermittent defect with no detector ships silently. His ear caught it twice; nothing in the
-pipeline caught it once. This is the same shape as the spasm: `eleven_v3` redraws the voice per
-generation, and a minority of draws land materially off her.
+pipeline caught it once. This is the same shape as the spasm (the presenter's mouth still working
+after the last spoken word, which spasm_probe now measures): the text-to-speech model `eleven_v3`
+redraws the voice per generation, and a minority of draws land materially off her.
 
-MEASURED 2026-07-26, five draws of IDENTICAL text with IDENTICAL settings (voice, eleven_v3, 0.6/0.92/0.3):
+MEASURED 2026-07-26, five draws of IDENTICAL text with IDENTICAL settings (her pinned voice,
+eleven_v3, stability 0.6, similarity 0.92, style 0.3):
 
     draw   F1    F2/F1
     1      537   3.44
@@ -18,9 +25,10 @@ MEASURED 2026-07-26, five draws of IDENTICAL text with IDENTICAL settings (voice
     4      573   3.09
     5      558   3.22
 
-F1 is tongue height. A 190 Hz spread on identical text is not delivery variance, it is a different
-vowel space, which is what the ear reads as a changed accent. One draw in five landed there, which
-matches "not often, but happens" exactly.
+F1 and F2 are the first two formants, the vocal tract's resonant frequencies in Hz, and F1 is tongue
+height. A 190 Hz spread on identical text is not delivery variance, it is a different vowel space,
+which is what the ear reads as a changed accent. One draw in five landed there, which matches "not
+often, but happens" exactly.
 
 ## Why the draws are their own reference (the trap this avoids)
 
@@ -33,15 +41,18 @@ the signal, so no absolute threshold can separate drift from "this line had diff
 So this probe never compares across scripts. It compares N draws OF THE SAME TEXT against each
 other and takes their median as the reference. Self-normalizing: the script's own vowel content is
 held constant by construction, and the only thing left varying is the model. Same lesson as
-mirror_probe's matched spans and level_probe's relations — measure the thing that varies, hold the
-rest fixed.
+mirror_probe (which checks whether a clip's scene replays itself backward, and compares frames the
+same distance apart as its control does) and level_probe (which checks that the lighting holds
+one level, scoring her face against her body): measure the thing that varies, hold the rest fixed.
 
 ## Why the fix is free (and does not violate the single-take rule)
 
-The author, 2026-07-26: "single take always pls on avaIII, unless i say so otherwise!!" That rule is
-about avatar_iii RENDER credits. TTS draws cost zero HeyGen credits, so metering audio is not a
-spend decision at all. Meter-and-select — the thing that actually fixed the spasm — applies here at
-no cost, which makes shipping a blind single audio draw a pure loss.
+The author, 2026-07-26: "single take always pls on avaIII, unless i say so otherwise!!" avaIII is
+short for avatar_iii, the video vendor's cheaper engine for rendering the presenter, and that rule
+is about its RENDER credits. TTS (text-to-speech) draws cost zero HeyGen credits, so metering audio
+is not a spend decision at all. Meter-and-select (draw several takes, measure each, keep one that
+passes) is what actually fixed the spasm, and it applies here at no cost, which makes shipping a
+blind single audio draw a pure loss.
 
 ## Threshold
 

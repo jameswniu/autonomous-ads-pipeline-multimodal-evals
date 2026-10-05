@@ -4,30 +4,34 @@
     cast_gate.py <reference image> <scene.mp4 | image> [--not <other reference>]   one verdict line
     cast_gate.py --reference <clip | image> <out.jpg>                             cut a reference
 
-A story has one character, and she stays the same girl in every scene. She is never the narrator,
-who appears only in the closer. A text prompt cannot hold a face. The Z.ai spot's three scenes,
-shot from one board in August and again through the graph, named only "a student", so the engine
-drew its own student each time and the girl changed between scenes. A scene that shows the
-character is rendered from her reference, and this gate reads the result back before anything is
-built from it.
+A spot is one short ad film, and a scene is one generated video clip inside it. A story has one
+character, and she stays the same girl in every scene. She is never the narrator, who appears only
+in the closer. The narrator is the AI avatar presenter, and the closer is the last shot of a spot,
+where she speaks the brand line to the camera. A text prompt cannot hold a face. The Z.ai spot's
+three scenes, shot from one board (the written plan for a spot) in August and again through the
+graph (the LangGraph state machine that runs the whole pipeline), named only "a student", so the
+video engine drew its own student each time and the girl changed between scenes. A scene that shows
+the character is rendered from her reference (a square crop of her face), and this gate reads the
+result back before anything is built from it.
 
-The face in each of FRAMES frames is the largest one insightface (buffalo_l) finds, and the verdict
-is on the mean cosine similarity of those faces to the reference face. A face shorter than MIN_FACE
-of the frame's height is too small to read, a figure far off in a wide shot, so a frame whose
-largest face is that small counts as holding none, and a scene with no readable face is NOFACE,
-which goes to the eye, never a similarity reading off a few pixels. Every other face in the frame
-is read too, since a stranger behind her is still a person on screen. One at least MIN_FACE of the
-frame's height that falls under the floor in STRANGER_FRAMES frames or more fails the scene. The two
-bounds keep a poster, a reflection or one glitched frame from reading as a person. With --not, the
-main faces are also read against a second reference, the narrator's, and a scene that reads at least
-as close to her as to the character fails, whatever the floor says.
+The face in each of FRAMES frames is the largest one insightface (a face-recognition package, here
+loading its buffalo_l model) finds, and the verdict is on the mean cosine similarity of those faces
+to the reference face. A face shorter than MIN_FACE of the frame's height is too small to read, a
+figure far off in a wide shot, so a frame whose largest face is that small counts as holding none,
+and a scene with no readable face is NOFACE, which goes to the eye (the pause where a person watches
+the cut and approves it or sends it back), never a similarity reading off a few pixels. Every other
+face in the frame is read too, since a stranger behind her is still a person on screen. One at least
+MIN_FACE of the frame's height that falls under the floor in STRANGER_FRAMES frames or more fails
+the scene. The two bounds keep a poster, a reflection or one glitched frame from reading as a
+person. When a second reference is passed, the narrator's, the main faces are also read against it,
+and a scene that reads at least as close to her as to the character fails, whatever the floor says.
 
-CAST_MIN is AUTHORED, from measurements rather than a labelled pair. It was set on 2026-09-24, when
-this gate held every scene to the narrator, halfway across a gap measured against an earlier crop of
-her closer, where the six scene students averaged 0.16 at the most, her own closers from ten other
-spots 0.44 at the least, and a scene rendered from her reference 0.46. Against the reference this
-gate cuts from the same closer, the students read 0.12 at the most, her closers 0.42 at the least,
-and two scenes rendered from it 0.42 and 0.53.
+CAST_MIN is AUTHORED, set by hand from measurements rather than derived from a labelled pass and
+reject pair. It was set on 2026-09-24, when this gate held every scene to the narrator, halfway
+across a gap measured against an earlier crop of her closer, where the six scene students averaged
+0.16 at the most, her own closers from ten other spots 0.44 at the least, and a scene rendered from
+her reference 0.46. Against the reference this gate cuts from the same closer, the students read 0.12
+at the most, her closers 0.42 at the least, and two scenes rendered from it 0.42 and 0.53.
 
 Read against the story's character, a reference cut from the August Z.ai scene a, the floor does
 less. Her own scene reads 0.89, a visibly different girl 0.27 and the narrator's closer 0.15, and
@@ -39,7 +43,8 @@ two girls drawn from one prompt apart is beyond this gate, which is why every sc
 rendered from her face and never left to a prompt, and why the eye sees the readings.
 
 Exit 0 PASS, 1 FAIL, 3 NOFACE when no sampled frame holds a face, 64 when a reference holds no face
-or a file cannot be read. The machine line is always the last line printed.
+or a file cannot be read. The machine line, the CAST_GATE line the pipeline parses, is always the
+last line printed.
 """
 import os
 import subprocess
@@ -190,8 +195,9 @@ def main(argv):
     try:
         return run(argv)
     except ImportError as e:
-        # Run with the repo's own interpreter instead of FACEPY, the face model is missing. That is
-        # no reading, never a verdict.
+        # Run under the repo's own interpreter instead of the one the FACEPY environment variable
+        # names (a Python with the insightface face package installed), the face model is missing.
+        # That is no reading, never a verdict.
         print(f"CAST_GATE unreadable: {e.name} is not installed here, run this with the face extra")
         return 64
 

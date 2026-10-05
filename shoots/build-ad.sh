@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # build-ad.sh <ad> [avatar-slug]: three vignette scenes cut to the narration's sentence boundaries, the avatar closer, the brand card.
+# A spot is one short ad film, and this builds it into a finished square video, lining up picture, narration and music so
+# the pass or fail checks (gates) that run on it afterward can measure it. The closer is its last shot, where an AI avatar
+# presenter speaks the brand line to the camera.
 #   ad          one of orchard lantern harbor quiet slowroad, or any spot with BRAND, TAG and BED set.
 #               BRAND, TAG and BED override a named spot too, which keeps its August values when they are unset.
+#               BRAND is the name on the end card, TAG the line under it and BED the path of the music bed.
 #   avatar-slug defaults to <ad>-av (harbor uses harbor-maya-av etc.)
-# TAKES is the directory holding <ad>-vo, <ad>-a/b/c and the avatar slug; it defaults to the August
-# layout under SHOOT_ROOT. FILM2 holds the beds and the two hits. pipeline/live.py sets all three.
+# TAKES is the directory holding <ad>-vo (the narration), <ad>-a/b/c (the three scenes) and the avatar slug (the closer);
+# it defaults to the August layout under SHOOT_ROOT. FILM2 holds the music beds and the two hit sounds. pipeline/live.py,
+# the toolkit that spends on vendors, sets TAKES, FILM2, BED, BRAND and TAG.
 # SWITCHES says where the switching sound, hit2.mp3, plays: slots (the default, under the second and
 # third sentences), off, or cuts (where the picture changes most). shoots/switches.sh has the detail.
 # SCENE_A, SCENE_B and SCENE_C name the clip for each of the three sentences when it is not
@@ -23,8 +28,8 @@ GATES=${GATES:-$(cd "$(dirname "$0")/../gates" && pwd)}
 FN='/System/Library/Fonts/Supplemental/Arial.ttf'
 enc=(-c:v libx264 -crf 18 -preset medium -pix_fmt yuv420p -r 25)
 # A named spot supplies its August brand, tag and bed only where the caller set none. It used to
-# overwrite them, so pipeline/live.py passed a board's BRAND, TAG and BED and a named spot shipped
-# the August values anyway, with nothing said.
+# overwrite them, so pipeline/live.py passed the BRAND, TAG and BED from a spot's board, its written
+# plan, and a named spot shipped the August values anyway, with nothing said.
 case $AD in
   orchard)  BRAND=${BRAND:-"Orchard Hill Coffee"}; TAG=${TAG:-"Roasted the week it lands."}; BED=${BED:-$F2/bed3.mp3} ;;
   lantern)  BRAND=${BRAND:-"Lantern Street"}; TAG=${TAG:-"The page that opens the right screen."}; BED=${BED:-$F2/bed4.mp3} ;;
@@ -89,13 +94,15 @@ open(f, "w").write(t); print(f)
 PYW
 ); echo "drawtext=fontfile='$FN':textfile='$capf':fontsize=${CAPSZ:-46}:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=10:line_spacing=8:x=(w-text_w)/2:y=h-170-th$2"; }
 # Scenes are cropped to the centre square of whatever frame they arrive in and scaled to 1080.
-# The crop used to be a fixed 1080 at x=420, which only fits 1920x1080, and Omni returns 1280x720
-# since its request schema dropped the resolution field, so that crop failed the first graph run
-# (2026-09-23). Its replacement took the frame's HEIGHT as the side, which fails on a portrait
-# frame, taller than it is wide. The side is now the shorter of the two, centred on both axes,
-# so a landscape scene gets exactly the crop it got before and a 1920x1080 scene the old fixed
-# crop and a no-op scale. The escaped commas keep min() whole inside a filtergraph. One
-# definition, used by all three scene paths below.
+# The crop used to be a fixed 1080 at x=420, which only fits 1920x1080, and Omni (Omni Flash,
+# Google's video model, one of the engines that render the scenes, reached through fal, a hosted
+# model service) returns 1280x720 since its request schema dropped the resolution field, so that
+# crop failed the first run of the graph (pipeline/graph.py, the state machine that takes a spot
+# through its steps) on 2026-09-23. Its replacement took the frame's HEIGHT as the side, which
+# fails on a portrait frame, taller than it is wide. The side is now the shorter of the two,
+# centred on both axes, so a landscape scene gets exactly the crop it got before and a 1920x1080
+# scene the old fixed crop and a no-op scale. The escaped commas keep min() whole inside a
+# filtergraph. One definition, used by all three scene paths below.
 SQ='crop=min(iw\,ih):min(iw\,ih):(iw-ow)/2:(ih-oh)/2,scale=1080:1080'
 vig() { local src=$1 t0=$2 dur=$3 out=$4 captext=$5 en=${6:-}
   local vf="trim=${t0}:$(echo "$t0+$dur"|bc),setpts=PTS-STARTPTS,$SQ"
@@ -146,11 +153,13 @@ Q1=$(echo "scale=2; $(frames "$V/q1.mp4")/25"|bc); Q2=$(echo "scale=2; $(frames 
 T2=$Q1; T3=$(echo "$Q1+$Q2"|bc); TEND=$(echo "$Q1+$Q2+$Q3"|bc)
 echo "measured scenes $Q1/$Q2/$Q3, closer video starts at $TEND s"
 # avatar closer: the 1:1 render, trimmed to its own speech plus a short settle, TWO captions timed from its read-back
-# so the on-screen text follows the voice into the standing promise instead of freezing on the brand line
+# so the on-screen text follows the voice into the standing promise (that the pipeline behind the spot is public)
+# instead of freezing on the brand line. The closer's folder holds render.mp4 (the presenter's video), upload.mp3
+# (the audio she was animated from) and stt.json (that audio's speech-to-text read-back, a time for every word).
 AVV=$T/$AV/render.mp4; AVD=$(jq -r '[.words[]|select(.type=="word")][-1].end' "$T/$AV/stt.json" | awk '{printf "%.2f", $1+0.35}')
 # TAKE-COHERENCE TRIPWIRE. Everything below trusts stt.json to describe the render's OWN speech:
-# AVD trims video AND audio, PSTART/AVEND place the caption swap. On 2026-08-29 the -av dir held a
-# re-drawn upload/stt while render.mp4 stayed the original take; the build clipped her final word and
+# AVD trims video AND audio, PSTART/AVEND place the caption swap. On 2026-08-29 the closer's -av dir held a
+# re-drawn upload/stt while render.mp4 stayed the original take; the build clipped the presenter's final word and
 # timed every closer caption off the wrong read. An avatar render lasts within ~0.15s of the audio
 # that drove it, so a bigger gap between render and upload.mp3 means the files are two different
 # takes. Heuristic pairing check, not proof; AV_TAKE_MISMATCH_OK=1 overrides for a deliberate case.
@@ -173,17 +182,21 @@ PYT
 CAPF1=$(cap "$(esc "$AVCAP")" ":enable='between(t,0.1,$(echo "$PSTART-0.05"|bc))'")
 CAPF2=$(cap "$(esc "$PROMISE")" ":enable='between(t,$PSTART,$(echo "$AVEND+0.2"|bc))'")
 # measured mouth-lag compensation (2026-08-26, sign fixed the same night after the gate caught the first
-# version doubling the error): probe lag POSITIVE means her mouth LEADS the audio, so the video start gets
-# padded by that much; NEGATIVE means the mouth TRAILS, so the first |lag| seconds of video are trimmed.
-# Applied only past 20 ms. Probe failure means no compensation, logged, never a block.
+# version doubling the error): the mouth sync probe (gates/mouth_sync_probe.py) reports a lag, and a POSITIVE
+# lag means the presenter's mouth LEADS the audio, so the video start gets padded by that much; NEGATIVE means
+# the mouth TRAILS, so the first |lag| seconds of video are trimmed. Applied only past 20 ms. Probe failure
+# means no compensation, logged, never a block. FACEPY names a Python with the insightface face package, which
+# the probe needs.
 MLAG=$( ( ${FACEPY:-python3} "$GATES/mouth_sync_probe.py" "$AVV" --json 2>/dev/null || true ) | tail -1 | python3 -c "import sys,json; print(json.load(sys.stdin)['lag_s'])" 2>/dev/null || echo 0)
 COMP=$(python3 -c "l=float('$MLAG' or 0)+float('${CLOSER_NUDGE:-0}'); print(round(l,2) if abs(l) >= 0.02 else 0)")   # CLOSER_NUDGE adds a manual offset when the two sync probes disagree
 # The probe compensation is OFF unless CLOSER_AUTOALIGN=1. HeyGen avatar renders generate the
-# mouth FROM the audio, aligned by construction; on the 2026-08-29 ads8 night the probe misread
-# every lively face by 0.2-0.24s and this block TRIMMED that much off aligned video, shipping the
-# desync it claimed to fix (frame-vs-onset audit on the delivered master proved the mouth ran
-# exactly the trim early). The docs have said it is off since then, and the default said on until
-# 2026-09-23. A person sets CLOSER_NUDGE after reading the frame ladder, and that always applies.
+# mouth FROM the audio, aligned by construction; on 2026-08-29, while the eighth batch of ads
+# (ads8, spec ads for real products) was being shot, the probe misread every lively face by
+# 0.2-0.24s and this block TRIMMED that much off aligned video, shipping the desync it claimed
+# to fix (frame-vs-onset audit on the delivered master proved the mouth ran exactly the trim
+# early). The docs have said it is off since then, and the default said on until 2026-09-23. A
+# person sets CLOSER_NUDGE after checking the closer's mouth against its audio frame by frame,
+# and that always applies.
 # ON means exactly 1. The test used to be "anything but 0", so CLOSER_AUTOALIGN=off or =false
 # switched the probe compensation ON, the reverse of what the word says.
 [ "${CLOSER_AUTOALIGN:-0}" = "1" ] || COMP=$(python3 -c "l=float('${CLOSER_NUDGE:-0}'); print(round(l,2) if abs(l) >= 0.02 else 0)")
@@ -247,7 +260,7 @@ python3 - "$V/captions.json" "$S1" "$E1" "$S2" "$E2" "$S3" "$E3" "$T2" "$T3" "$T
 import json, sys
 a = sys.argv
 S1,E1,S2,E2,S3,E3,T2,T3,TEND,AVD,PSTART,AVEND = map(float, a[2:14])
-C1,C2,C3,AVCAP,PROMISE,VOSTT,AVSTT = a[14:21]  # pii-allow, a python slice
+C1,C2,C3,AVCAP,PROMISE,VOSTT,AVSTT = a[14:21]  # pii-allow marks a line the repo's personal-data scan skips; this is a python slice, not a clock time
 cues = [
  {"text": C1, "start": S1, "end": T2, "spoken_start": S1, "spoken_end": E1},
  {"text": C2, "start": round(T2+0.15,2), "end": T3, "spoken_start": S2, "spoken_end": E2},

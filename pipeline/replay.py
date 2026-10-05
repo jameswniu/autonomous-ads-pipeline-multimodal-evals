@@ -1,5 +1,17 @@
 """The August ledgers, read as they are and checked against the graph.
 
+The graph is pipeline/graph.py, a LangGraph state machine that makes one spot (a short ad film) in
+seven steps, board, render, closer, build, ad gates, ship gate and deliver. Its edges are the moves it
+allows from one step to the next. A person pauses it in two places. The eye is the pause where it waits
+for someone to watch the cut and approve it or send it back, and the review is a later pause, after
+delivery, where the person can withdraw the delivered cut. pipeline/steps.py says what each step checks.
+
+A ledger is the append-only log of every vendor request and what came back, and the August ledgers are
+the ones the shoots wrote before the graph existed. A master is a spot's finished video after loudness
+mastering, a cut is any version of the edited film, and the closer is the spot's last shot, where the AI
+avatar presenter speaks the brand line to the camera. The graph claims to be what those shoots converged
+on, so this reads every move their rows record and fails when the graph has no edge for one.
+
 The August shoots ran as an agent loop, and the agent wrote these ledgers by hand, so their
 shape drifts from shoot to shoot. This reads each row by the fields it actually has and
 reports, per shoot:
@@ -38,7 +50,8 @@ A superseding master records ledger to board, since the run that made it began f
 record of the run whose cut it replaced, and ship_gate to deliver when it says ship_gate
 pass. A ship-gate pass that supersedes nothing states a reading, not a delivery, and records
 no move. No ad-gate reading
-records a move either, except a REVIEW marked "eye approved", which records ad_gates to eye. A
+records a move either, except a REVIEW (the mouth check's verdict between pass and fail) marked
+"eye approved", which records ad_gates to eye. A
 withdrawal records deliver to review, then review back to the closer when its reason names
 closers, to render when it names a scene or a re-roll, and to build otherwise, once for each
 ad it pulled.
@@ -559,7 +572,7 @@ def report(everything, edges=None):
     lines += ["", "Graph edges no row records, since the rows kept gate readings but rarely what came next.",
               "  The spine, whose handoffs no row records: "
               + ", ".join(f"{s}->{t}" for s, t in nodes_order(unbacked & spine, nodes)),
-              "  Back edges, which come from the doctrine: "
+              "  Back edges, which come from the author's written rules for making a spot: "
               + ", ".join(f"{s}->{t}" for s, t in sorted(unbacked - spine))]
 
     # Graph runs are listed here too, so a row the schema rules out is never left unprinted.

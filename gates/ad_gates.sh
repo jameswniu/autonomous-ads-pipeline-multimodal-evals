@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # ad_gates.sh <master.mp4> <captions.json>: the two gates an ad master must clear before delivery.
+#   A master is the finished, assembled video after loudness mastering. Its closer is the last shot,
+#   where the AI presenter speaks the brand line to the camera.
 #   It writes a pass receipt, below. Nothing in this repository reads that receipt yet, so the gate
-#   is only as binding as the caller that runs it; an earlier comment claimed deliver.sh enforced it.
+#   is only as binding as the caller that runs it; an earlier comment claimed deliver.sh (the author's
+#   private delivery script, not in this repository) enforced it.
 #   caption gate  every burned caption says what is spoken, when it is spoken (caption_gate.py)
 #   closer gate   the closer window cut out of the MASTER, not the raw render: its video must start where its
 #                 audio was placed (frame-exact, 40 ms) and mouth_sync_probe must not FAIL or read NO FACE
-#                 (REVIEW is the talking-photo baseline and passes with a logged line; the eye still decides).
+#                 (REVIEW means the probe could not rule, the baseline for a talking-photo closer animated
+#                 from one still photo of her, so it passes with a logged line; the eye, a person watching
+#                 the cut, still decides).
 #                 sync_probe is PRINTED and never fails, demoted on the evidence below. lipsync_probe is not
 #                 run here at all; this line named both as gate conditions until 2026-09-23, which was false
 #                 for sync_probe since its demotion and false for lipsync_probe since this file was written.
@@ -21,6 +26,8 @@ CS=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['closer_sta
 CD=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['closer_dur'])" "$CJ")
 AMS=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['audio_closer_ms'])" "$CJ")
 V=$(dirname "$CJ")
+# q1, q2 and q3 are the three scene clips that play before the closer, so their combined length is where
+# the closer's video starts, and that is compared with where the closer's audio was placed.
 echo "== closer assembly"
 Q=$(python3 - "$V" <<'PY'
 import subprocess, sys
@@ -57,7 +64,8 @@ ffmpeg -v error -y -ss "$CS" -t "$CD" -i "$M" -c:v libx264 -crf 18 -c:a aac "$W"
 # controls with the audio shifted a known +/-0.4 s on a closer render, sync_probe moved only 80 ms, in the
 # wrong direction for its own convention, and its +/-240 ms search window cannot represent a 400 ms shift
 # at all. mouth_sync_probe moved 560 ms in the correct order on the same controls, so it is the gate here.
-# sync_probe stays printed because it is still meaningful on HER reference framing, where it was tuned.
+# sync_probe stays printed because it is still meaningful on the presenter's reference framing (the camera
+# framing of the clips of her that it was tuned on).
 LAG=$(python3 "$P/sync_probe.py" "$W" --json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['lag_ms'])" 2>/dev/null || echo "")
 if [ -z "$LAG" ]; then echo "  sync lag unreadable (disclosure only)"
 elif [ "$LAG" -gt 80 ]; then echo "  sync lag ${LAG} ms, reads late (disclosure only, probe does not track shifts on this framing)"
@@ -73,9 +81,10 @@ else
   echo "AD GATES FAIL $(basename "$M")"
 fi
 # One machine-readable line, last, so a caller can tell WHICH check failed, which the exit
-# code alone cannot. pipeline/live.py parses it, and the graph routes on the result: a mouth
-# REVIEW goes to a person's eye, and any FAIL stops the run for a person to read. drift reads
-# unreadable when the segments it measures were missing, which is a build problem to look at,
-# not a placement fault.
+# code alone cannot. pipeline/live.py parses it, and the graph (the LangGraph state machine that
+# runs the whole pipeline) routes on the result: a mouth REVIEW goes to the eye, the pause where a
+# person watches the cut and approves it or sends it back, and any FAIL stops the run for a person
+# to read. drift reads unreadable when the segments it measures were missing, which is a build
+# problem to look at, not a placement fault.
 echo "AD_GATES_RESULT caption=$R_CAP drift=$R_DRIFT mouth=$R_MOUTH"
 exit $fail

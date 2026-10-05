@@ -54,6 +54,10 @@ EXTERNAL = {
     "tools/pii_context.txt": "the PII rule table, gitignored on purpose and written by CI from a secret",
     "tools/pii_names.txt": "the third-party name roster, gitignored on purpose and written by CI from a secret",
     "tools/pii_ci_armed": "an opt-in marker that arms the PII secrets requirement in CI, absent until the owner arms it",
+    # A look is a generated still of the AI avatar presenter in one outfit and setting, and an engine is
+    # the video model that animates it. The arrow probe (guards/arrow_probe.py) catches a render whose
+    # presenter shrinks away early, as if the clip ran backward, and this list stops a pair that did that
+    # from being paid for again.
     "guards/arrow_rejects.txt": "the private block-list of look and engine pairs that failed the arrow probe; it names private look ids",
 }
 

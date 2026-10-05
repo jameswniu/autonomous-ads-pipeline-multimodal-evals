@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # prop_gate.sh - PRE-render sanity gate for the twin video pipeline.
 #
+# The twin is this pipeline's AI avatar presenter, a generated person (a voice and an avatar the
+# video vendor holds) who speaks in short ad films. A look is a generated still image of her in one
+# outfit and setting, and a render is the paid video call that animates a look into a clip, on
+# avatar_iii (the vendor's cheaper engine) or avatar_iv (its dearer one). This gate judges the look
+# before that spend, and its scan-arrow, scan-render and verify steps check the clip after it.
+#
 # Lives WITH THE SKILL and is runtime-agnostic on purpose (2026-07-23): the gate is pipeline
 # behavior, not Claude Code behavior. Copy the skill directory anywhere (Mac mini, a Telegram bot,
 # a cron LLM orchestrator) and the gate ports with it. Any host hook must be a THIN SHIM that calls
@@ -332,7 +338,8 @@ EOF
     cat <<EOF
 
 REVIEW verdict: do NOT ship and do NOT auto-reject. Send the clip to me with the trace line
-that triggered review, and let my eye decide (walk B's 1.16->0.97 ease-back was ACCEPTED).
+that triggered review, and let my eye decide (walk B, an earlier test clip of her walking, eased
+back from 1.16x to 0.97x scale and was ACCEPTED).
 EOF
   fi
   return $rc
@@ -353,8 +360,9 @@ so re-ask the PAIRS about the ARTIFACT. Watch the clip - actually watch it - the
      scan-arrow <clip> [lookId]   -> her body's trajectory: FAIL = rewind, REVIEW = my eye
      scan-render <clip>           -> steam/prop flow: default-reject ANY rising vapor
 2. PAIRWISE SWEEP ON THE OUTPUT (the engine can ADD elements the still never had):
-     her <-> motion    did any move go unfunded? gestures to NOBODY (greeting the air), a lean
-                       with no target, travel with no gait - walk A failed exactly this way
+     her <-> motion    did any move go unfunded (nothing in the scene gives it a reason)? gestures
+                       to NOBODY (greeting the air), a lean with no target, travel with no gait.
+                       An earlier test clip of her walking, walk A, failed exactly this way.
      her <-> props     did anything appear mid-clip that the still did not contain?
      her <-> agents    does she address, look at, or react to someone who never exists on screen?
      her <-> TIME      THE 4TH DIMENSION, on EVERYTHING in frame, not just what the instruments
@@ -465,8 +473,10 @@ case "${1:-}" in
                      "$(printf '%s' "$IN" | jq -r '.tool_input.engine.type // "any"' 2>/dev/null)" || exit 2
         # LETTERBOX GUARD (2026-07-25, second shipped regression of this class): an explicit
         # aspectRatio without fit=cover letterboxes a landscape look into flat white borders,
-        # AND silently relocates every fixed-fraction probe band into static padding (the r6
-        # episode flipped rest verdicts 0.014<->0.132). Prose warned; prose regressed; now the
+        # AND silently relocates every fixed-fraction probe band into static padding. On r6, a
+        # render that came out letterboxed, the probe measured that padding, and its rest reading
+        # (the share of the speech window she holds still) read 0.014 where the real picture read
+        # 0.132, which flipped the verdict. Prose warned; prose regressed; now the
         # SPEND is blocked at the call, exactly like the un-attested-look rule above.
         AR=$(printf '%s' "$IN" | jq -r '.tool_input.aspectRatio // empty')
         FIT=$(printf '%s' "$IN" | jq -r '.tool_input.fit // empty')

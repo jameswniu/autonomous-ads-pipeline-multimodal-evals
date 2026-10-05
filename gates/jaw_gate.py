@@ -1,25 +1,34 @@
 #!/usr/bin/env python3
 """jaw_gate.py <closer.mp4>: refuse a closer whose jaw swings further than its lips explain.
 
-source_gate.py measures and never rules, by design, so the threshold lives here with its
-reasons. JAW_MAX is 0.17, the latest dated ruling in the doctrine (2026-08-30), which says to
-refuse to build over 0.17 and marks the older 0.20 line as superseded. Every closer the
-author accepted that week sat under it and the rubbery ones read 0.20 to 0.23. No labelled
-pass/reject pair in evals/labels.csv backs the number, so it is AUTHORED here, and evals/derive.py does not list it.
+A closer is the last shot of every spot, one short ad film, where an AI avatar presenter speaks the
+brand line to the camera. A jaw that swings further than her lips explain reads as rubbery, so this
+gate refuses the closer before the spot is built around it.
 
-The jaw is a property of the look, deterministic across takes and days: the same look and
-audio render the same jaw again, and re-rolling the audio never moves it. So a closer over
-the ceiling needs a new look, and the graph stops the run rather than re-rendering.
+source_gate.py, the script beside this file, measures and never rules, by design, so the
+threshold lives here with its reasons. JAW_MAX is 0.17, the latest dated ruling (2026-08-30) in the
+doctrine, the author's written rulebook for how a spot must be made, which says to refuse to build
+over 0.17 and marks the older 0.20 line as superseded. Every closer the author accepted that week
+sat under it and the rubbery ones read 0.20 to 0.23. No labelled pass/reject pair in
+evals/labels.csv backs the number, so it is AUTHORED here (set by hand, not derived from labelled
+examples), and evals/derive.py does not list it.
 
-Needs the face extra (`pip install "insightface>=0.7" "mediapipe>=0.10"`) in whichever interpreter
-FACEPY names.
+The jaw is a property of the look, the still image of the presenter in one outfit and setting that
+a closer render starts from, deterministic across takes and days: the same look and audio render
+the same jaw again, and re-rolling the audio never moves it. So a closer over the ceiling needs a
+new look, and the graph (the LangGraph state machine that runs the whole pipeline) stops the run
+rather than re-rendering.
+
+Needs the face extra (`pip install "insightface>=0.7" "mediapipe>=0.10"`) in whichever Python
+interpreter the FACEPY environment variable names.
 
 Exit 0 PASS / 1 FAIL / 64 UNMEASURED or no verdict at all.
 
 UNMEASURED is a verdict: source_gate ran, and a face shows in under 70 percent of sampled
 frames or the jaw reads nan, since the jaw number means nothing over someone else's face.
-It prints the machine line, which is always the last line of a verdict:
+It prints the machine line, the one the pipeline parses, which is always the last line of a verdict:
 JAW_GATE jaw=<value> face_cov=<value> max=<ceiling> verdict=<PASS|FAIL|UNMEASURED>
+where face_cov is the share of sampled frames that held a face.
 
 No verdict prints NO machine line, only one line on stderr saying why, and exits 64: a
 missing file, an interpreter in FACEPY that is not there, source_gate crashing or printing
