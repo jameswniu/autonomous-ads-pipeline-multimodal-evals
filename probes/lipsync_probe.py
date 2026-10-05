@@ -39,7 +39,7 @@ CORR_LAG_S = 0.20
 NO_LAGS = 9.9            # sentinel median when every onset was missed
 
 # --json prints one object and nothing else, so a caller can read the measurement instead of
-# scraping prose. evals/certify.py needs it to plot the probe's response against a known shift.
+# scraping prose. a script that plots the probe's response against a known shift needs it, and that script is not in this repo.
 JSON = "--json" in sys.argv
 
 
@@ -145,7 +145,7 @@ def main():
         me = mouth - mouth.mean(); ee = env - env.mean()
         # The correlation is sampled in 1/HZ bins, so the raw peak can only ever land on a 50 ms
         # grid. Taking it whole gave 164 ms of scatter against a known shift, four times the
-        # resolution a threshold on this axis needs, which evals/certify.py called BLIND. Fitting
+        # resolution a threshold on this axis needs, which a certification check on controls called BLIND. Fitting
         # a parabola through the peak and its two neighbours recovers the sub-bin position
         # (2026-09-21).
         curve = {}

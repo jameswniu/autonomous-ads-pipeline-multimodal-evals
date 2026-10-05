@@ -565,8 +565,8 @@ def test_ad_gates_takes_the_frame_rate_from_the_file():
 
 
 def test_voice_take_checks_its_probe_before_spending():
-    """voice_take.sh calls a voice_probe.py that is not in this repository, and it called it
-    only after the TTS draws, so a fresh clone spent vendor credit and then failed."""
+    """voice_take.sh calls voice_probe.py, and it once called it only after the TTS draws, so a
+    clone without the probe spent vendor credit and then failed."""
     sh = open(os.path.join(GATES, "voice_take.sh")).read()
     probe_line = sh.index("voice_probe.py")
     first_post = sh.index("api.elevenlabs.io")

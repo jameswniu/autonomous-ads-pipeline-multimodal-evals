@@ -24,11 +24,11 @@ embarrass the author:
      axis) against AUTHORED (not). Print the real count.
 
 WHAT THIS DOES NOT COVER, because a tool that hides its own gaps is the thing
-this repo is about. Several probes refuse clips using inline literals rather than
-named constants: lipsync_probe's nine, and spasm_probe's `post.sum() < 0.30*fps`.
-They cannot be bracketed until they are named, so they are absent from GATES and
-absent from the denominator. The count below is therefore NOT "every way this
-suite can refuse a clip". It is "every NAMED constant that can".
+this repo is about. One probe refuses clips using an inline literal rather than a
+named constant, spasm_probe's `post.sum() < 0.30*fps`. lipsync_probe's nine are
+named constants now, but they are not on GATES yet. Neither is in the denominator.
+The count below is therefore NOT "every way this suite can refuse a clip". It is
+"every constant on the list that can".
 
 The bracket is also one sided by construction, so a TWO sided band does not fit
 it. sync_probe accepts a lag between LAG_MIN and LAG_MAX, and neither edge alone

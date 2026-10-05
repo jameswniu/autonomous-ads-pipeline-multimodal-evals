@@ -16,7 +16,9 @@ Every vendor request goes on the ledger before it is sent, with a real request i
 vendor's own id as soon as it answers, and its landing after, with the vendor's own text on a
 failure, so a run that dies mid-call still leaves the record of what it asked for and what it
 is owed. A run re-entered after a failure collects what it already paid for instead of paying
-again. Identity ids, the voice and the avatar look, are never written; the ledger carries a
+again. The three narration draws go on as one request, with `draws` saying how many, and one
+landing for the take kept. Identity ids, the voice and the avatar look, are never written; the
+ledger carries a
 short hash of each, which shows two runs used the same identity without publishing it. Paths
 on the ledger are relative to the run directory, since a kept run is committed.
 

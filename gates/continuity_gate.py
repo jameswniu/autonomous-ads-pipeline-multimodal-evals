@@ -38,8 +38,8 @@ clip's own median. The largest moving patch has to stay under PAIR_BLOB pixels f
 under MEDIAN_BLOB against the median, both at 1080 by 1080 and scaled by area. Both limits come from
 the background check the closer renders were first measured with, outside this repository, set on
 that night's renders, where every Grok take that moved read thousands of pixels and every take that
-held still read 0. No labelled pair on either axis is in evals/labels.csv, so evals/derive.py counts
-both AUTHORED. The matte needs torch, which the repo's own interpreter does not carry, so a presenter
+held still read 0. No labelled pair on either axis is in evals/labels.csv, so both are AUTHORED here
+and evals/derive.py does not list them. The matte needs torch, which the repo's own interpreter does not carry, so a presenter
 take runs under MATTEPY's.
 
 A verdict here stands only while it reproduces the author's labels. --validate runs the gate for real

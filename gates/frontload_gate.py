@@ -12,12 +12,10 @@ picked opened on 0.0, the Perplexity cut approved the night this was written ope
 Z.ai cut the author picked opened on 1.22, and the Grok cut sent back the same night for a slow
 open measured 2.3. FRONTLOAD_MAX sits strictly between the slowest of those three passes (1.22)
 and the one reject (2.3), roughly centred rather than hugging either edge. No pixels ship behind
-these four rows in evals/labels.csv. Each number is the first switch time on the last build row
-of its run's committed ledger, shoots/graph-grok-hook/ledger.jsonl for the first, so anyone can
-check it by hand. evals/derive.py takes the number from labels.csv as written rather than re-reading those
-ledgers, the way most of this suite's labelled rows are attested, and still counts a threshold
-DERIVED on that basis, same as it does for the majority of the other nine gating thresholds in
-probes/ and gates/.
+these four builds. Each number is the first switch time on the last build row of its run's
+ledger, and `shoots/graph-grok-hook/ledger.jsonl` is the first one's, so anyone can check that
+one by hand. The other three ledgers are not in this repository. `evals/derive.py` does not bracket this limit, so it is typed by hand from those
+four builds.
 
 This only flags, never refuses. A slow open is a board problem: the fix is a different board
 next time, not a re-roll of a spot that already rendered and was paid for. So flag() names the

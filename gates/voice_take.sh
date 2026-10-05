@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # voice_take.sh - draw N narrations, keep the one where she sounds like herself.
 #
-# WHY (the author, 2026-07-26): "sometimes it gets fucked the accent. 2nd time it's happening. not
+# WHY (the author, 2026-07-26): "sometimes it gets [messed up] the accent. 2nd time it's happening. not
 # often, but happens." Measured that night: five draws of IDENTICAL text with IDENTICAL settings
 # produced F1 537 / 616 / 727 / 573 / 558. One in five landed 27% off the consensus vowel space,  (F1 in Hz across five draws, pii-allow)
 # which is what the ear reads as a changed accent. A single blind draw is therefore a coin flip on
@@ -39,7 +39,7 @@ case "$OUT" in *.wav) FMT=wav;; *) FMT=mp3;; esac
 [ -s "$SCRIPT" ] || { echo "voice_take: script not readable: $SCRIPT"; exit 64; }
 [ -n "${ELEVENLABS_API_KEY:-}" ] || { echo "voice_take: ELEVENLABS_API_KEY not in env"; exit 64; }
 # The consensus probe is checked BEFORE the first draw. It is invoked far below, after N paid TTS
-# requests, and it is not in this repository, so a fresh clone used to spend vendor credit and then
+# requests, and a clone without it used to spend vendor credit and then
 # fail with nothing to select from (2026-09-21). VOICE_PROBE points at it when it lives elsewhere.
 PROBE="${VOICE_PROBE:-$SKILL/voice_probe.py}"
 [ -f "$PROBE" ] || { echo "voice_take: consensus probe not found at $PROBE, refusing to spend draws"; echo "  set VOICE_PROBE to its path, or install it beside this script"; exit 64; }

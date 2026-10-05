@@ -19,7 +19,7 @@ The August ledgers under `shoots/<batch>/` were written by hand by the agent tha
 
 ## Kinds
 
-Board, Render, Closer, Eye and Review, named below, are steps in the pipeline graph. Board checks the written plan before any spend, Render turns each planned shot into video by asking a vendor and reading back the result, and Closer produces the closer, the last shot of every spot, a presenter who speaks the brand line to camera before the end card. A voice draw, one of Render's requests, asks the voice vendor for a narration take, drawn more than once so the best-sounding one can be kept. Eye is the point where the graph stops and waits for a person to watch the cut and pass it or ask for changes, a LangGraph interrupt. Review is a later pause of the same kind, after a cut has already been delivered, where the person can withdraw it.
+Board, Render, Closer, Eye and Review, named below, are steps in the pipeline graph. Board checks the written plan before any spend, Render turns each planned shot into video by asking a vendor and reading back the result, and Closer produces the closer, the last shot of every spot, a presenter who speaks the brand line to camera before the end card. A voice draw, one of Render's requests, asks the voice vendor for a narration take, drawn more than once so a take that drifts from the others can be thrown out. Eye is the point where the graph stops and waits for a person to watch the cut and pass it or ask for changes, a LangGraph interrupt. Review is a later pause of the same kind, after a cut has already been delivered, where the person can withdraw it.
 
 | Kind | Written by | Carries |
 |---|---|---|
@@ -55,9 +55,9 @@ Board, Render, Closer, Eye and Review, named below, are steps in the pipeline gr
 
 The eye and the review nest the person's whole answer under `answer`, scrubbed like everything else, because a key inside it, `spot` or `step` among them, could otherwise collide with the row's own fields. `preset` is true on both when the answer came from a preset rather than a person typing one in.
 
-No written row is ever changed in place, with one sanctioned exception. A person may correct what an earlier row exposed, and records the correction as a `redacted` row of its own, appended like every other row, never an edit to the row it corrects. It was used three times, in `shoots/graph-zai/ledger.jsonl` to remove local paths a few rows had captured before that ledger's first commit, and twice in `shoots/graph-zai-shots/ledger.jsonl` to take the author's name out of re-entry reasons before those rows were committed.
+No written row is ever changed in place, with one sanctioned exception. A person may replace what an earlier row exposed, and appends a `redacted` row of its own naming the rows that changed and what was replaced with what, appended like every other row. It has been used in the September runs, to remove local paths a few rows had captured and to take the author's name out of re-entry reasons, before those rows were committed. Those run ledgers are not in this repository.
 
-A row that says something false is left as written, and a person appends a `corrected` row naming it and saying what is true. It was used twice, in `shoots/graph-zai-cast/ledger.jsonl`, for a re-entry that said the vendor account had been topped up when it had not, and in `shoots/graph-zai-shots/ledger.jsonl`, for a master built from a closer its gates had refused.
+A row that says something false is left as written, and a person appends a `corrected` row naming it and saying what is true. It has been used in the September runs, for a re-entry that said the vendor account had been topped up when it had not and for a master built from a closer its gates had refused.
 
 No identity id is ever written. A value under the keys `look`, `avatar`, `avatar_id`, `voice` or `voice_id`, at any depth in an answer or a verdict, is written as its fingerprint instead, `sha256:` plus twelve hex characters (`fingerprint` in `pipeline/ledger.py`). A fingerprint hides the id itself but still shows when two rows used the same one, which is fine because an id is useless without the account key it belongs to.
 

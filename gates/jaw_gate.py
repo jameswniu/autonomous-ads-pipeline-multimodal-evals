@@ -5,7 +5,7 @@ source_gate.py measures and never rules, by design, so the threshold lives here 
 reasons. JAW_MAX is 0.17, the latest dated ruling in the doctrine (2026-08-30), which says to
 refuse to build over 0.17 and marks the older 0.20 line as superseded. Every closer the
 author accepted that week sat under it and the rubbery ones read 0.20 to 0.23. No labelled
-pass/reject pair in evals/labels.csv backs the number, so evals/derive.py counts it AUTHORED.
+pass/reject pair in evals/labels.csv backs the number, so it is AUTHORED here, and evals/derive.py does not list it.
 
 The jaw is a property of the look, deterministic across takes and days: the same look and
 audio render the same jaw again, and re-rolling the audio never moves it. So a closer over

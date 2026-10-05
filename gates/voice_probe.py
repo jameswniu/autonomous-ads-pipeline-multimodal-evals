@@ -3,7 +3,7 @@
 
 ## The defect this exists for (the author, 2026-07-26)
 
-"sometimes it gets fucked the accent. 2nd time it's happening. not often, but happens."
+"sometimes it gets [messed up] the accent. 2nd time it's happening. not often, but happens."
 
 An intermittent defect with no detector ships silently. His ear caught it twice; nothing in the
 pipeline caught it once. This is the same shape as the spasm: `eleven_v3` redraws the voice per

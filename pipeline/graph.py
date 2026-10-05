@@ -32,8 +32,9 @@ from pipeline.steps import BY_NODE
 # loop has a ceiling, and hitting it stops the run for a person instead of retrying.
 #
 # The scene re-roll count is the source's own number: "re-roll ONLY visible breakage,
-# once." Here the render step re-rolls only what failed to come back at all, a refusal, a
-# rejection or no video, and each broken scene gets that one retry. The eye may send a
+# once." Here the render step re-rolls what failed to come back at all, a refusal, a
+# rejection or no video, and what fails its cast or continuity read, and each broken scene gets
+# that one retry. The eye may send a
 # scene or the closer (the presenter's last shot) back once per run. The source set no number for rebuilds: in August
 # a person directed up to seven builds of one spot by hand. MAX_BUILDS bounds the rebuilds
 # the eye can ask for with a nudge, so a lag three builds have not fixed stops for a
@@ -434,9 +435,10 @@ NODES = {"board": board, "render": render, "closer": closer, "build": build,
          "ad_gates": ad_gates, "eye": eye, "ship_gate": ship_gate,
          "deliver": deliver, "review": review, "ledger": ledger}
 
-# Edges the README figure leaves out, each for a stated reason. Everything else in the
-# compiled graph must be drawn, and nothing may be drawn that is not compiled. The review
-# closing a kept delivery is how a run normally ends, so the figure draws that one.
+# Edges the README figure leaves out: the stops, and the send-backs to an earlier step, which
+# ride on the gate labels so the spine stays straight. Nothing may be drawn that is not compiled,
+# which tests/test_readme_commands.py checks. The review closing a kept delivery is how a run
+# normally ends, so the figure draws that one.
 STOP_EDGES = {(src, STOP) for src, (_, targets) in ROUTES.items() if STOP in targets and src != "review"}
 # Drawn but not compiled: the next run re-derives its thresholds from this run's ledger.
 # It crosses a run boundary, so it is a dotted line in the figure and not an edge here.

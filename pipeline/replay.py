@@ -79,8 +79,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHOOTS = os.path.join(ROOT, "shoots")
 PLACEHOLDERS = {"<request-id>", "<id>"}
 PERSON = re.compile(r"\bthe author\b")
-# The words a reason uses when a scene never came back. In the graph that is the only re-roll
-# the render step makes by itself, so only a reason like this is the render step's move.
+# The words a reason uses when a scene never came back. The graph's render step also re-rolls a
+# scene that fails its cast or continuity read, but no August ledger carries one of those reads, so
+# here only a reason like this is the render step's move and any other is the eye's.
 FAILED = re.compile(r"\b(refus|reject|422|time[sd]? ?out|timeout|no video|error)\w*", re.IGNORECASE)
 # A graph run writes paths relative to its run directory and identities as fingerprints, per
 # pipeline/SCHEMA.md, so a row carrying either of these is one the schema rules out.

@@ -3,7 +3,7 @@
 
 Mechanical replacement for "render the slit-scan and have the operator read it". That older
 shape held the clip and asked me to look, which is the step that gets rationalised at 4am;
-this one decides. (Distinct from arrow_probe.py (private tree, not in this repo), which tracks HER apparent scale over time;
+this one decides. (Distinct from guards/arrow_probe.py, which tracks HER apparent scale over time;
 this one looks for the scene replaying itself.)
 
 ## The mechanism it measures (established 2026-07-26, two clips, exact integers)
