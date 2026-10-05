@@ -34,7 +34,7 @@ W, H = 1200, 920
 # render. The board probe is the free check on a board before any spend, its eye rows are four judgment rows scored by hand, and
 # landings are the ledger rows that record what each engine request returned.
 STEPS = [
-    ("Board", "five mechanical checks, four eye rows", "gates/board_probe.py", "process"),
+    ("Board", "eleven checks, four eye rows", "gates/board_probe.py", "process"),
     ("Render", "every request and landing ledgered", "shoots/<batch>/*.jsonl", "process"),
     ("Closer", "identity pin, prop gate, jaw measured", "guards/, gates/source_gate.py", "process"),
     ("Build", "closer placed within 40 ms", "shoots/build-ad.sh", "process"),
@@ -75,8 +75,8 @@ def render():
     fits("Each step hands on a verdict. Money moves only when the tier that owns it says yes.", 23, W - 120, pad=0)
     # stat box
     o.append(f'<rect x="{W-480}" y="36" width="420" height="52" rx="8" fill="none" stroke="{EDGE}"/>')
-    o.append(text(W - 270, 69, "7 steps  4 guards  10 probes", 23, PALE, anchor="middle"))
-    fits("7 steps  4 guards  10 probes", 23, 420)
+    o.append(text(W - 270, 69, "7 steps  4 guards  11 probes", 23, PALE, anchor="middle"))
+    fits("7 steps  4 guards  11 probes", 23, 420)
     # section 01
     o.append(text(60, 196, "01  THE LOOP", 23, BRASS, bold=True, spacing=2))
     o.append(text(282, 196, "left to right, the order it ran", 23, DIM))

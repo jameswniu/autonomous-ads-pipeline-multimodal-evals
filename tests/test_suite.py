@@ -180,6 +180,9 @@ def test_no_retired_claim_survives_on_any_surface():
     sentence, not a number, so no count check can see one; and docs/ and
     README.md are written by hand and always will be. This is the check that
     reads the words.
+
+    The graph's own claims were retired later too, once its code came back: that it is only a
+    drawing nothing here runs, and that a failed gate re-rolls or remasters on its own.
     """
     # Regexes, not substrings. The first version used bare substrings and flagged
     # two correct sentences: "holds each derived constant inside the interval" and
@@ -193,6 +196,14 @@ def test_no_retired_claim_survives_on_any_surface():
         (r"probes,\s*each derived", "not every probe threshold is derived"),
         (r"(?:\d+|four)\s+blocking\s+(?:gates|guards)", "three of the four fail open"),
         (r"gates,\s*blocking\b", "three of the four fail open"),
+        (r"nothing in this repository runs", "pipeline/graph.py runs it, and CI walks it on every push"),
+        (r"it is a drawing", "the graph is code in pipeline/, and the figure draws it"),
+        (r"released in full", "look generation, the pinned identity and the vendor accounts are not in this repository"),
+        (r"pipeline as it ran", "the graph is what the August run became, and says it is not what ran"),
+        (r"brackets every gating constant", "derive.py brackets the ten constants on its list"),
+        (r"no probe holds a trained model", "the mouth probe and the continuity gate load pretrained models"),
+        (r"else re-roll|fails closed to a remaster|re-roll when the ad gates",
+         "a failed gate stops the run for a person, and only a scene that fails its cast or continuity check is re-rolled, once"),
     ]
     surfaces = []
     for sub in ("assets", "docs"):
@@ -567,7 +578,7 @@ def test_loop_graph_ownership_matches_the_map():
     assert [r[0].lower() for r in rows] == ["solid", "dashed", "dotted", "dash-dot"], rows
     # the edges are the page's own state machine, so their endpoints are pinned too
     edges = {tuple(e) for e in re.findall(r"^\s+(\w+) (?:-->|-\.->)(?:\|\"[^\"]*\"\|)? *(\w+)(?:\[.*\]|\{\{.*\}\})?\s*$", graph, re.M)}
-    for pair in [("AG", "EYE"), ("EYE", "SG"), ("D", "L")]:
+    for pair in [("AG", "EYE"), ("EYE", "SG"), ("D", "RV"), ("RV", "L")]:
         assert pair in edges, (pair, sorted(edges))
     # the fail paths ride on the gate labels now, so no loop edge may sneak back in and bend the spine
     assert not {("AG", "R"), ("SG", "BU"), ("L", "B")} & edges, sorted(edges)
