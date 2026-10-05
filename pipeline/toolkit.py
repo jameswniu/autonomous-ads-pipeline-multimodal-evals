@@ -1,9 +1,10 @@
 """What the graph's nodes act through: the repo's own gates, and the engines that spend.
 
-The graph decides where a run goes next; the toolkit does the work of each step and
-reports a verdict. Keeping them apart is what lets the routing be tested without media
-or money: a test hands the graph a toolkit that returns scripted verdicts and checks the
-path the graph takes.
+The graph is pipeline/graph.py, the LangGraph state machine that runs a spot, one short ad
+film, from its board, the written plan for it, to delivery. The graph decides where a run
+goes next; the toolkit does the work of each step and reports a verdict. Keeping them apart
+is what lets the routing be tested without media or money: a test hands the graph a
+toolkit that returns scripted verdicts and checks the path the graph takes.
 
 Three toolkits share this base. DryToolkit runs the free checks for real and stops before
 the first spend. LiveToolkit (pipeline/live.py) spends. The tests use a scripted one.
@@ -84,8 +85,9 @@ def _board_rules():
 
 def cast_ok(text):
     """The board gate's rule for one line of scene text: every person in a scene is the story's
-    character, written {character}, and never the narrator. A person's new prompt from the eye is
-    held to it as the board's lines are."""
+    character, written {character}, and never the narrator. The eye is the pause where the run
+    waits for a person to watch the cut and approve it or send it back, and a new prompt that
+    person writes for a scene they send back is held to this rule as the board's lines are."""
     return _board_rules().cast_ok(text)
 
 

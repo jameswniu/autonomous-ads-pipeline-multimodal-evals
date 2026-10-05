@@ -45,12 +45,14 @@ Mechanical half only. Checks, per spot:
                    'order' that lists the shots any other way fails, and so does a 'chain' that opens
                    on any other shot: the film would not play as the board says. A spot with no 'hook'
                    fails, and the reason says what to add.
-The four judgment rows (hook, realism, absurdity, logic) are printed as questions for the eye. A spot
-can carry its answers as 'scores', a whole number from 0 to 3 for each row, with 'scored_by' naming
-who scored them. They are reported beside the checks, with each row that is missing, not a whole
-number from 0 to 3, or under 2 named as unmet, and scored_by when it names nobody. They never change
-the verdict or the exit code. The graph decides what they hold back (pipeline/toolkit.py), and
-pipeline/DOCTRINE.md states the rules behind the hook and the rows.
+The four judgment rows (hook, realism, absurdity, logic) are printed as questions for the eye, a
+person's judgment, since no check can score them. A spot can carry its answers as 'scores', a whole
+number from 0 to 3 for each row, with 'scored_by' naming who scored them. They are reported beside
+the checks, with each row that is missing, not a whole number from 0 to 3, or under 2 named as unmet,
+and scored_by when it names nobody. They never change the verdict or the exit code. The graph, which
+is pipeline/graph.py, the LangGraph state machine that runs a spot from its board to delivery,
+decides what they hold back through pipeline/toolkit.py: a live run stops at the board while any of
+them is unmet. pipeline/DOCTRINE.md states the rules behind the hook and the rows.
 Exit 0 all pass, 1 any fail.
 """
 import json, re, sys

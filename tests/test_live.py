@@ -21,6 +21,9 @@ pause where a person watches the cut and approves it or sends a scene back. A fl
 check leaves for the eye about a scene or build it cannot rule on itself. The cast gate reads
 whether the person in a scene is the story's character, and the continuity gate whether a prop or
 the background changes or moves partway through a scene.
+
+The board's four judgment rows, which a live run needs scored before it spends, are tested in
+tests/test_live_board_scores.py, which imports the fakes and the live fixture below from here.
 """
 import hashlib
 import importlib.util
@@ -2606,69 +2609,3 @@ def test_a_re_entry_never_pays_the_first_frame_judge_twice_for_the_same_still_an
     changed = chain_props_state(state, tmp_path, props=(MUG, "a closed laptop"))
     assert L.LiveToolkit(state["run_dir"], tk.ledger.run_id).board(changed)["pass"] is True
     assert len(calls) == 2, "a prop named since the last reading was not asked about"
-
-
-# the board's four judgment rows, a person's read of the idea, which a live run needs before it spends
-
-def test_a_live_run_on_a_board_nobody_scored_stops_at_the_board_before_any_request(live, monkeypatch, tmp_path):
-    """The free checks cannot read an idea, so a live run spends nothing until a person has scored the
-    board's four judgment rows, each 2 or more, and named themselves. A board with no scores, one row under
-    2, one row missing, or no name goes back from the board with the reason on the ledger, through the graph
-    the way pipeline.run starts a live run. Nothing is sent to a vendor, no render request is written, and
-    the first-frame judge, which is paid, is never asked."""
-    _, state = live
-    G = graph()
-    from langgraph.checkpoint.memory import InMemorySaver
-    vendor, asked = Vendor(), []
-
-    def judge(args):
-        asked.append(args)
-        return 0, CT.first_frame_line(1, 1, [], "PASS")
-    monkeypatch.setattr(L, "http", vendor)
-    monkeypatch.setattr(L.LiveToolkit, "script", scripts(first_frame=judge))
-    rows = SCORED["scores"]
-    cases = {
-        "nobody scored it": (dict(scores=None, scored_by=None),
-                             {"hook": "missing", "realism": "missing", "absurdity": "missing", "logic": "missing",
-                              "scored_by": "missing"}),
-        "one row under 2": (dict(scores={**rows, "realism": 1}), {"realism": "under 2"}),
-        "one row missing": (dict(scores={k: v for k, v in rows.items() if k != "logic"}), {"logic": "missing"}),
-        "nobody named": (dict(scored_by=""), {"scored_by": "missing"}),
-    }
-    for i, (case, (spot, unmet)) in enumerate(cases.items()):
-        run_dir = tmp_path / f"run-{i}"
-        tk = L.LiveToolkit(str(run_dir))
-        st = dict(state, board=scored(CHAIN_BOARD, tmp_path, f"unscored-{i}.json", props=[MUG], **spot),
-                  run_dir=str(run_dir), mode="live")
-        out = G.compile_graph(checkpointer=InMemorySaver()).invoke(st, {"configurable": {"toolkit": tk, "thread_id": case}})
-        assert out["trail"] == ["board", "ledger"] and out["outcome"] == "stopped at board", (case, out["trail"])
-        written = tk.ledger.rows()
-        gate = [r for r in written if r["kind"] == "gate" and r["step"] == "board"]
-        assert len(gate) == 1 and gate[0]["pass"] is False and gate[0]["failed"] == [], (case, gate)
-        assert gate[0]["scores"]["unmet"] == unmet, (case, gate[0]["scores"])
-        reason = gate[0]["reason"]
-        assert reason.startswith("a live run spends nothing until the four judgment rows, hook, realism, absurdity "
-                                 "and logic, are each scored 2 or more and scored_by names who scored them"), reason
-        assert reason.endswith('Score them on the spot as "scores" and "scored_by", the way pipeline/DOCTRINE.md shows'), reason
-        assert written[-1]["kind"] == "close" and written[-1]["because"]["reason"] == reason, (case, written[-1])
-        assert not [r for r in written if r["kind"] == "request"], f"{case}: a render request was written"
-    assert vendor.calls == [] and asked == [], "something was sent, or the paid judge asked, for a board nobody scored"
-
-
-def test_a_live_board_scored_by_someone_named_goes_on_and_its_row_says_what_was_scored(live, monkeypatch, tmp_path):
-    """Scored in full, 2 or more on every row with the reader named, the same board goes on to render, and
-    the board's own row carries what was scored and by whom. The scores never lift a failed check, so the
-    same scored board with a hook the film does not open on still goes back."""
-    tk, state = live
-    monkeypatch.setattr(L, "http", Vendor())
-    monkeypatch.setattr(L.LiveToolkit, "script", scripts())
-    st = dict(state, board=scored(SHOTS_BOARD, tmp_path), spot="zai")
-    v = tk.board(st)
-    assert v["pass"] is True and "reason" not in v and v["failed"] == [], v
-    gate = [r for r in tk.ledger.rows() if r["kind"] == "gate" and r["step"] == "board"][-1]
-    assert gate["scores"] == {"rows": SCORED["scores"], "scored_by": SCORED["scored_by"], "unmet": {}}, gate
-    assert graph().after_board(dict(st, verdict={"board": v})) == "render"
-    late = dict(st, board=scored(SHOTS_BOARD, tmp_path, "late-hook.json", hook="b"))
-    v = tk.board(late)
-    assert v["pass"] is False and v["failed"] == ["hook_first"] and "reason" not in v, v
-    assert v["why"]["hook_first"].startswith("hook names scene b, but the film opens on scene a"), v["why"]

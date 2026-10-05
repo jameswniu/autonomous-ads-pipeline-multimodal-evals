@@ -905,7 +905,8 @@ def _seed_staged_repo(tmp, staged_text, worktree_text, extra=None):
 
     subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True)
     # git does not validate this field, and an address-shaped literal here is
-    # a BLOCKER under the scanner's own class 3 rule. Writing one and then
+    # a BLOCKER under the scanner's own class 3 rule, the class for the
+    # author's own details, such as an email address. Writing one and then
     # suppressing it would be a test file teaching the reader to wave the
     # finding through, so there is simply no address to suppress.
     git("config", "user.name", "zzqa")
@@ -990,7 +991,15 @@ def test_staged_scan_reads_the_index_not_the_working_tree():
 
 
 def test_staged_scan_materializes_media_blobs_too():
-    """Class 7 reads bytes, so media has to come from the index as well.
+    """Class 7, media metadata, reads bytes, so media has to come from the index too.
+
+    tools/pii_scan.sh, the pre-publish personal-data scanner, sorts its
+    patterns into seven numbered classes: 1 credentials, 2 vendor asset ids,
+    3 the author's own details, 4 other people's names, 5 workplace words,
+    6 daily routine and timing, and 7 the metadata inside media files, such
+    as a GPS position, a device serial or an author. Regex cannot see that
+    metadata, so for class 7 the scanner hands each image, video, audio file
+    or PDF to exiftool or ffprobe, which read the file's bytes from disk.
 
     Half a fix is the dangerous kind. If only the text list were rebuilt from
     the index, a staged image would be looked for on disk, not found, and drop
