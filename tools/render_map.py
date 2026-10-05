@@ -31,10 +31,10 @@ W, H = 1200, 920
 # One row per step of the loop, in the order it runs, as (step, what it proves, where it lives, the tier that owns it).
 # The Closer is the presenter's closing shot, a clip of the presenter speaking the brand line. Its identity pin checks that the voice
 # and avatar ids are the pinned ones, its prop gate checks the look before any paid render, and its jaw is measured on the raw
-# render. The board probe is the free check on a board before any spend, its eye rows are four judgment rows scored by hand, and
-# landings are the ledger rows that record what each engine request returned.
+# render. The board probe is the free check on a board before any spend, its eye rows are four judgment rows scored by hand, which
+# a live run needs at 2 or more before it spends, and landings are the ledger rows that record what each engine request returned.
 STEPS = [
-    ("Board", "eleven checks, four eye rows", "gates/board_probe.py", "process"),
+    ("Board", "twelve checks, four eye rows", "gates/board_probe.py", "process"),
     ("Render", "every request and landing ledgered", "shoots/<batch>/*.jsonl", "process"),
     ("Closer", "identity pin, prop gate, jaw measured", "guards/, gates/source_gate.py", "process"),
     ("Build", "closer placed within 40 ms", "shoots/build-ad.sh", "process"),

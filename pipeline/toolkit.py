@@ -89,6 +89,18 @@ def cast_ok(text):
     return _board_rules().cast_ok(text)
 
 
+def unscored(unmet):
+    """Why a live run will not spend on a board yet, from what its scores still lack. The board's four
+    judgment rows are a person's read of the idea, and pipeline/DOCTRINE.md says what each one asks."""
+    rules = _board_rules()
+    names = [name for name, _ in rules.JUDGMENT_ROWS]
+    rows = ", ".join(names[:-1]) + " and " + names[-1]
+    return (f"a live run spends nothing until the four judgment rows, {rows}, are each scored "
+            f"{rules.SCORE_PASS} or more and scored_by names who scored them, and this board has "
+            + ", ".join(f"{k} {v}" for k, v in unmet.items())
+            + '. Score them on the spot as "scores" and "scored_by", the way pipeline/DOCTRINE.md shows')
+
+
 def cast_text(spot_def, text):
     """A scene line with the character bound to the first reference image the engine is sent."""
     return text.replace(PLACEHOLDER, f"the {spot_def.get('character_noun', 'person')} in <IMAGE_REF_0>")
@@ -174,6 +186,14 @@ class Toolkit:
 
     # --- Board is free and runs for real in every toolkit -----------------------------
 
+    # Whether a board whose four judgment rows are not all scored, 2 or more and by someone named, stops
+    # here. Only the toolkit that spends sets it. A dry run spends nothing, so it records what the scores
+    # still lack and walks on, and CI needs no scores made up for it. That is why the committed graph-zai
+    # boards carry a hook and no scores: a score is a person's read of the idea, and writing one into a
+    # fixture would put a judgment nobody made on the record. A live run on one of them stops at the board,
+    # and its reason says what to add, which is the gate doing its job.
+    scores_gate = False
+
     def board(self, state):
         board_path, spot = state["board"], state["spot"]
         r = self.repo("gates/board_probe.py", board_path, "--json")
@@ -184,12 +204,24 @@ class Toolkit:
                        "stderr": self.clean(r.stderr[-400:])}
             self.ledger.append("gate", "board", spot=spot, **verdict)
             return verdict
-        checks = report["spots"].get(spot, {}).get("checks")
+        entry = report["spots"].get(spot, {})
+        checks = entry.get("checks")
         if checks is None:
             verdict = {"pass": False, "reason": f"{spot} is not on the board"}
         else:
             failed = sorted(k for k, ok in checks.items() if not ok)
             verdict = {"pass": not failed, "checks": checks, "failed": failed}
+            if entry.get("why"):
+                verdict["why"] = self.scrub(entry["why"])
+            # The probe reports the scores beside its checks and never in its verdict, so the record is
+            # taken whole. One it did not give is read as nothing scored, so it can never pass the gate.
+            scores = entry.get("scores")
+            if not (isinstance(scores, dict) and isinstance(scores.get("unmet"), dict)):
+                scores = {"rows": {}, "unmet": {"scores": "the board probe reported none"}}
+            verdict["scores"] = self.scrub(scores)
+            if self.scores_gate and scores["unmet"]:
+                verdict["pass"] = False
+                verdict["reason"] = unscored(scores["unmet"])
         self.ledger.append("gate", "board", spot=spot, board=os.path.relpath(board_path, ROOT), **verdict)
         return verdict
 

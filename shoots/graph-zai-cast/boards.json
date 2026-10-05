@@ -17,7 +17,8 @@
     "b": "The vast warehouse of workstations hums around {presenter}, screens scrolling, and on her original desk a ceramic coffee mug sits perfectly still, unmoved, while everything grows around it. Mouth closed, nobody speaks.",
     "c": "The warehouse folds back in on itself smoothly, walls returning, screens tucking away, until it is the tiny studio apartment again, {presenter} stretching, the mug exactly where it always was. Mouth closed, nobody speaks."
    },
-   "presenter_noun": "woman"
+   "presenter_noun": "woman",
+   "hook": "a"
   }
  }
 }

@@ -502,6 +502,26 @@ def test_readme_process_cards_match_the_ledgers():
         assert cells[3] == f"{version(winner[ad])} and {version(omni[ad])}", cells
 
 
+def test_every_surface_states_the_board_probes_own_count_of_checks():
+    """How many checks the board gets is typed by hand on the page, its figure, the doctrine, the step list
+    and the map. Count what the probe runs, off its own report on the board CI dry-runs, and hold every
+    sentence that states a count of checks in those files to it, so a check added in one place and counted
+    in another fails here."""
+    r = run([os.path.join("gates", "board_probe.py"), os.path.join("shoots", "graph-zai-shots", "boards.json"), "--json"])
+    count = len(json.loads(r.stdout)["spots"]["zai"]["checks"])
+    num = {v: k for k, v in WORDS.items()}
+    files = ("README.md", "pipeline/DOCTRINE.md", "pipeline/steps.py", "tools/render_map.py")
+    stated = []
+    for rel in files:
+        text = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+        for tok in re.findall(r"\b(\w+) (?:free |mechanical )?checks\b", text):
+            value = int(tok) if tok.isdigit() else num.get(tok.lower())
+            if value is not None:
+                stated.append((rel, tok, value))
+    assert all(value == count for _, _, value in stated), f"the probe runs {count} checks, the page says {stated}"
+    assert {rel for rel, _, _ in stated} == set(files), f"a surface stopped stating the count: {stated}"
+
+
 def test_system_map_steps_match_the_process_table():
     """The map and the process table name the same seven steps in the same order."""
     import importlib.util

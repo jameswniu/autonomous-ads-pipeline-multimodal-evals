@@ -931,12 +931,21 @@ class LiveToolkit(Toolkit):
         self.continuity_check(spot, s, raw, hold, failed, why, flags)
         return s not in failed
 
+    # A board goes no further here until a person has scored its four judgment rows, each 2 or more, and
+    # named themselves in scored_by. The free checks cannot read an idea, and this is the spend they guard.
+    # What it trusts is the board's own word, the same named attestation the eye's `who` and a jaw waiver
+    # carry. Whoever starts a live run holds the vendor keys and can edit the board, so this is not an
+    # access control. It is a step that cannot be skipped or forgotten before a spend, with the scores and
+    # the name that gave them on the gate row, where a later read of the ledger finds them beside the cut.
+    scores_gate = True
+
     def board(self, state):
-        """The free board checks, then, for a live spot that names props and shoots them as a chain, the
-        first-frame check on the still the chain starts from, so an absent prop stops the run here, with
-        no render request and no spend, the same as any other failed board check. A reading already on the
-        ledger for the same still and the same props is not asked again on a re-entry, a PASS or a REVIEW
-        kept as it stood, the way a scene's continuity reading is."""
+        """The free board checks and the board's own scores, then, for a live spot that names props and
+        shoots them as a chain, the first-frame check on the still the chain starts from, so an absent prop
+        stops the run here, with no render request and no spend, the same as any other failed board check.
+        A board that fails its checks or its scores never reaches that judge, which is paid. A reading
+        already on the ledger for the same still and the same props is not asked again on a re-entry, a
+        PASS or a REVIEW kept as it stood, the way a scene's continuity reading is."""
         v = super().board(state)
         if not v.get("pass"):
             return v

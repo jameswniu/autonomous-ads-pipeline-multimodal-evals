@@ -115,7 +115,7 @@ def test_board_probe_refuses_an_empty_board(tmp_path):
 
 def _board_checks(tmp_path, scene, narration="It works."):
     p = os.path.join(str(tmp_path), "b.json")
-    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": narration,
+    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": narration, "hook": "a",
             "scenes": {"a": scene + " Mouth closed, nobody speaks."}}
     json.dump({"guard": "Keep the subject in the middle third.", "spots": {"s": spot}}, open(p, "w"))
     r = run([sys.executable, os.path.join(GATES, "board_probe.py"), p, "--json"])
@@ -168,7 +168,7 @@ NO_CHAIN = object()
 def _chain_check(tmp_path, chain=NO_CHAIN, noun="student"):
     scenes = {"a": "{character} sits at a desk.", "b": "The room grows around {character}.", "c": "A mug sits still."}
     p = os.path.join(str(tmp_path), "b.json")
-    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.",
+    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.", "hook": "a",
             "scenes": {k: v + " Mouth closed, nobody speaks." for k, v in scenes.items()}}
     if chain is not NO_CHAIN:
         spot["chain"] = chain
@@ -202,7 +202,7 @@ def _slots_check(tmp_path, slots=NO_SLOTS, chain=NO_CHAIN, narration="It works. 
     scenes = {"a": "{character} sits at a desk.", "b": "The room grows around {character}.",
               "c": "A mug sits still.", "d": "The room folds back around {character}."}
     p = os.path.join(str(tmp_path), "b.json")
-    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": narration, "character_noun": "student",
+    spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": narration, "character_noun": "student", "hook": "a",
             "scenes": {k: v + " Mouth closed, nobody speaks." for k, v in scenes.items()}}
     if slots is not NO_SLOTS:
         spot["slots"] = slots
@@ -234,6 +234,134 @@ def test_board_probe_holds_slots_to_the_three_sentences_the_builder_cuts(tmp_pat
         "shots playing out of the chain's order passed")
     assert _slots_check(tmp_path, three, narration="It works. Build it.") is False, (
         "a narration the builder cannot cut into three sentences held slots")
+
+
+def _probe(tmp_path, spot, as_json=True):
+    """board_probe.py on a one-spot board: (the spot's report, the exit code), or the text report."""
+    p = tmp_path / "hooked.json"
+    p.write_text(json.dumps({"guard": "Keep the subject in the middle third.", "spots": {"s": spot}}))
+    r = run([sys.executable, os.path.join(GATES, "board_probe.py"), str(p)] + (["--json"] if as_json else []))
+    return (json.loads(r.stdout)["spots"]["s"], r.returncode) if as_json else (r.stdout, r.returncode)
+
+
+def _hook_spot(**extra):
+    """A spot that passes every other check, with four scenes, a to d, so where the film opens can move."""
+    scenes = {k: f"A warehouse hums around shelf {k}. Mouth closed, nobody speaks." for k in "abcd"}
+    return {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works. It is cheap. Build it.",
+            "scenes": scenes, **extra}
+
+
+FULL = {"hook": 3, "realism": 2, "absurdity": 3, "logic": 2}
+
+
+def test_board_probe_sends_back_a_spot_that_does_not_name_its_hook(tmp_path):
+    """Start with the hook. A spot names the scene that opens the film in 'hook', and one that names none
+    fails the board, with a reason that says what to add, the scene the film opens on now."""
+    spot, code = _probe(tmp_path, _hook_spot())
+    assert spot["checks"]["hook_first"] is False and code == 1, spot
+    assert spot["why"] == {"hook_first": 'add "hook": "a", naming the scene that opens the film'}, spot["why"]
+    for blank in (None, "", "  "):
+        spot, code = _probe(tmp_path, _hook_spot(hook=blank))
+        assert spot["checks"]["hook_first"] is False and spot["why"]["hook_first"].startswith('add "hook"'), (blank, spot)
+    spot, code = _probe(tmp_path, _hook_spot(hook="a"))
+    assert spot["checks"]["hook_first"] is True and spot["why"] == {} and code == 0, spot
+    said, code = _probe(tmp_path, _hook_spot(), as_json=False)
+    assert code == 1 and 'hook_first: add "hook": "a"' in said, said
+
+
+def test_board_probe_sends_back_a_hook_the_film_does_not_open_on(tmp_path):
+    """The first shot is the first entry of 'order' if the spot has one, else of 'chain', else the first
+    shot of the first slot, else the first scene key, and the hook has to be that shot."""
+    three = [["b"], ["a", "c"], ["d"]]
+    for extra in (dict(hook="a"), dict(hook="b", slots=three), dict(hook="b", chain=["b", "a", "c", "d"], slots=three),
+                  dict(hook="b", order=["b", "a", "c", "d"], slots=three),
+                  dict(hook="b", order=["b", "a", "c", "d"], chain=["b", "a", "c", "d"], slots=three)):
+        spot, code = _probe(tmp_path, _hook_spot(**extra))
+        assert spot["checks"]["hook_first"] is True and code == 0, (extra, spot)
+    for extra in (dict(hook="b"), dict(hook="a", slots=three), dict(hook="a", chain=["b", "a", "c", "d"], slots=three),
+                  dict(hook="a", order=["b", "a", "c", "d"], slots=three)):
+        spot, code = _probe(tmp_path, _hook_spot(**extra))
+        assert spot["checks"]["hook_first"] is False and code == 1, (extra, spot)
+        assert spot["why"]["hook_first"].startswith("hook names scene a" if extra["hook"] == "a" else "hook names scene b"), spot
+    spot, _ = _probe(tmp_path, _hook_spot(hook="a", order=["b", "a", "c", "d"], slots=three))
+    assert "the film opens on scene b, the first entry of its order" in spot["why"]["hook_first"], spot["why"]
+    for hook in ("z", ["a"], 1):
+        spot, code = _probe(tmp_path, _hook_spot(hook=hook))
+        assert spot["checks"]["hook_first"] is False and "not one of this spot's scenes" in spot["why"]["hook_first"], (hook, spot)
+    # A chain that names a scene the spot lacks is the chain check's to report, and the next source answers.
+    spot, _ = _probe(tmp_path, _hook_spot(hook="a", chain=["x", "a"]))
+    assert spot["checks"]["chain"] is False and spot["checks"]["hook_first"] is True, spot
+
+
+def test_board_probe_sends_back_an_order_or_a_chain_the_build_would_not_play(tmp_path):
+    """The build reads neither order nor chain for the cut. It plays each slot's shots in turn, or with no
+    slots the first three scene keys, one to each sentence. So a chain that opens on another shot names a
+    hook the film would not open on, and goes back whatever its hook says. An order is the board's word on
+    how the whole film plays, so one that lists the shots any other way goes back, its first entry right or
+    not, and a garbled one goes back before anything reads it."""
+    for extra in (dict(hook="b", chain=["b", "a", "c", "d"]), dict(hook="a", chain=["b", "a", "c", "d"]),
+                  dict(hook="b", order=["b", "a", "c"]), dict(hook="a", order=["b", "a", "c"]),
+                  dict(hook="a", order=["a", "c", "b"]), dict(hook="a", order=["a", "b", "c", "d"]),
+                  dict(hook="a", order=["a", "c", "b", "d"], slots=[["a"], ["b", "c"], ["d"]])):
+        spot, code = _probe(tmp_path, _hook_spot(**extra))
+        assert spot["checks"]["hook_first"] is False and code == 1, (extra, spot)
+    spot, _ = _probe(tmp_path, _hook_spot(hook="b", chain=["b", "a", "c", "d"]))
+    assert "the build plays scene a first, the first scene key" in spot["why"]["hook_first"], spot["why"]
+    spot, _ = _probe(tmp_path, _hook_spot(hook="a", order=["a", "c", "b"]))
+    assert spot["why"]["hook_first"] == ("order lists a, c, b, but the build plays a, b, c, the first three scene keys, "
+                                         "one to each sentence. List the shots in the order the build plays them"), spot["why"]
+    spot, _ = _probe(tmp_path, _hook_spot(hook="a", order=["a", "b", "c", "d"]))
+    assert "but the build plays a, b, c," in spot["why"]["hook_first"], "an order naming a shot the build never plays passed"
+    for extra in (dict(hook="a", order=["a", "b", "c"]),
+                  dict(hook="a", order=["a", "b", "c", "d"], chain=["a", "b", "c", "d"], slots=[["a"], ["b", "c"], ["d"]])):
+        spot, code = _probe(tmp_path, _hook_spot(**extra))
+        assert spot["checks"]["hook_first"] is True and code == 0, (extra, spot)
+    for order in (["a", "a"], ["a", "x"], [], "abcd", [["a"]], {"a": 1}):
+        spot, code = _probe(tmp_path, _hook_spot(hook="a", order=order))
+        assert spot["checks"]["hook_first"] is False and code == 1, (order, spot)
+        assert spot["why"]["hook_first"].startswith("order has to list this spot's own scenes"), (order, spot)
+
+
+def test_board_probe_reports_the_scores_beside_its_checks_and_never_in_its_verdict(tmp_path):
+    """The four judgment rows are a person's read, so the probe reports what the spot scored, who scored
+    it and what is unmet, and its verdict and exit code stay the mechanical checks' alone. Only a whole
+    number from 0 to 3 counts as scored, a true or false included among the things that do not."""
+    nothing = {"hook": "missing", "realism": "missing", "absurdity": "missing", "logic": "missing", "scored_by": "missing"}
+    spot, code = _probe(tmp_path, _hook_spot(hook="a"))
+    assert code == 0 and spot["scores"] == {"rows": {}, "unmet": nothing}, spot
+    spot, code = _probe(tmp_path, _hook_spot(hook="a", scores=[3, 3, 3, 3], scored_by="a reader"))
+    assert code == 0 and spot["scores"]["unmet"] == {k: v for k, v in nothing.items() if k != "scored_by"}, spot
+    spot, code = _probe(tmp_path, _hook_spot(hook="a", scores=FULL, scored_by=" a reader "))
+    assert code == 0 and spot["scores"] == {"rows": FULL, "scored_by": "a reader", "unmet": {}}, spot
+    spot, code = _probe(tmp_path, _hook_spot(hook="a", scores={**FULL, "realism": 1, "logic": 0}, scored_by="a reader"))
+    assert code == 0 and spot["scores"]["unmet"] == {"realism": "under 2", "logic": "under 2"}, spot
+    assert spot["scores"]["rows"] == {**FULL, "realism": 1, "logic": 0}, spot
+    for bad in (True, False, 2.5, 3.0, "3", 4, -1, None, [3]):
+        spot, code = _probe(tmp_path, _hook_spot(hook="a", scores={**FULL, "logic": bad}, scored_by="a reader"))
+        assert code == 0 and spot["scores"]["unmet"] == {"logic": "not a whole number from 0 to 3"}, (bad, spot)
+        assert "logic" not in spot["scores"]["rows"], (bad, spot)
+    for who in (None, "", "  ", 7, ["a reader"]):
+        spot, _ = _probe(tmp_path, _hook_spot(hook="a", scores=FULL, scored_by=who))
+        assert spot["scores"]["unmet"] == {"scored_by": "missing"} and "scored_by" not in spot["scores"], (who, spot)
+    spot, code = _probe(tmp_path, _hook_spot(scores=FULL, scored_by="a reader"))
+    assert code == 1 and spot["checks"]["hook_first"] is False and spot["scores"]["unmet"] == {}, (
+        "full scores lifted a failed check")
+    said, code = _probe(tmp_path, _hook_spot(hook="a", scores={**FULL, "realism": 1}, scored_by="a reader"), as_json=False)
+    assert code == 0 and "hook 3, realism 1, absurdity 3, logic 2, by a reader; unmet: realism under 2" in said, said
+
+
+def test_the_doctrine_quotes_the_judgment_rows_as_the_probe_prints_them(tmp_path):
+    """pipeline/DOCTRINE.md defines the four rows a person scores, and the probe prints them for the eye. The
+    two have to say the same words, or a person scores a question the page never asked."""
+    bp = load("board_probe.py")
+    assert [name for name, _ in bp.JUDGMENT_ROWS] == ["hook", "realism", "absurdity", "logic"]
+    doctrine = open(os.path.join(ROOT, "pipeline", "DOCTRINE.md"), encoding="utf-8").read()
+    printed, _ = _probe(tmp_path, _hook_spot(hook="a"), as_json=False)
+    for name, text in bp.JUDGMENT_ROWS:
+        line = f"{name:10s} {text}"
+        assert f"\n  {line}\n" in printed, line
+        assert f"\n{line}\n" in doctrine, f"pipeline/DOCTRINE.md does not quote the {name} row as the probe prints it"
+    assert (bp.SCORE_TOP, bp.SCORE_PASS) == (3, 2), "the doctrine and the page say 0 to 3, and 2 to pass"
 
 
 # --------------------------------------------------------------------------------------
@@ -1014,7 +1142,7 @@ def test_the_board_gate_the_toolkit_and_the_build_know_the_same_switching_modes(
 def test_board_probe_refuses_a_switching_mode_the_build_does_not_know(tmp_path):
     def switches(value):
         p = tmp_path / "b.json"
-        spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.",
+        spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.", "hook": "a",
                 "scenes": {"a": "A warehouse hums. Mouth closed, nobody speaks."}}
         if value is not None:
             spot["switches"] = value
@@ -1777,7 +1905,7 @@ def test_board_probe_holds_props_to_lines_of_plain_words(tmp_path):
     list, a blank line, a line that is not text, the same line twice, or a bare string fails."""
     def props(value):
         p = tmp_path / "b.json"
-        spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.",
+        spot = {"brand": "Acme", "quirk": "a lamp hums", "narration": "It works.", "hook": "a",
                 "scenes": {"a": "A warehouse hums. Mouth closed, nobody speaks."}}
         if value is not None:
             spot["props"] = value
