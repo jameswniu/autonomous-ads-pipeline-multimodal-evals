@@ -39,7 +39,7 @@ STEPS = [
     ("Closer", "identity pin, prop gate, jaw measured", "guards/, gates/source_gate.py", "process"),
     ("Build", "closer placed within 40 ms", "shoots/build-ad.sh", "process"),
     ("Ad gates", "captions say what is spoken", "gates/ad_gates.sh", ("outcome", "quality")),
-    ("Ship gate", "frame and light, fails closed", "guards/ship_gate.sh", "process"),
+    ("Ship gate", "frame and motion, fails closed", "guards/ship_gate.sh", "process"),
     ("Deliver", "withdrawn and replaced on record", "shoots/<batch>/landings.jsonl", "process"),
 ]
 TIERS = [
