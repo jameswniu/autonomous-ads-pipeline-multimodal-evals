@@ -150,8 +150,8 @@ def main():
     else:
         print(f"SPASM REPORT: energy {energy:.2f} | ratio {ratio:.2f} "
               f"(speech {sp:.2f}, post {po:.2f}, worst1s {worst:.2f}, gaps {ga:.2f})")
-        print(f"  NOT a verdict. Judge against the script's REGISTER, never against stillness: a "
-              f"calm line should settle, an excited one should not (invariant 10).")
+        print("  NOT a verdict. Judge against the script's REGISTER, never against stillness: a "
+              "calm line should settle, an excited one should not (invariant 10).")
     sys.exit(2 if verdict == "FAIL" else 0)
 
 

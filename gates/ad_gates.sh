@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
-# ad_gates.sh <master.mp4> <captions.json>: the two gates an ad master must clear before deliver.sh will take it.
+# ad_gates.sh <master.mp4> <captions.json>: the two gates an ad master must clear before delivery.
+#   It writes a pass receipt, below. Nothing in this repository reads that receipt yet, so the gate
+#   is only as binding as the caller that runs it; an earlier comment claimed deliver.sh enforced it.
 #   caption gate  every burned caption says what is spoken, when it is spoken (caption_gate.py)
 #   closer gate   the closer window cut out of the MASTER, not the raw render: its video must start where its
-#                 audio was placed (frame-exact, 40 ms), sync_probe must not read late, lipsync_probe must not FAIL
-#                 (REVIEW is the talking-photo baseline and passes with a logged line; the eye still decides)
+#                 audio was placed (frame-exact, 40 ms) and mouth_sync_probe must not FAIL or read NO FACE
+#                 (REVIEW is the talking-photo baseline and passes with a logged line; the eye still decides).
+#                 sync_probe is PRINTED and never fails, demoted on the evidence below. lipsync_probe is not
+#                 run here at all; this line named both as gate conditions until 2026-09-23, which was false
+#                 for sync_probe since its demotion and false for lipsync_probe since this file was written.
 # Writes /tmp/.ad-gates-<basename>-<size> on pass. the author, 2026-08-26: "are the lip-syncs correct? add evals and
 # gates for the subtitles and the lip-sync"; the whole-master sync read had hidden a 2.8 s closer offset.
 set -uo pipefail
 M=$1; CJ=$2; P="$(cd "$(dirname "$0")/../probes" && pwd)"; SK="$(cd "$(dirname "$0")" && pwd)"
 [ -f "$M" ] && [ -f "$CJ" ] || { echo "ad_gates: missing master or captions.json"; exit 64; }
-fail=0
+fail=0; R_CAP=pass; R_DRIFT=pass; R_MOUTH=pass
 echo "== caption gate"
-python3 "$SK/caption_gate.py" "$CJ" || fail=1
+python3 "$SK/caption_gate.py" "$CJ" || { fail=1; R_CAP=fail; }
 CS=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['closer_start'])" "$CJ")
 CD=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['closer_dur'])" "$CJ")
 AMS=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['audio_closer_ms'])" "$CJ")
@@ -20,16 +25,31 @@ echo "== closer assembly"
 Q=$(python3 - "$V" <<'PY'
 import subprocess, sys
 v = sys.argv[1]; tot = 0
+from fractions import Fraction
+# Duration from each segment's own frame rate. This used to divide the frame total by a hardcoded
+# 25, so a 30 fps render mismeasured the closer offset the 40 ms check exists to catch.
+ms = 0.0
 for q in ("q1","q2","q3"):
-    n = subprocess.run(["ffprobe","-v","error","-select_streams","v","-count_frames","-show_entries","stream=nb_read_frames","-of","csv=p=0",f"{v}/{q}.mp4"],capture_output=True,text=True).stdout.strip()
-    tot += int(n)
-print(int(tot/25*1000))
+    out = subprocess.run(["ffprobe","-v","error","-select_streams","v","-count_frames","-show_entries","stream=nb_read_frames,r_frame_rate","-of","csv=p=0",f"{v}/{q}.mp4"],capture_output=True,text=True).stdout.strip()
+    rate, n = out.split(",")
+    ms += int(n) / float(Fraction(rate)) * 1000
+print(int(ms))
 PY
 )
+# Missing or corrupt segments mean the placement was never measured. That reads as unreadable,
+# not fail: drift=fail used to report a placement fault nobody measured, and a caller routes a
+# fail to a rebuild. The gate still refuses to pass, since nothing checked the closer.
+case "$Q" in
+  ''|*[!0-9]*) echo "  closer assembly unreadable (q1/q2/q3 missing or corrupt beside $CJ), nothing measured"; Q=""; fail=1; R_DRIFT=unreadable ;;
+esac
+if [ -n "$Q" ]; then
 D=$(( Q - AMS )); [ $D -lt 0 ] && D=$(( -D ))
-if [ "$D" -le 40 ]; then echo "  closer video at ${Q} ms, audio placed at ${AMS} ms, drift ${D} ms: ok"; else echo "  closer video at ${Q} ms, audio placed at ${AMS} ms, drift ${D} ms: FAIL"; fail=1; fi
+if [ "$D" -le 40 ]; then echo "  closer video at ${Q} ms, audio placed at ${AMS} ms, drift ${D} ms: ok"; else echo "  closer video at ${Q} ms, audio placed at ${AMS} ms, drift ${D} ms: FAIL"; fail=1; R_DRIFT=fail; fi
+fi
 echo "== closer window probes"
-W=/tmp/ad-gate-closer-$(basename "$M")
+# Scratch, so it follows TMPDIR like any other scratch file. The pass receipt below stays in /tmp,
+# where its reader looks for it.
+W="${TMPDIR:-/tmp}/ad-gate-closer-$(basename "$M")"
 ffmpeg -v error -y -ss "$CS" -t "$CD" -i "$M" -c:v libx264 -crf 18 -c:a aac "$W" || { echo "  could not cut closer window"; exit 1; }
 # sync_probe: LATE fails (> +80 ms); early is forgiven, every HeyGen render reads about -240 on this probe,
 # approved ones included, so an early read is disclosed, not blocked
@@ -46,10 +66,16 @@ else echo "  sync lag ${LAG} ms (disclosure only): ok"; fi
 FACEPY=${FACEPY:-python3}
 MS=$("$FACEPY" "$SK/mouth_sync_probe.py" "$W" 2>/dev/null | tail -1); rm=$?
 echo "  $MS"
-case "$rm" in 0) ;; 2) echo "  mouth sync REVIEW, eye decides (logged)";; *) echo "  mouth sync FAIL"; fail=1;; esac
+case "$rm" in 0) ;; 2) echo "  mouth sync REVIEW, eye decides (logged)"; R_MOUTH=review;; 3) echo "  mouth sync NO FACE, nothing was measured"; fail=1; R_MOUTH=noface;; *) echo "  mouth sync FAIL"; fail=1; R_MOUTH=fail;; esac
 if [ "$fail" -eq 0 ]; then
-  SZ=$(stat -f %z "$M"); touch "/tmp/.ad-gates-$(basename "$M")-$SZ"; echo "AD GATES PASS $(basename "$M")"
+  SZ=$(wc -c < "$M" | tr -d ' '); touch "/tmp/.ad-gates-$(basename "$M")-$SZ"; echo "AD GATES PASS $(basename "$M")"
 else
   echo "AD GATES FAIL $(basename "$M")"
 fi
+# One machine-readable line, last, so a caller can tell WHICH check failed, which the exit
+# code alone cannot. pipeline/live.py parses it, and the graph routes on the result: a mouth
+# REVIEW goes to a person's eye, and any FAIL stops the run for a person to read. drift reads
+# unreadable when the segments it measures were missing, which is a build problem to look at,
+# not a placement fault.
+echo "AD_GATES_RESULT caption=$R_CAP drift=$R_DRIFT mouth=$R_MOUTH"
 exit $fail
