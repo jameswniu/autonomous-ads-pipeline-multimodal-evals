@@ -66,6 +66,16 @@ jobs:
         run: python3 evals/derive.py
       - name: Test suite
         run: python3 -m pytest tests/ -v
+      # One committed board through the graph in dry mode, the way a stranger runs it with no keys.
+      # The board gate runs for real, the run writes the four scene requests a live run would send
+      # and what they would cost, and it stops before the first spend. Its ledger has to match the
+      # pinned one. The run id, the times and the request ids are new on every run, so
+      # pipeline.ledger prints each of them as its own name before the diff.
+      - name: Dry run through the graph
+        run: |
+          set -eo pipefail
+          python3 -m pipeline.run --board shoots/graph-zai-shots/boards.json --spot zai --mode dry --run-dir "$RUNNER_TEMP/dry"
+          python3 -m pipeline.ledger "$RUNNER_TEMP/dry/ledger.jsonl" | diff pipeline/expected/dry-zai-shots.txt -
       # The one executable test that predates this workflow. It used to fail on a
       # fresh clone because it asserts on a string only emitted when
       # learned_rules.md exists, and that file was never committed. It is now

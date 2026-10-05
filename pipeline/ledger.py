@@ -76,3 +76,24 @@ class Ledger:
 def new_request_id():
     """A real id, so a landing can be joined to the request that produced it."""
     return "req_" + uuid.uuid4().hex[:16]
+
+
+# What two runs of the same board never share: the run's id, the time on every row, and the request
+# ids. Everything else a dry run writes comes from the board and the code.
+PER_RUN = ("run", "ts", "request_id")
+
+
+def stable(row):
+    """A row with its per-run fields replaced by their names, so a run compares line for line with a
+    pinned one."""
+    return {k: (f"<{k}>" if k in PER_RUN else v) for k, v in row.items()}
+
+
+if __name__ == "__main__":
+    # python -m pipeline.ledger <ledger.jsonl> prints the ledger through stable(), one row a line. CI
+    # diffs a dry run's ledger in this form against the one pinned in pipeline/expected/.
+    import sys
+    with open(sys.argv[1]) as fh:
+        for line in fh:
+            if line.strip():
+                print(json.dumps(stable(json.loads(line)), sort_keys=True))
