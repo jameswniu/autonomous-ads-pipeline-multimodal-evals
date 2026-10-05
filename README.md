@@ -383,35 +383,35 @@ flowchart TD
 
 Vendor ids and Slack fields are replaced with `<id>` or dropped, and home directories sit behind `$SHOOT_ROOT`, `$RENDERS`, `$GATES` and `$PORTRAIT`.
 
-- `shoots/` holds every batch, with its boards and ledgers.
-  - `ads2-redo/` is the race, and `ads3/` to `ads5/` are the redo rounds.
-  - `ads6-omni/` is the Omni Flash leg, and `ads7-real/` and `ads8-real/` are the ten spec ads.
+- [`shoots/`](shoots/) holds every batch, with its boards and ledgers.
+  - [`ads2-redo/`](shoots/ads2-redo/) is the race, and [`ads3/`](shoots/ads3/) to [`ads5/`](shoots/ads5/) are the redo rounds.
+  - [`ads6-omni/`](shoots/ads6-omni/) is the Omni Flash leg, and [`ads7-real/`](shoots/ads7-real/) and [`ads8-real/`](shoots/ads8-real/) are the ten spec ads.
   - Each batch has `boards.json`, a `build-*.sh` driver, `requests.jsonl` and `landings.jsonl`.
-  - `build-ad.sh` assembles a spot, `master.sh` sets its loudness, and `switches.sh` and `switch_times.py` place the switching sound.
-  - The `graph-zai-*` boards feed the graph's tests and the CI dry run, and `graph-grok-hook/` is one recorded graph run.
-- `gates/` holds what a run must pass, in this order. The look's framing checks live in look generation, outside this repo.
-  1. `board_probe.py` checks the board, free, before any spend.
-  2. On each shot, `cast_gate.py` checks the person is the story's character, `continuity_gate.py` that props and background hold from first frame to last, and `edge_clip_probe.py` what the frame cuts off.
-  3. On the narration, `voice_take.sh` draws takes, `voice_probe.py` drops one that drifts, and `script_match.sh` checks the words, using `textnorm.py`.
-  4. On the closer, `source_gate.py` measures the jaw, and `jaw_gate.py` refuses it past 0.17.
-  5. On the master, `ad_gates.sh` runs `caption_gate.py` and `mouth_sync_probe.py` and checks the closer's placement, `frontload_gate.py` flags a slow open, and `loudness_gate.py` checks loudness and true peak.
-- `probes/` holds the eleven instruments the panels and gates read.
+  - [`build-ad.sh`](shoots/build-ad.sh) assembles a spot, [`master.sh`](shoots/master.sh) sets its loudness, and [`switches.sh`](shoots/switches.sh) and [`switch_times.py`](shoots/switch_times.py) place the switching sound.
+  - The `graph-zai-*` boards feed the graph's tests and the CI dry run, and [`graph-grok-hook/`](shoots/graph-grok-hook/) is one recorded graph run.
+- [`gates/`](gates/) holds what a run must pass, in this order. The look's framing checks live in look generation, outside this repo.
+  1. [`board_probe.py`](gates/board_probe.py) checks the board, free, before any spend.
+  2. On each shot, [`cast_gate.py`](gates/cast_gate.py) checks the person is the story's character, [`continuity_gate.py`](gates/continuity_gate.py) that props and background hold from first frame to last, and [`edge_clip_probe.py`](gates/edge_clip_probe.py) what the frame cuts off.
+  3. On the narration, [`voice_take.sh`](gates/voice_take.sh) draws takes, [`voice_probe.py`](gates/voice_probe.py) drops one that drifts, and [`script_match.sh`](gates/script_match.sh) checks the words, using [`textnorm.py`](gates/textnorm.py).
+  4. On the closer, [`source_gate.py`](gates/source_gate.py) measures the jaw, and [`jaw_gate.py`](gates/jaw_gate.py) refuses it past 0.17.
+  5. On the master, [`ad_gates.sh`](gates/ad_gates.sh) runs [`caption_gate.py`](gates/caption_gate.py) and [`mouth_sync_probe.py`](gates/mouth_sync_probe.py) and checks the closer's placement, [`frontload_gate.py`](gates/frontload_gate.py) flags a slow open, and [`loudness_gate.py`](gates/loudness_gate.py) checks loudness and true peak.
+- [`probes/`](probes/) holds the eleven instruments the panels and gates read.
   - Gesture energy, background detail, eye rejection, scene simplicity and face level wander.
   - Lip sync, sync lag, replay detection, and the rest and spasm meters the ship gate runs.
-  - `graph_verdict.py`, which only reports.
-- `guards/` holds four guards, three that run before a paid render and the ship gate before delivery.
-  - `arrow_probe.py` measures her apparent scale over time for the prop gate's arrow scan.
+  - [`graph_verdict.py`](probes/graph_verdict.py), which only reports.
+- [`guards/`](guards/) holds four guards, three that run before a paid render and the ship gate before delivery.
+  - [`arrow_probe.py`](guards/arrow_probe.py) measures her apparent scale over time for the prop gate's arrow scan.
   - The learned rules are what the prop gate reads back.
-- `pipeline/` is the loop as code.
-  - `graph.py` is the LangGraph, `steps.py` holds its seven steps, and `run.py` runs a board through it, with no keys in dry mode.
-  - `live.py` is the part that spends, and `toolkit.py` is what the nodes act through.
-  - `ledger.py` writes the run ledger, `SCHEMA.md` is its format, and `expected/` pins the dry run's ledger for CI.
-  - `replay.py` checks the older shoots' ledgers against the graph's edges.
-- `evals/` holds the labels the thresholds come from.
-  - `labels.csv` holds the labelled exemplars, and `derive.py` brackets the thresholds on its list from them without scoring any video.
-  - `judge-rubric.json` and `judge-calibration.json` are the language-model judge's rubric and the 42 eye-labelled scenes it was calibrated on.
-- `races/`, `tools/` and `tests/` hold the race ledger and its panels, the scorer and the other tools CI runs, and the tests that check them.
-- `kill-gate/` is a separate experiment on the ad renders.
+- [`pipeline/`](pipeline/) is the loop as code.
+  - [`graph.py`](pipeline/graph.py) is the LangGraph, [`steps.py`](pipeline/steps.py) holds its seven steps, and [`run.py`](pipeline/run.py) runs a board through it, with no keys in dry mode.
+  - [`live.py`](pipeline/live.py) is the part that spends, and [`toolkit.py`](pipeline/toolkit.py) is what the nodes act through.
+  - [`ledger.py`](pipeline/ledger.py) writes the run ledger, [`SCHEMA.md`](pipeline/SCHEMA.md) is its format, and [`expected/`](pipeline/expected/) pins the dry run's ledger for CI.
+  - [`replay.py`](pipeline/replay.py) checks the older shoots' ledgers against the graph's edges.
+- [`evals/`](evals/) holds the labels the thresholds come from.
+  - [`labels.csv`](evals/labels.csv) holds the labelled exemplars, and [`derive.py`](evals/derive.py) brackets the thresholds on its list from them without scoring any video.
+  - [`judge-rubric.json`](evals/judge-rubric.json) and [`judge-calibration.json`](evals/judge-calibration.json) are the language-model judge's rubric and the 42 eye-labelled scenes it was calibrated on.
+- [`races/`](races/), [`tools/`](tools/) and [`tests/`](tests/) hold the race ledger and its panels, the scorer and the other tools CI runs, and the tests that check them.
+- [`kill-gate/`](kill-gate/) is a separate experiment on the ad renders.
   - It asks whether a model judge can stand in for people choosing between versions of an ad, and whether it can safely drop the weakest render.
   - It is scored against 450 blind human votes, and its own page has the findings.
 
