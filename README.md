@@ -369,7 +369,7 @@ flowchart TD
 |---|---|---|
 | Solid | 1 Process | Board, Render, Closer, Build, Ship gate, Deliver |
 | Dashed | 2 Outcome | Ad gates, shared with quality |
-| Dotted | 3 Quality | The probes inside Ad gates, and the eye |
+| Dotted | 3 Quality | The probes inside Ad gates, the eye and the review |
 | Dash-dot | Shared | Ad gates, outcome and quality together |
 
 ## Code map
