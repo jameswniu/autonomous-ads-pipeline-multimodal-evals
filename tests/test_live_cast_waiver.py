@@ -6,8 +6,8 @@ fails that way on his own small, soft copies at the back of the room while his o
 CAST_WAIVER, in pipeline/live.py, is a person's pass by eye on such a take, named by the take's hash.
 These tests run that toolkit with every vendor call and repo script replaced by a fake. They check that
 the waiver passes strangers alone on the take it names and nothing else, that a re-entry reads a passed
-take again rather than paying for another, whichever of the scene's takes it was, and that a new take
-never writes over one the run paid for. CAST_WAIVER holds one waiver to a line, so the last five check
+take again rather than paying for another, whichever of the scene's takes it was and whichever name its
+waiver row was written under, and that a new take never writes over one the run paid for. CAST_WAIVER holds one waiver to a line, so the last five check
 that several lines each pass their own take on one pass, that a take two lines name and a line written
 any other way are refused and said so, and that a value of one line reads exactly as it did.
 
@@ -79,7 +79,7 @@ def test_a_person_can_pass_a_crowd_the_cast_gate_misread_for_that_take_only(live
     cast = [r for r in rows if r.get("scene") == "zai-a" and str(r.get("check", "")).startswith("cast")]
     assert cast[-2]["check"] == "cast" and cast[-2]["passed"] is False and "strangers=8" in cast[-2]["reading"], cast[-2]
     waived = cast[-1]
-    assert waived["check"] == "cast waived by a person" and waived["passed"] is True, waived
+    assert waived["check"] == "cast waived by eye" and waived["passed"] is True, waived
     assert (waived["waived_by"], waived["waiver"]) == ("author", "the back row is the same man, small and soft"), waived
     assert waived["sha256"] == digest and waived["reading"] == cast[-2]["reading"] and waived["against"] == "character"
     reused = [(r["request_id"], r["sha256"]) for r in rows if r.get("status") == "REUSED" and r.get("scene") == "zai-a"]
@@ -115,13 +115,13 @@ def test_a_cast_waiver_passes_strangers_alone_and_nothing_else(live, monkeypatch
         failed, said, flags = [], {}, {}
         tk.cast_check("zai", "a", raw, refs, failed, said, flags)
         assert failed == ["a"] or "a" in flags, why
-    assert not [r for r in tk.ledger.rows() if r.get("check") == "cast waived by a person"], "a waiver passed what it may not"
+    assert not [r for r in tk.ledger.rows() if r.get("check") == "cast waived by eye"], "a waiver passed what it may not"
     assert [r["passed"] for r in tk.ledger.rows() if r.get("check") == "cast"] == [False] * 7
     monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=CROWD))
     failed, said, flags = [], {}, {}
     tk.cast_check("zai", "a", raw, refs, failed, said, flags)
     assert failed == [] and said == {} and flags == {}, (failed, said, flags)
-    assert [r["sha256"] for r in tk.ledger.rows() if r.get("check") == "cast waived by a person"] == [digest]
+    assert [r["sha256"] for r in tk.ledger.rows() if r.get("check") == "cast waived by eye"] == [digest]
 
 
 def test_a_take_a_person_passed_is_read_again_on_a_re_entry_whichever_take_it_was(live, monkeypatch, tmp_path):
@@ -156,11 +156,40 @@ def test_a_take_a_person_passed_is_read_again_on_a_re_entry_whichever_take_it_wa
     monkeypatch.delenv("CAST_WAIVER")
     stopped = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(dict(cast_state(state), verdict={"render": second}))
     assert stopped["failed"] == ["a"] and len(vendor.posts()) == 4, "a take a person passed was rendered over"
-    assert stopped["why"]["a"].endswith("A person passed this take by eye before, and CAST_WAIVER no longer names it")
+    assert stopped["why"]["a"].endswith("This take was passed by eye before, and CAST_WAIVER no longer names it")
     open(raw, "wb").write(b"a take from another run")
     monkeypatch.setenv("CAST_WAIVER", f"{L.sha256(raw)[:12]}:author:passed by eye")
     elsewhere = tk.render(dict(cast_state(state), verdict={"render": second}))
     assert elsewhere["fresh"] == ["a"] and len(vendor.posts()) == 5, "a file this run never landed was brought in by a waiver"
+
+
+def test_a_waiver_row_kept_under_its_old_name_is_read_the_same_way(live, monkeypatch, tmp_path):
+    """The row a cast waiver writes was once checked "cast waived by a person", and a ledger kept from then
+    still says so. A re-entry reads that row as it reads one checked "cast waived by eye". The take it
+    names is read again rather than paid for again, and with the waiver unset the reason the scene failed
+    says the take was passed by eye before."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    takes_and_frames(monkeypatch)
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=lambda clip: CROWD if "zai-a" in clip else SAME))
+    first = tk.render(cast_state(state))
+    assert first["failed"] == ["a"], first
+    digest = L.sha256(os.path.join(tk.takes, "zai-a", "raw.mp4"))
+    monkeypatch.setenv("CAST_WAIVER", f"{digest[:12]}:author:the back row is the same man")
+    passed = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(dict(cast_state(state), verdict={"render": first}))
+    assert passed["failed"] == [], passed
+    kept = [dict(r, check="cast waived by a person") if r.get("check") == "cast waived by eye" else r for r in tk.ledger.rows()]
+    assert [r["sha256"] for r in kept if r.get("check") == "cast waived by a person"] == [digest], "no waiver row to keep"
+    with open(tk.ledger.path, "w") as fh:
+        fh.writelines(json.dumps(r, sort_keys=True) + "\n" for r in kept)
+    monkeypatch.delenv("CAST_WAIVER")
+    posts = len(vendor.posts())
+    stopped = L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(dict(cast_state(state), verdict={"render": first}))
+    assert stopped["failed"] == ["a"] and stopped["fresh"] == [] and len(vendor.posts()) == posts, \
+        "a take a waiver row under the old name passed was paid for again"
+    assert stopped["why"]["a"].endswith("This take was passed by eye before, and CAST_WAIVER no longer names it"), stopped["why"]
 
 
 def test_a_cast_waiver_never_brings_back_a_take_the_continuity_judge_failed(live, monkeypatch, tmp_path):
@@ -227,7 +256,7 @@ def re_enter(tk, state, first):
 
 def passed_by(tk):
     return {r["scene"]: (r["sha256"], r["waived_by"], r["waiver"]) for r in tk.ledger.rows()
-            if r.get("check") == "cast waived by a person"}
+            if r.get("check") == "cast waived by eye"}
 
 
 def test_two_waivers_one_to_a_line_pass_two_crowds_on_one_pass(live, monkeypatch, tmp_path):

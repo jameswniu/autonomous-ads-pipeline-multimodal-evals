@@ -14,7 +14,7 @@ Together they set the shape of the film. The most arresting shot opens it, impac
 
 All four judgment rows below land at once, so the film hooks, convinces, surprises and pays off.
 
-- The board carries a person's scores for the four rows below, and a live run spends nothing until all four reach 2.
+- The board carries scores for the four rows below from whoever read it, a person or a model, and a live run spends nothing until all four reach 2.
 - The cut goes to a person after delivery, who keeps it or withdraws it and sends it back to the step that fixes it.
 
 ## 2. Front-load impact
@@ -43,7 +43,7 @@ The build reads neither `order` nor `chain` for the cut. It plays each slot's sh
 
 ## The four judgment rows
 
-[`board_probe.py`](../gates/board_probe.py) prints these questions for a person to score from 0 to 3, worded exactly as below.
+[`board_probe.py`](../gates/board_probe.py) prints these questions for whoever reads the board to score from 0 to 3, worded exactly as below.
 
 ```
 hook       something is wrong in the first second and you cannot look away
@@ -57,7 +57,7 @@ A spot carries the answers beside its hook, with `scored_by` naming who scored t
 ```json
 "hook": "a",
 "scores": {"hook": 3, "realism": 2, "absurdity": 3, "logic": 2},
-"scored_by": "the person who read the board"
+"scored_by": "whoever read the board"
 ```
 
 - A live run refuses the board until every row is a whole number from 0 to 3 and at least 2, and `scored_by` names someone. The reason goes on the ledger, the run's append-only record, and nothing is rendered.

@@ -148,6 +148,11 @@ FIRST_FRAME_LINE = re.compile(r"^CONTINUITY_FIRST_FRAME props=(?P<visible>\d+)/(
 CONTINUITY_EXIT = {"PASS": 0, "FAIL": 1, "REVIEW": 2, "UNREAD": 64}
 # A person's pass by eye, CLOSER_JAW_WAIVER or a line of CAST_WAIVER: the take's sha256 prefix, who, and why.
 WAIVER = re.compile(r"([0-9a-f]{12,64}):([^:\x00-\x1f]+):([^\x00-\x1f]+)")
+# The check on the row a cast waiver writes. Whoever looks writes a waiver, a person or a model, and the row's
+# waived_by names who, so the check says how the take was passed rather than by whom. A ledger written before
+# the check had this name says "cast waived by a person", and a re-entry reads either the same way.
+CAST_WAIVED = "cast waived by eye"
+CAST_WAIVED_BEFORE = "cast waived by a person"
 LOUDNESS_LINE = re.compile(r"^LOUDNESS_GATE .*verdict=(PASS|FAIL)$", re.M)
 SLIT_LINE = re.compile(r"^slit-scan: (.+?)\s*$", re.M)   # the rest of the line, so a path with a space still reads
 REPLAY_VERTEX = re.compile(r"^replay vertex: t=([0-9.]+)s$", re.M)
@@ -713,8 +718,8 @@ class LiveToolkit(Toolkit):
             waived, named, unread = self.cast_waiver(take) if crowd else ({}, [], [])
             if waived:
                 # The gate read the small, soft faces at the back of a crowd under its floor, beside a main face that
-                # matched, and a person who looked passed this take by eye. Both rows stay on the ledger.
-                self.ledger.append("gate", "render", spot=spot, scene=f"{spot}-{s}", check="cast waived by a person",
+                # matched, and whoever looked passed this take by eye. Both rows stay on the ledger.
+                self.ledger.append("gate", "render", spot=spot, scene=f"{spot}-{s}", check=CAST_WAIVED,
                                    passed=True, against=against, reading=reading, sha256=take, **waived)
                 return
             failed.append(s)
@@ -738,8 +743,8 @@ class LiveToolkit(Toolkit):
             # the way a waiver CAST_WAIVER no longer names is recorded, beside the refused reading.
             if len(named) > 1:
                 why[s] += f". CAST_WAIVER names this take on {on_lines(named)}, so none of them passes it"
-            elif crowd and self.rows("gate", step="render", scene=f"{spot}-{s}", check="cast waived by a person", sha256=take):
-                why[s] += ". A person passed this take by eye before, and CAST_WAIVER no longer names it"
+            elif crowd and self.cast_waived(f"{spot}-{s}", take):
+                why[s] += ". This take was passed by eye before, and CAST_WAIVER no longer names it"
             if unread:
                 why[s] += (f". Nothing on CAST_WAIVER's {on_lines(unread)} passes a take, since a waiver is written "
                            "<sha256 prefix>:<who>:<why>")
@@ -928,7 +933,7 @@ class LiveToolkit(Toolkit):
         take, scene = sha256(raw), f"{spot}-{s}"
         _, named, unread = self.cast_waiver(take)
         if not named and not (unread and self.crowd_failed(scene, take)) and \
-                not self.rows("gate", step="render", scene=scene, check="cast waived by a person", sha256=take):
+                not self.cast_waived(scene, take):
             return None
         read = self.rows("gate", step="render", scene=scene, check="continuity", sha256=take)
         m = CONTINUITY_LINE.search(read[-1].get("reading") or "") if read else None
@@ -1551,6 +1556,12 @@ class LiveToolkit(Toolkit):
         held, unread = waiver_lines(os.environ.get("CAST_WAIVER", ""))
         named = [(n, said) for n, prefix, said in held if take and take.startswith(prefix)]
         return (named[0][1] if len(named) == 1 else {}), [n for n, _ in named], unread
+
+    def cast_waived(self, scene, take):
+        """The rows on the ledger saying this scene's take was passed by eye, under the check's name and under the
+        one it had before."""
+        return [r for r in self.rows("gate", step="render", scene=scene, sha256=take)
+                if r.get("check") in (CAST_WAIVED, CAST_WAIVED_BEFORE)]
 
     def crowd_failed(self, scene, take):
         """Whether this take's newest cast reading failed on strangers alone, the only reading a waiver
