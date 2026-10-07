@@ -70,4 +70,4 @@ A scene is one line of direction. How the character looks rides in with the pict
 
 - The `scene_length` check fails a scene over 80 words, naming the scene and its count. Every scene on a board kept in this repo runs 64 words or fewer.
 - A failed take gets a calmer prompt, never a longer one. A rule added to the board after a failed take makes the motion stiffer and the next take likelier to fail.
-- A cut stops at its budget. Before any scene is sent, [`live.py`](live.py) adds its price to the prices of every request already on the run's ledger, from every pass and every re-entry, and a scene that would take the total past `RUN_BUDGET_USD`, $4.00 unless a person sets it higher, is not sent. The run stops at the render with the reason on the ledger.
+- A cut stops at its budget. Before any scene is sent, [`live.py`](live.py) adds its price to the prices of every request already on the run's ledger, from every pass and every re-entry, and a scene that would take the total past `RUN_BUDGET_USD`, $5.00 unless a person sets it higher, is not sent. The run stops at the render with the reason on the ledger.

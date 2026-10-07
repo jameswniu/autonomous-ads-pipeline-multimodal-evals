@@ -55,7 +55,7 @@ def test_the_budget_keeps_back_the_one_scene_that_would_cross_it_and_the_run_sto
     drawn, and the graph stops the run at the render for a person. Each request that went carries the budget it
     went under, and with RUN_BUDGET_USD unset the budget is the default."""
     tk, state = live
-    assert tk.budget == L.BUDGET_USD == 4.00
+    assert tk.budget == L.BUDGET_USD == 5.00
     vendor = Vendor()
     monkeypatch.setattr(L, "http", vendor)
     run = scripts()

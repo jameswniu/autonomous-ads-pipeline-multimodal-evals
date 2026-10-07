@@ -166,12 +166,14 @@ WAIT_LIMIT = 40 * 60
 
 # What one run, one cut, may spend on its scenes, in dollars, when RUN_BUDGET_USD names no other sum. The
 # graph cut a person picked, shoots/graph-grok-hook, spent $3.78 on its scenes, six renders at $0.63, and the
-# spots shot by hand came to about $2.30 each, so 4.00 covers a cut that goes the way those went and allows six
-# renders at that price. The re-roll ceiling in pipeline/graph.py starts again on every re-entry, and a run re-entered
-# after each failed take spends again each time, so the budget is held against everything the run's ledger
-# holds. It counts only what the ledger prices, the scene requests. The voice draws and the closer go on the
-# ledger with no price, and the stills and the bed made outside the graph never reach it, so it does not see them.
-BUDGET_USD = 4.00
+# spots shot by hand came to about $2.30 each, so a default of 4.00 covered a cut that goes the way those went
+# and allowed six renders at that price. The author raised it to 5.00 so a cut has room for one more take: seven
+# renders at $0.63 come to $4.41 and fit, while an eighth would bring the run to $5.04 and is not sent. The
+# re-roll ceiling in pipeline/graph.py starts again on every re-entry, and a run re-entered after each failed
+# take spends again each time, so the budget is held against everything the run's ledger holds. It counts only
+# what the ledger prices, the scene requests. The voice draws and the closer go on the ledger with no price, and
+# the stills and the bed made outside the graph never reach it, so it does not see them.
+BUDGET_USD = 5.00
 
 # A multipart delimiter is two hyphens and the boundary, and the closing one ends with two more.
 HYPHENS = "-" * 2
@@ -201,7 +203,7 @@ def run_budget():
         value = math.nan
     if not (math.isfinite(value) and value > 0):
         raise LiveSetupError(f"RUN_BUDGET_USD is {raw!r}, and it has to be what this run may spend on its scenes, "
-                             "in dollars, a number above 0 such as 4.00")
+                             "in dollars, a number above 0 such as 5.00")
     return value
 
 
