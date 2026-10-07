@@ -520,6 +520,12 @@ def test_every_surface_states_the_board_probes_own_count_of_checks():
                 stated.append((rel, tok, value))
     assert all(value == count for _, _, value in stated), f"the probe runs {count} checks, the page says {stated}"
     assert {rel for rel, _, _ in stated} == set(files), f"a surface stopped stating the count: {stated}"
+    # The page's board row splits the checks into those on the idea and those that keep the shoot consistent,
+    # and the two halves have to add up to the same count.
+    readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
+    halves = re.findall(r"• (\w+) (?:on the idea|that keep the shoot consistent)\b", readme)
+    assert len(halves) == 2 and sum(num.get(t.lower(), 0) for t in halves) == count, (
+        f"the board row splits its checks as {halves}, which does not add up to the probe's {count}")
 
 
 def test_system_map_steps_match_the_process_table():

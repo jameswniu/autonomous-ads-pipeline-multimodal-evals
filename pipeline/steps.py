@@ -44,17 +44,18 @@ class Step:
 # pipeline/DOCTRINE.md states the three rules a board is held to.
 STEPS = (
     Step("board", "Board",
-         "Twelve mechanical checks, free, before a cent is spent (the product absent before the "
+         "Thirteen mechanical checks, free, before a cent is spent (the product absent before the "
          "payoff, the escalation declared, the quirk never spoken by the narration, mouths closed "
          "under narration, the centre-crop clause present, every person in a scene written as the "
          "story's character, the narration spoken to the viewer, a chain naming the spot's own "
          "scenes once each, slots giving each of the three sentences its own shots, every "
          "scene once, the switching sound placed where the build knows how, any props every shot must "
-         "hold named one to a line, and the hook scene the board names opening the film). The four "
+         "hold named one to a line, the hook scene the board names opening the film, and every scene "
+         "one line of direction, 80 words or fewer). The four "
          "judgment rows it prints are scored when the board is written, and a live run spends nothing "
          "until each is 2 or more and the board names who scored them",
          "The board goes back",
-         "12 mechanical checks, 4 eye rows", "gates/board_probe.py", "process"),
+         "13 mechanical checks, 4 eye rows", "gates/board_probe.py", "process"),
     Step("render", "Render",
          "Every request and every landing appended to the ledger, the vendor's own rejection "
          "text included, and every scene read by the edge probe (it flags a story prop cut off by the "
@@ -68,7 +69,7 @@ STEPS = (
          "the scene before for the rest, and reads each back before the next is sent. The "
          "narration is drawn three times and has to say the script",
          "Recorded, each scene that failed to come back, came back as someone else or broke its continuity sent once more, "
-         "and a request that may have been billed stops for a person",
+         "and a request that may have been billed, or one that would take the run past its budget, stops for a person",
          "every request and landing ledgered", "shoots/<batch>/*.jsonl", "process"),
     Step("closer", "Closer",
          "Identity pin on the voice and avatar ids before anything is paid for, the voice "

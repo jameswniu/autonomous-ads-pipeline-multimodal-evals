@@ -325,6 +325,62 @@ def test_board_probe_sends_back_an_order_or_a_chain_the_build_would_not_play(tmp
         assert spot["why"]["hook_first"].startswith("order has to list this spot's own scenes"), (order, spot)
 
 
+def _words(n, first="dust"):
+    """A scene line of exactly n words that passes every other check, ending on the closed mouths."""
+    return " ".join([first] + ["dust"] * (n - 5) + ["Mouth", "closed,", "nobody", "speaks."])
+
+
+def test_board_probe_sends_back_a_scene_longer_than_one_line_of_direction(tmp_path):
+    """A scene is one line of direction, and the reference still carries how the character looks. Three graph
+    cuts that were sent back grew their longest scene past 700 words, a rule added for each failed take. A
+    scene over the limit fails, and the reason names each scene over it with its count and says what to write
+    instead. A scene at the limit passes, {character} counts as one word however the render later names her,
+    and the guard that rides after every scene is never counted."""
+    bp = load("board_probe.py")
+    limit = bp.SCENE_WORDS_MAX
+    assert limit == 80, "the doctrine and the step list say 80"
+    spot, code = _probe(tmp_path, _hook_spot(hook="a", scenes={**_hook_spot()["scenes"], "b": _words(limit)}))
+    assert spot["checks"]["scene_length"] is True and spot["why"] == {} and code == 0, spot
+    her = _words(limit, first="{character}")
+    spot, code = _probe(tmp_path, _hook_spot(hook="a", scenes={**_hook_spot()["scenes"], "b": her}))
+    assert spot["checks"]["scene_length"] is True and spot["checks"]["cast"] is True and code == 0, spot
+    spot, code = _probe(tmp_path, _hook_spot(hook="a", scenes={**_hook_spot()["scenes"], "b": _words(limit + 1)}))
+    assert spot["checks"]["scene_length"] is False and code == 1, spot
+    assert spot["why"] == {"scene_length": "scene b runs 81 words, past the 80 a scene may run. Write one line of "
+                                           "direction and let the reference still carry how the character looks"}, spot
+    longer = _hook_spot(hook="a", scenes={**_hook_spot()["scenes"], "a": _words(1454), "d": _words(735)})
+    spot, code = _probe(tmp_path, longer)
+    assert spot["why"]["scene_length"].startswith("scene a runs 1454 words and scene d runs 735 words, past the 80"), spot
+    said, code = _probe(tmp_path, longer, as_json=False)
+    assert code == 1 and "scene_length: scene a runs 1454 words" in said and "!scene_length" in said, said
+    guarded = tmp_path / "guarded.json"
+    guarded.write_text(json.dumps({"guard": " ".join(["Keep the subject in the middle third."] * 40),
+                                   "spots": {"s": _hook_spot(hook="a", scenes={**_hook_spot()["scenes"], "b": _words(limit)})}}))
+    r = run([sys.executable, os.path.join(GATES, "board_probe.py"), str(guarded), "--json"])
+    assert json.loads(r.stdout)["spots"]["s"]["checks"]["scene_length"] is True, "the guard was counted against a scene"
+
+
+def test_every_board_kept_in_the_repo_holds_each_scene_to_one_line(tmp_path):
+    """The limit sits over every board that was kept, shot by hand or run through the graph, re-shot scenes
+    included, so the check turns back only a board that grows past them. The doctrine states the longest
+    of them, and that number is measured here rather than typed."""
+    bp = load("board_probe.py")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    listed = subprocess.run(["git", "-C", ROOT, "ls-files", "-z", "shoots/*/boards.json"], env=env,
+                            capture_output=True, text=True, check=True).stdout.split("\0")
+    boards = [p for p in listed if p]
+    assert len(boards) >= 10, boards
+    longest = 0
+    for rel in boards:
+        for name, sp in json.load(open(os.path.join(ROOT, rel))).get("spots", {}).items():
+            scenes = sp.get("scenes", sp.get("new_scenes", {}))
+            assert bp.scene_length(scenes) == (True, None), (rel, name, bp.scene_length(scenes))
+            longest = max([longest] + [bp.scene_words(t) for t in scenes.values()])
+    assert longest <= bp.SCENE_WORDS_MAX, longest
+    doctrine = open(os.path.join(ROOT, "pipeline", "DOCTRINE.md"), encoding="utf-8").read()
+    assert f"Every scene on a board kept in this repo runs {longest} words or fewer." in doctrine, longest
+
+
 def test_board_probe_reports_the_scores_beside_its_checks_and_never_in_its_verdict(tmp_path):
     """The four judgment rows are a person's read, so the probe reports what the spot scored, who scored
     it and what is unmet, and its verdict and exit code stay the mechanical checks' alone. Only a whole

@@ -23,7 +23,8 @@ whether the person in a scene is the story's character, and the continuity gate 
 the background changes or moves partway through a scene.
 
 The board's four judgment rows, which a live run needs scored before it spends, are tested in
-tests/test_live_board_scores.py, which imports the fakes and the live fixture below from here.
+tests/test_live_board_scores.py, and the budget a live run holds its scenes to in
+tests/test_live_budget.py. Both import the fakes and the live fixture below from here.
 """
 import hashlib
 import importlib.util
@@ -263,6 +264,7 @@ def live(tmp_path, monkeypatch):
                  "PRESENTER_STILL": str(still), "CHARACTER_FROM": str(her), "MATTEPY": sys.executable}.items():
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("CLOSER_FROM", raising=False)
+    monkeypatch.delenv("RUN_BUDGET_USD", raising=False)   # every run starts on the default budget unless a test sets one
     monkeypatch.setattr(L.time, "sleep", lambda s: None)
     monkeypatch.setattr(L, "duration", lambda p: 5.0)
     monkeypatch.setattr(L, "frame_size", lambda p: (1280, 720))

@@ -92,7 +92,7 @@ Every spot ends on the closer, a presenter who speaks the brand line to camera, 
 
 | Step | What it has to prove before the next step may start | How it fails |
 |:---|:---|:---|
-| Board | Twelve free checks on the board's text, before a cent is spent, held to the three rules in [`DOCTRINE.md`](pipeline/DOCTRINE.md)<br>• Six on the idea, such as the hook scene opening the film and no scene naming the product before the payoff<br>• Six that keep the shoot consistent, such as one written character and narration with no he or she in it, four of them optional<br>Then four judgment rows I score 0 to 3 by eye, and a live run spends nothing until all four reach 2 and the board names who scored them | The board goes back |
+| Board | Thirteen free checks on the board's text, before a cent is spent, held to the three rules in [`DOCTRINE.md`](pipeline/DOCTRINE.md)<br>• Seven on the idea, such as the hook scene opening the film and no scene naming the product before the payoff<br>• Six that keep the shoot consistent, such as one written character and narration with no he or she in it, four of them optional<br>Then four judgment rows I score 0 to 3 by eye, and a live run spends nothing until all four reach 2 and the board names who scored them | The board goes back |
 | Render | Every vendor request and its landing appended to the ledger, the vendor's own rejection text included, with the three voice draws logged as one request | Recorded, each broken scene is re-rolled once, and a second failure stops the run |
 | Closer | Identity pin on the voice and avatar ids, prop gate on the look, jaw measured on the raw render and read against the band | The pins and the look fail before the spend, the jaw read after the render |
 | Build | The closer's video starts within 40 ms of where its audio was placed | Measured in frames, from the build's own segments |
@@ -349,7 +349,7 @@ flowchart TD
         %% GH is an invisible twin of the eye, it balances the spine so the steps stay in one column
         AG ~~~ GH["The eye · REVIEW in, approval out"]
         GH ~~~ SG
-        B["Board · twelve checks and four scores before any spend"] --> R["Render · every request ledgered"] --> C["Closer · identity pin, jaw measured"] --> BU["Build · closer placed within 40 ms"] --> AG --> SG{{"Ship gate · frame and motion, fails closed"}} --> D["Deliver · defects withdrawn on record"]
+        B["Board · thirteen checks and four scores before any spend"] --> R["Render · every request ledgered"] --> C["Closer · identity pin, jaw measured"] --> BU["Build · closer placed within 40 ms"] --> AG --> SG{{"Ship gate · frame and motion, fails closed"}} --> D["Deliver · defects withdrawn on record"]
         D --> RV["Review · a person keeps or withdraws"]
         RV --> L[("Ledger · append-only, read back when I relabel")]
         AG --> EYE["The eye · REVIEW in, approval out"]

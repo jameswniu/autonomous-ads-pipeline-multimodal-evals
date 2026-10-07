@@ -55,11 +55,18 @@ What a live run needs in its environment, all checked before the graph starts:
   CLOSER_FROM                   a directory holding an existing closer take to reuse, or else
   HEYGEN_API_KEY, CLOSER_LOOK_ID to render one. The REST API bills a wallet of its own, separate
                                 from a web plan's credits.
+  RUN_BUDGET_USD                what this run may spend on its scenes, in dollars, BUDGET_USD when it
+                                is unset. A scene that would take the scene requests on the run's
+                                ledger past it is not sent, and the run stops at the render. A person
+                                who means to spend more sets it higher and re-enters the run. Only the
+                                scenes are priced on the ledger, so the voice, the closer, and a still
+                                or a bed made outside the graph are not held to it.
 """
 import base64
 import functools
 import importlib.util
 import json
+import math
 import os
 import re
 import shutil
@@ -133,6 +140,15 @@ POLL_SECONDS = 10
 OWED = (None, "TIMEOUT", "UNCOLLECTED")
 WAIT_LIMIT = 40 * 60
 
+# What one run, one cut, may spend on its scenes, in dollars, when RUN_BUDGET_USD names no other sum. The
+# graph cut a person picked, shoots/graph-grok-hook, spent $3.78 on its scenes, six renders at $0.63, and the
+# spots shot by hand came to about $2.30 each, so 4.00 covers a cut that goes the way those went and allows six
+# renders at that price. The re-roll ceiling in pipeline/graph.py starts again on every re-entry, and a run re-entered
+# after each failed take spends again each time, so the budget is held against everything the run's ledger
+# holds. It counts only what the ledger prices, the scene requests. The voice draws and the closer go on the
+# ledger with no price, and the stills and the bed made outside the graph never reach it, so it does not see them.
+BUDGET_USD = 4.00
+
 # A multipart delimiter is two hyphens and the boundary, and the closing one ends with two more.
 HYPHENS = "-" * 2
 
@@ -147,6 +163,27 @@ def need(name):
     if not value:
         raise LiveSetupError(f"{name} is not set; the top of pipeline/live.py lists what a live run needs")
     return value
+
+
+def run_budget():
+    """What this run may spend on its scenes, from RUN_BUDGET_USD, else BUDGET_USD. A value that is not a sum of
+    dollars above zero stops the run before it starts, the way a missing key does."""
+    raw = os.environ.get("RUN_BUDGET_USD", "").strip()
+    if not raw:
+        return BUDGET_USD
+    try:
+        value = float(raw)
+    except ValueError:
+        value = math.nan
+    if not (math.isfinite(value) and value > 0):
+        raise LiveSetupError(f"RUN_BUDGET_USD is {raw!r}, and it has to be what this run may spend on its scenes, "
+                             "in dollars, a number above 0 such as 4.00")
+    return value
+
+
+def cents(usd):
+    """A dollar sum in whole cents, so a run that lands exactly on its budget is never refused over a rounding error."""
+    return round(usd * 100)
 
 
 def http(method, url, headers, body=None, timeout=120):
@@ -352,6 +389,8 @@ class LiveToolkit(Toolkit):
         # closer that cannot be read stops the run, which would be after the scenes were paid for.
         if not os.path.isfile(need("MATTEPY")):
             raise LiveSetupError("MATTEPY is not a file; the closer's background is read under that interpreter")
+        # Read once, here, so the budget in force is the one the run started or was re-entered under.
+        self.budget = run_budget()
         self.secrets = identity_values(pins) | {v for v in (voice_id, os.environ.get("CLOSER_LOOK_ID")) if v}
         super().__init__(run_dir, run_id)
         # Absolute, because the build writes an ffmpeg concat list, and ffmpeg resolves a
@@ -808,12 +847,44 @@ class LiveToolkit(Toolkit):
             return out
         return out if grab_frame(raw, out, last=True) else None
 
-    def send(self, spot, s, eng, prompt, body, auth, failed, reasons, unconfirmed, **row):
-        """One scene request: on the ledger before it goes, then its answer. The handle to poll when
-        the vendor took it, or None when it refused it or never said."""
+    def spent_cents(self):
+        """What every request on this run's ledger is priced at, in cents, from every pass and every re-entry and
+        whatever came back, since only the vendor's bill knows which were charged. A request collected on a later
+        pass wrote no second row, so it counts once."""
+        prices = (r.get("est_usd") for r in self.ledger.rows() if r["kind"] == "request" and not r.get("dry"))
+        return sum(cents(p) for p in prices
+                   if isinstance(p, (int, float)) and not isinstance(p, bool) and math.isfinite(p))
+
+    def past_budget(self, spot, s, eng, price):
+        """Why scene s may not be sent, or None when its price and everything the run's ledger already prices fit
+        the run's budget. A scene the budget refuses goes on the ledger, with why, and nothing is sent for it."""
+        spent = self.spent_cents()
+        if price is not None and spent + cents(price) <= cents(self.budget):
+            return None
+        if price is None:
+            reason = f"not sent, since no price is recorded for {eng} and the run's budget cannot hold what it does not know"
+        else:
+            reason = (f"not sent, since the scenes this run has asked for come to ${spent / 100:.2f} and this one, at "
+                      f"${price:.2f}, would bring them to ${(spent + cents(price)) / 100:.2f}, past the run's "
+                      f"${self.budget:.2f} budget. A person who means to spend more sets RUN_BUDGET_USD higher and "
+                      "re-enters the run")
+        self.ledger.append("gate", "render", spot=spot, scene=f"{spot}-{s}", check="budget", passed=False, engine=eng,
+                           price_usd=price, spent_usd=spent / 100, budget_usd=self.budget, reason=reason)
+        return reason
+
+    def send(self, spot, s, eng, prompt, body, auth, failed, reasons, unconfirmed, over, **row):
+        """One scene request: held to the run's budget first, then on the ledger before it goes, then its answer.
+        The handle to poll when the vendor took it, or None when the budget kept it back, which adds it to `over`,
+        or the vendor refused it or never said."""
+        price = PRICE_PER_SCENE.get(eng)
+        refused = self.past_budget(spot, s, eng, price)
+        if refused:
+            over.append(s)
+            reasons[s] = refused
+            return None
         rid = new_request_id()
         self.ledger.append("request", "render", request_id=rid, spot=spot, scene=f"{spot}-{s}", engine=eng,
-                           prompt=prompt, params=ENGINE_INPUT[eng], est_usd=PRICE_PER_SCENE.get(eng), **row)
+                           prompt=prompt, params=ENGINE_INPUT[eng], est_usd=price, budget_usd=self.budget, **row)
         code, data = http("POST", f"{FAL}/{eng}", {**auth, "Content-Type": "application/json"}, json.dumps(body).encode())
         j = as_json(data)
         if code == 0 or (200 <= code < 300 and "request_id" not in j):
@@ -999,7 +1070,7 @@ class LiveToolkit(Toolkit):
         chained = list(chain) if any(s in chain for s in todo) else []
         every = plain + chained
         auth = {"Authorization": f"Key {need('FAL_KEY')}"}
-        failed, why, flags, pending, unconfirmed, fresh = [], {}, {}, {}, [], []
+        failed, why, flags, pending, unconfirmed, fresh, over = [], {}, {}, {}, [], [], []
         # A person who re-enters the run after an unconfirmed request has checked the vendor and
         # chosen to send again, so only a request sent after the last re-entry holds a scene back.
         reentered = max([r["seq"] for r in self.rows("resumed")] or [0])
@@ -1083,10 +1154,15 @@ class LiveToolkit(Toolkit):
             if held or unconfirmed:
                 why[s] = "not sent, a request that may have been billed is waiting for a person"
                 continue
+            # Once the budget has kept one scene back, the pass sends nothing more, so the run stops where
+            # its money ran out rather than on whichever scene happened to be cheap enough.
+            if over:
+                why[s] = "not sent, the run is at its budget"
+                continue
             eng = engines[s]
             handle = self.send(spot, s, eng, prompt,
                                {"prompt": prompt, **ENGINE_INPUT[eng], **({"image_urls": [ref_uri]} if cast[s] else {})},
-                               auth, failed, why, unconfirmed,
+                               auth, failed, why, unconfirmed, over,
                                **({"reference_sha256": ref_sha} if cast[s] else {}),
                                why=changes.get("reason") if asked == s else (last.get("why") or {}).get(s),
                                prompt_reused=bool(before), asked_by_person=asked == s)
@@ -1099,10 +1175,10 @@ class LiveToolkit(Toolkit):
         rendered = list(plain)
         if chained:
             rendered += self.walk(board, spot_def, spot, chained, texts, cast, asked, changes, last, refs, auth,
-                                  still, waiting, held, reentered, failed, why, flags, fresh, unconfirmed, holds)
+                                  still, waiting, held, reentered, failed, why, flags, fresh, unconfirmed, holds, over)
         verdict = {"failed": failed, "why": why, "flags": flags, "rendered": rendered, "fresh": fresh,
-                   "unconfirmed": unconfirmed}
-        if unconfirmed:
+                   "unconfirmed": unconfirmed, "over_budget": over}
+        if unconfirmed or over:
             return verdict      # the narration waits with the scenes
         vo = self.dir(f"{spot}-vo")
         narration = os.path.join(vo, "narration.mp3")
@@ -1119,13 +1195,14 @@ class LiveToolkit(Toolkit):
         return verdict
 
     def walk(self, board, spot_def, spot, chained, texts, cast, asked, changes, last, refs, auth, still, waiting, held,
-             reentered, failed, why, flags, fresh, unconfirmed, holds):
+             reentered, failed, why, flags, fresh, unconfirmed, holds, over):
         """Shoot a chain in its order, one scene at a time. Each starts from a frame, the character's
         still for the first and the last frame of the scene before for the rest, and is read back
         before the next is sent, so she and the room carry through and a scene that fails is the
         last one paid for in the pass. The scenes after it wait, and spend none of their re-rolls.
-        A take is kept only when it started from the frame its scene would start from now, so a new
-        take early in the chain renders every scene after it again. Returns the scenes it reached."""
+        A scene the run's budget keeps back stops the chain the same way. A take is kept only when it
+        started from the frame its scene would start from now, so a new take early in the chain
+        renders every scene after it again. Returns the scenes it reached."""
         eng = CHAIN_ENGINE[engine_for(board, spot_def)]
         start, start_from, broke, reached = still, "the character's still", None, []
         for s in chained:
@@ -1157,6 +1234,9 @@ class LiveToolkit(Toolkit):
             elif held or unconfirmed:
                 why[s] = "not sent, a request that may have been billed is waiting for a person"
                 good = False
+            elif over:
+                why[s] = "not sent, the run is at its budget"
+                good = False
             else:
                 earlier_starts = {r.get("start_sha256") for r in self.rows("request", step="render", scene=f"{spot}-{s}")
                                   if r.get("prompt") == prompt}
@@ -1166,7 +1246,7 @@ class LiveToolkit(Toolkit):
                 with open(start, "rb") as fh:
                     frame = "data:image/jpeg;base64," + base64.b64encode(fh.read()).decode()
                 handle = self.send(spot, s, eng, prompt, {"prompt": prompt, **ENGINE_INPUT[eng], "image_url": frame},
-                                   auth, failed, why, unconfirmed, start_sha256=start_sha, start_from=start_from,
+                                   auth, failed, why, unconfirmed, over, start_sha256=start_sha, start_from=start_from,
                                    why=reason, prompt_reused=bool(before), asked_by_person=asked == s)
                 reached.append(s)
                 good = bool(handle) and self.collect(spot, s, handle, auth, failed, why, flags, fresh, refs, cast[s],

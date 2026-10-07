@@ -42,6 +42,8 @@ from pipeline.steps import BY_NODE
 # withdrawals instead: three is what ads7, the seventh batch of ads shot in August 2026, took to
 # land its v4 cuts, each one a person's
 # call, so the bound admits the worst run on the record and stops a fourth.
+# These ceilings hold between re-entries. A re-entry starts them again from the checkpoint it re-enters,
+# so what a run spends across all of its re-entries is held by its budget in pipeline/live.py instead.
 MAX_SCENE_REROLLS = 1
 MAX_BUILDS = 3
 MAX_EYE_REJECTS = 1
@@ -337,8 +339,9 @@ def after_render(state):
     if v.get("dry"):
         return STOP
     # A request the vendor never confirmed may have been billed. Nothing is sent again until a
-    # person has looked, so the run stops, whatever else came back.
-    if v.get("unconfirmed"):
+    # person has looked, so the run stops, whatever else came back. A scene the run's budget kept
+    # back stops it the same way, since only a person can decide to spend past what the run was given.
+    if v.get("unconfirmed") or v.get("over_budget"):
         return STOP
     if not v.get("failed"):
         return "closer"

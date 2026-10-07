@@ -263,6 +263,13 @@ def test_a_request_that_may_have_been_billed_stops_the_run(tmp_path):
     assert out["trail"].count("render") == 1 and out["outcome"] == "stopped at render", out["trail"]
 
 
+def test_a_scene_the_budget_kept_back_stops_the_run(tmp_path):
+    """Only a person can decide to spend past what a run was given, so a scene its budget kept back stops the
+    run at the render, whatever else came back, rather than going on to a re-roll the budget would refuse."""
+    out, _ = run(tmp_path, render=[{"over_budget": ["c"], "failed": ["a"]}])
+    assert out["trail"].count("render") == 1 and out["outcome"] == "stopped at render", out["trail"]
+
+
 def test_a_mouth_that_does_not_track_stops_instead_of_rerendering(tmp_path):
     """The source's fix for a look that cannot carry the line is a new look, because the
     same look and audio render the same mouth again, and look generation stays outside
@@ -602,13 +609,13 @@ def dry(tmp_path, board, spot):
 
 
 def test_a_dry_run_stops_before_the_first_spend_and_prices_it(tmp_path):
-    """The Z.ai board with its student written as the story's character. It passes all twelve
+    """The Z.ai board with its student written as the story's character. It passes all thirteen
     board checks, each scene would go to the reference path with her face, and the prompt is
     August's own line with only the person bound to that face, the guard after it verbatim."""
     out, rows = dry(tmp_path, "shoots/graph-zai-character/boards.json", "zai")
     assert out["trail"] == ["board", "render", "ledger"], out["trail"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
-    assert gate["pass"] and len(gate["checks"]) == 12 and gate["failed"] == [], gate
+    assert gate["pass"] and len(gate["checks"]) == 13 and gate["failed"] == [], gate
     assert out["outcome"] == "dry: stopped before the first spend"
     requests = [r for r in rows if r["kind"] == "request"]
     assert len(requests) == 3 and all(r["dry"] for r in requests)
@@ -630,7 +637,7 @@ def test_a_dry_run_on_the_chain_board_shoots_each_scene_from_a_frame_in_order(tm
     out, rows = dry(tmp_path, "shoots/graph-zai-chain/boards.json", "zai")
     assert out["outcome"] == "dry: stopped before the first spend", out["outcome"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
-    assert gate["pass"] and len(gate["checks"]) == 12 and gate["checks"]["chain"] and gate["failed"] == [], gate
+    assert gate["pass"] and len(gate["checks"]) == 13 and gate["checks"]["chain"] and gate["failed"] == [], gate
     requests = [r for r in rows if r["kind"] == "request"]
     assert [r["scene"] for r in requests] == ["zai-a", "zai-b", "zai-c"], requests
     assert {r["engine"] for r in requests} == {"google/gemini-omni-flash/image-to-video"}, requests
@@ -673,7 +680,7 @@ def test_a_dry_run_on_the_shots_board_chains_four_shots_under_three_sentences(tm
     out, rows = dry(tmp_path, "shoots/graph-zai-shots/boards.json", "zai")
     assert out["outcome"] == "dry: stopped before the first spend", out["outcome"]
     gate = [r for r in rows if r["kind"] == "gate"][0]
-    assert gate["pass"] and len(gate["checks"]) == 12 and gate["checks"]["slots"] and gate["failed"] == [], gate
+    assert gate["pass"] and len(gate["checks"]) == 13 and gate["checks"]["slots"] and gate["failed"] == [], gate
     requests = [r for r in rows if r["kind"] == "request"]
     assert [r["scene"] for r in requests] == ["zai-a", "zai-b", "zai-c", "zai-d"], requests
     assert [r["start_from"] for r in requests] == ["the character's still", "the last frame of zai-a",

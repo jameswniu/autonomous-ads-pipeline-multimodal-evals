@@ -45,6 +45,10 @@ Mechanical half only. Checks, per spot:
                    'order' that lists the shots any other way fails, and so does a 'chain' that opens
                    on any other shot: the film would not play as the board says. A spot with no 'hook'
                    fails, and the reason says what to add.
+  scene_length     every scene is one line of direction, SCENE_WORDS_MAX words or fewer as the board
+                   writes it, {character} counted as one word and the guard not counted, since the
+                   reference still carries how the character looks. A scene past it fails, and the
+                   reason names the scene and its count.
 The four judgment rows (hook, realism, absurdity, logic) are printed as questions for the eye, a
 person's judgment, since no check can score them. A spot can carry its answers as 'scores', a whole
 number from 0 to 3 for each row, with 'scored_by' naming who scored them. They are reported beside
@@ -224,6 +228,30 @@ def hook_first(sp, scenes):
                        f"{built} first, {how}, so the film would not open on the hook. Make the two agree")
     return True, None
 
+# A scene is one line of direction, and the reference still carries how the character looks. Every board
+# shot by hand and every graph board kept in this repo holds each scene to 64 words or fewer, and the graph
+# cut a person picked, shoots/graph-grok-hook, sent about 65 words a shot. Three graph cuts that were sent back,
+# whose boards are not in this repo, grew their longest scene past 700 words, since each failed take added
+# rules to the board, and the longer the direction ran the stiffer the motion came back and the more takes
+# failed. 80 leaves room over every cut that was kept and none for a second paragraph.
+SCENE_WORDS_MAX = 80
+
+def scene_words(text):
+    """How many words a scene runs to as the board writes it, counted between spaces, so {character} is
+    one word. The guard rides after every scene and is never counted here."""
+    return len(text.split())
+
+def scene_length(scenes):
+    """(True, None) when every scene is SCENE_WORDS_MAX words or fewer, else (False, what to change), which
+    names each scene past it with its count."""
+    over = [f"scene {k} runs {scene_words(scenes[k])} words" for k in sorted(scenes)
+            if scene_words(scenes[k]) > SCENE_WORDS_MAX]
+    if not over:
+        return True, None
+    named = over[0] if len(over) == 1 else ", ".join(over[:-1]) + " and " + over[-1]
+    return False, (f"{named}, past the {SCENE_WORDS_MAX} a scene may run. Write one line of direction and let the "
+                   "reference still carry how the character looks")
+
 # The four judgment rows, as the eye reads them. pipeline/DOCTRINE.md quotes these lines word for word,
 # and a test holds the two together.
 JUDGMENT_ROWS = (
@@ -294,13 +322,14 @@ def main():
         cast = all(cast_ok(s) for s in scenes.values())
         register = register_ok(narration)
         hooked, hook_why = hook_first(sp, scenes)
+        short, length_why = scene_length(scenes)
         checks = {"product_absent": product_absent, "escalation": escalation, "quirk_unspoken": quirk_unspoken,
                   "mouths_closed": closed, "crop_clause": crop, "cast": cast, "register": register,
                   "chain": chain_ok(sp, scenes), "slots": slots_ok(sp, scenes), "switches": switches_ok(sp),
-                  "props": props_ok(sp), "hook_first": hooked}
+                  "props": props_ok(sp), "hook_first": hooked, "scene_length": short}
         # What to change, for a failed check that can say. The scores ride beside the checks and never
         # decide this verdict.
-        why = {"hook_first": hook_why} if hook_why else {}
+        why = {k: text for k, text in (("hook_first", hook_why), ("scene_length", length_why)) if text}
         bad = [k for k, v in checks.items() if not v]
         if bad: fails.append((ad, bad, sorted(shared)))
         rows.append({"spot": ad, "checks": checks, "shared": sorted(shared), "why": why, "scores": scores_of(sp)})
