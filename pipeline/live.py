@@ -55,20 +55,25 @@ What a live run needs in its environment, all checked before the graph starts:
   CAST_WAIVER                   a person's pass by eye on a scene the cast gate failed on strangers
                                 alone, faces under the floor beside a main face that cleared it, the
                                 way the small, soft copies at the back of a crowd of one man read.
-                                Written as <sha256 prefix>:<who>:<why>, it holds only for the take
-                                whose sha256 starts with that prefix, twelve hex digits or more, so it
-                                never carries over to another take. It never holds for a main face
-                                under the floor, no face, a reading the gate could not take, or one
-                                that reads at least as close to the narrator as to the character, and
-                                the refused reading stays on the ledger. A take a new one replaces is
-                                kept beside takes/<spot>-<scene>/raw.mp4 as take-<its sha256>.mp4,
-                                never written over, so a person can put any take this run paid for
-                                back at raw.mp4, moving the one there aside the same way. A take this
-                                run landed for the scene, at raw.mp4, that the waiver names or a
-                                person already passed on the ledger, is read again on a re-entry
-                                rather than rendered again, whichever of the scene's takes it was.
-                                With the waiver unset, that take fails its reading again and the run
-                                stops for a person rather than pay to replace it.
+                                Written as <sha256 prefix>:<who>:<why>, one line for each take a
+                                person passed, a line holds only for the take whose sha256 starts
+                                with its prefix, twelve hex digits or more, so it never carries over
+                                to another take. It never holds for a main face under the floor, no
+                                face, a reading the gate could not take, or one that reads at least
+                                as close to the narrator as to the character, and the refused reading
+                                stays on the ledger. A take two lines name is passed by neither, and a
+                                line written any other way passes no take. A crowd left failed by
+                                either says so in why it failed. A take a new one replaces is kept
+                                beside takes/<spot>-<scene>/raw.mp4 as take-<its sha256>.mp4, never
+                                written over, so a person can put any take this run paid for back at
+                                raw.mp4, moving the one there aside the same way. A take this run
+                                landed for the scene, at raw.mp4, that a line names or a person
+                                already passed on the ledger, is read again on a re-entry rather than
+                                rendered again, whichever of the scene's takes it was. So is a take
+                                whose crowd failed on strangers alone while a line that names no take
+                                stands, since that line may have been meant for it. With the waiver
+                                unset, that take fails its reading again and the run stops for a
+                                person rather than pay to replace it.
   CLOSER_FROM                   a directory holding an existing closer take to reuse, or else
   HEYGEN_API_KEY, CLOSER_LOOK_ID to render one. The REST API bills a wallet of its own, separate
                                 from a web plan's credits.
@@ -141,7 +146,7 @@ CONTINUITY_LINE = re.compile(r"^CONTINUITY_GATE props=(?P<props>ok|fail|split|-)
 FIRST_FRAME_LINE = re.compile(r"^CONTINUITY_FIRST_FRAME props=(?P<visible>\d+)/(?P<named>\d+) "
                               r"absent=(?P<absent>[0-9,]+|-) verdict=(?P<verdict>PASS|FAIL|REVIEW|UNREAD)[ \t]*$", re.M)
 CONTINUITY_EXIT = {"PASS": 0, "FAIL": 1, "REVIEW": 2, "UNREAD": 64}
-# A person's pass by eye, CLOSER_JAW_WAIVER or CAST_WAIVER: the take's sha256 prefix, who, and why.
+# A person's pass by eye, CLOSER_JAW_WAIVER or a line of CAST_WAIVER: the take's sha256 prefix, who, and why.
 WAIVER = re.compile(r"([0-9a-f]{12,64}):([^:\x00-\x1f]+):([^\x00-\x1f]+)")
 LOUDNESS_LINE = re.compile(r"^LOUDNESS_GATE .*verdict=(PASS|FAIL)$", re.M)
 SLIT_LINE = re.compile(r"^slit-scan: (.+?)\s*$", re.M)   # the rest of the line, so a path with a space still reads
@@ -406,6 +411,40 @@ def strangers_only(m, read_narrator):
     return m["other"] in (None, "-")
 
 
+def read_waiver(text):
+    """One waiver written <sha256 prefix>:<who>:<why>, as its prefix and what the ledger says of it, or None
+    for anything else. A waiver with nobody named or no reason given is no waiver, since the ledger has to
+    say who and why."""
+    m = WAIVER.fullmatch(text.strip())
+    if not m or not m.group(2).strip() or not m.group(3).strip():
+        return None
+    return m.group(1), {"waived_by": m.group(2).strip(), "waiver": m.group(3).strip()}
+
+
+def waiver_lines(text):
+    """The waivers a value holds one to a line, as (line, prefix, what the ledger says of it), and the lines
+    that hold none, each numbered from 1 as a person counts them. A blank line holds nothing and is passed
+    over, so a value that ends in a newline reads the same as one that does not."""
+    # The newline alone ends a line. A value that held one waiver before has no newline inside it, since
+    # WAIVER refuses control characters, so it reads exactly as it did, where splitlines() would also cut
+    # at the next-line and Unicode line and paragraph separators, which a reason may hold.
+    held, unread = [], []
+    for n, line in enumerate(text.split("\n"), 1):
+        if line.strip():
+            w = read_waiver(line)
+            if w:
+                held.append((n, *w))
+            else:
+                unread.append(n)
+    return held, unread
+
+
+def on_lines(numbers):
+    """Line numbers in words, line 2, or lines 1 and 3."""
+    ns = [str(n) for n in numbers]
+    return f"line {ns[0]}" if len(ns) == 1 else f"lines {', '.join(ns[:-1])} and {ns[-1]}"
+
+
 class LiveToolkit(Toolkit):
     def __init__(self, run_dir, run_id=None):
         # Everything the run can need is checked here, before the graph starts, so a missing
@@ -656,8 +695,9 @@ class LiveToolkit(Toolkit):
         named, a barista or a crowd, is still a person on screen. With no character, a scene is
         read against the narrator's face, so a stranger in it still fails. No face where she is
         written goes to the eye as a flag, like a scene with no reading. A reading that failed on
-        strangers alone passes when CAST_WAIVER names this take by its hash, and the refused reading
-        stays on the ledger with a row beside it saying who passed the take by eye and why."""
+        strangers alone passes when one line of CAST_WAIVER names this take by its hash, and the refused
+        reading stays on the ledger with a row beside it saying who passed the take by eye and why. When
+        two lines name it, or a line names no take at all, the reason the scene failed says so."""
         character, presenter = refs.get("character"), refs.get("presenter")
         other = presenter if character else None
         verdict, reading, m = self.cast(character or presenter, raw, other=other)
@@ -668,7 +708,7 @@ class LiveToolkit(Toolkit):
         if verdict == "FAIL":
             crowd = strangers_only(m, bool(other))
             take = sha256(raw) if crowd else None
-            waived = self.waiver("CAST_WAIVER", take) if crowd else {}
+            waived, named, unread = self.cast_waiver(take) if crowd else ({}, [], [])
             if waived:
                 # The gate read the small, soft faces at the back of a crowd under its floor, beside a main face that
                 # matched, and a person who looked passed this take by eye. Both rows stay on the ledger.
@@ -692,8 +732,15 @@ class LiveToolkit(Toolkit):
                 why[s] = f"{who}, face similarity {m['sim']} under the gate's {m['floor']}"
             else:
                 why[s] = f"a person on screen the board never named, face similarity {m['sim']} under the gate's {m['floor']}"
-            if crowd and self.rows("gate", step="render", scene=f"{spot}-{s}", check="cast waived by a person", sha256=take):
+            # A line that cannot pass this take is refused, never guessed at, and its reason joins the scene's,
+            # the way a waiver CAST_WAIVER no longer names is recorded, beside the refused reading.
+            if len(named) > 1:
+                why[s] += f". CAST_WAIVER names this take on {on_lines(named)}, so none of them passes it"
+            elif crowd and self.rows("gate", step="render", scene=f"{spot}-{s}", check="cast waived by a person", sha256=take):
                 why[s] += ". A person passed this take by eye before, and CAST_WAIVER no longer names it"
+            if unread:
+                why[s] += (f". Nothing on CAST_WAIVER's {on_lines(unread)} passes a take, since a waiver is written "
+                           "<sha256 prefix>:<who>:<why>")
         elif verdict == "NOFACE" and writes_her:
             flags[s] = "CAST: no face found to match against the story's character. Look before shipping."
         elif verdict is None:
@@ -867,15 +914,18 @@ class LiveToolkit(Toolkit):
     def passed_by_eye(self, spot, s, raw, prompt, face=None, start=None):
         """The request this run sent for scene s, with this prompt, this face and this start frame, whose
         landed take is the file at `raw`, where the graph reads the scene, when a person passed that take
-        by eye: CAST_WAIVER names it now, or a waiver row on the ledger named it on an earlier pass. That
-        take is read again rather than rendered again, whichever of the scene's takes it was, so a
-        re-entry never pays to replace a take a person passed, and its own reading decides whether it
-        stands. None for any other file, one this run never landed for this scene among them, and for a
-        take the continuity gate failed, since the waiver passes a cast reading and nothing else."""
+        by eye: a line of CAST_WAIVER names it now, or a waiver row on the ledger named it on an earlier
+        pass. That take is read again rather than rendered again, whichever of the scene's takes it was,
+        so a re-entry never pays to replace a take a person passed, and its own reading decides whether it
+        stands. A crowd that failed on strangers alone is read again the same way while a line of
+        CAST_WAIVER names no take, since that line may have been meant for it, and its reading says so.
+        None for any other file, one this run never landed for this scene among them, and for a take the
+        continuity gate failed, since the waiver passes a cast reading and nothing else."""
         if not os.path.isfile(raw):
             return None
         take, scene = sha256(raw), f"{spot}-{s}"
-        if not self.waiver("CAST_WAIVER", take) and \
+        _, named, unread = self.cast_waiver(take)
+        if not named and not (unread and self.crowd_failed(scene, take)) and \
                 not self.rows("gate", step="render", scene=scene, check="cast waived by a person", sha256=take):
             return None
         read = self.rows("gate", step="render", scene=scene, check="continuity", sha256=take)
@@ -1485,12 +1535,28 @@ class LiveToolkit(Toolkit):
     @staticmethod
     def waiver(name, take):
         """A person's pass by eye, from the variable `name`, on the take whose sha256 is `take`, or {} when
-        the variable names no take or another one."""
-        m = WAIVER.fullmatch(os.environ.get(name, "").strip())
-        # A waiver with nobody named or no reason given is no waiver, since the ledger has to say who and why.
-        if not m or not m.group(2).strip() or not m.group(3).strip() or not take or not take.startswith(m.group(1)):
-            return {}
-        return {"waived_by": m.group(2).strip(), "waiver": m.group(3).strip()}
+        the variable names no take or another one. The whole value is one waiver, since a spot has one
+        closer, so a newline in it leaves it no waiver at all."""
+        w = read_waiver(os.environ.get(name, ""))
+        return w[1] if w and take and take.startswith(w[0]) else {}
+
+    @staticmethod
+    def cast_waiver(take):
+        """What CAST_WAIVER says of the take whose sha256 is `take`, as the pass when exactly one line names
+        it, else {}, then the lines that name it and the lines that name no take at all. A take two lines
+        name is passed by neither, since a pass on the ledger names one person and one reason, and picking
+        one line over the other would be a guess."""
+        held, unread = waiver_lines(os.environ.get("CAST_WAIVER", ""))
+        named = [(n, said) for n, prefix, said in held if take and take.startswith(prefix)]
+        return (named[0][1] if len(named) == 1 else {}), [n for n, _ in named], unread
+
+    def crowd_failed(self, scene, take):
+        """Whether this take's newest cast reading failed on strangers alone, the only reading a waiver
+        passes, read off the scene's first cast row after the take last landed."""
+        landed = [r["seq"] for r in self.rows("landing", step="render", sha256=take)]
+        read = [r for r in self.rows("gate", step="render", scene=scene, check="cast") if landed and r["seq"] > landed[-1]]
+        m = CAST_LINE.search(read[0].get("reading") or "") if read else None
+        return bool(m) and strangers_only(m, m["other"] not in (None, "-"))
 
     def stage_closer(self, spot, spot_def, src, stage, source):
         """Copy the take CLOSER_FROM names into stage and check it: None when it may be reused, else the

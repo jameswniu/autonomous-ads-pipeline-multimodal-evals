@@ -7,7 +7,9 @@ CAST_WAIVER, in pipeline/live.py, is a person's pass by eye on such a take, name
 These tests run that toolkit with every vendor call and repo script replaced by a fake. They check that
 the waiver passes strangers alone on the take it names and nothing else, that a re-entry reads a passed
 take again rather than paying for another, whichever of the scene's takes it was, and that a new take
-never writes over one the run paid for.
+never writes over one the run paid for. CAST_WAIVER holds one waiver to a line, so the last five check
+that several lines each pass their own take on one pass, that a take two lines name and a line written
+any other way are refused and said so, and that a value of one line reads exactly as it did.
 
 Words used below. A spot is one short ad film and its board is the written plan for it, a boards.json
 file. A scene is one generated video clip in a spot, a take is one render attempt of it, and a re-roll
@@ -195,3 +197,147 @@ def test_a_chained_take_a_person_passed_is_read_again_and_the_chain_goes_on_from
     assert again["failed"] == [] and again["fresh"] == ["b", "c"] and len(vendor.posts()) == 3, again
     assert started_from(sent[1:]) == [b"last frame of take 1", b"last frame of take 2"], "the chain left the passed take"
     assert [r["scene"] for r in tk.ledger.rows() if r.get("status") == "REUSED"] == ["zai-a"]
+
+
+# Several waivers, one to a line.
+
+# A main face the reference missed, under the gate's floor, which no pass by eye may cover.
+MISSED = (1, CG.line([0.24] * 8, strangers=8))
+
+
+def crowds(live, monkeypatch, tmp_path, readings=None):
+    """A first pass where scenes a and b are crowds the cast gate misread, and c passes, unless `readings`
+    says otherwise for a scene. Returns the toolkit, the state, the vendor, the first verdict, and each
+    scene's take by its sha256."""
+    tk, state = live
+    monkeypatch.setenv("CLOSER_FROM", str(closer_take(tmp_path)))
+    takes_and_frames(monkeypatch)
+    vendor = Vendor()
+    monkeypatch.setattr(L, "http", vendor)
+    read = {"zai-a": CROWD, "zai-b": CROWD, **(readings or {})}
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=lambda clip: next((v for k, v in read.items() if k in clip), SAME)))
+    first = tk.render(cast_state(state))
+    takes = {s: L.sha256(os.path.join(tk.takes, f"zai-{s}", "raw.mp4")) for s in "abc"}
+    return tk, state, vendor, first, takes
+
+
+def re_enter(tk, state, first):
+    return L.LiveToolkit(state["run_dir"], tk.ledger.run_id).render(dict(cast_state(state), verdict={"render": first}))
+
+
+def passed_by(tk):
+    return {r["scene"]: (r["sha256"], r["waived_by"], r["waiver"]) for r in tk.ledger.rows()
+            if r.get("check") == "cast waived by a person"}
+
+
+def test_two_waivers_one_to_a_line_pass_two_crowds_on_one_pass(live, monkeypatch, tmp_path):
+    """Two scenes of the boardroom failed on the copies at the back, and the person who looked passed both.
+    CAST_WAIVER carries a line for each, so one re-entry reads both takes again, pays for neither, and
+    writes a row beside each refused reading naming that take, who passed it and why."""
+    tk, state, vendor, first, takes = crowds(live, monkeypatch, tmp_path)
+    assert first["failed"] == ["a", "b"], first
+    posts = len(vendor.posts())
+    monkeypatch.setenv("CAST_WAIVER", f"{takes['a'][:12]}:author:the back row is the same man\n"
+                                      f"{takes['b'][:16]}:editor:the bowing copy is the same man\n")
+    again = re_enter(tk, state, first)
+    assert again["failed"] == [] and again["fresh"] == [] and len(vendor.posts()) == posts, again
+    assert passed_by(tk) == {"zai-a": (takes["a"], "author", "the back row is the same man"),
+                             "zai-b": (takes["b"], "editor", "the bowing copy is the same man")}, passed_by(tk)
+    reused = {r["scene"]: r["sha256"] for r in tk.ledger.rows() if r.get("status") == "REUSED"}
+    assert reused == {"zai-a": takes["a"], "zai-b": takes["b"]}, reused
+
+
+def test_one_waiver_holds_while_the_other_is_refused(live, monkeypatch, tmp_path):
+    """Both lines are well formed, but the second names a take whose main face missed the reference, which
+    no pass by eye may cover. Each line meets the conditions a single waiver does, on its own take, so
+    the first take passes and the second fails as it did, read again rather than shot again, with no row
+    saying anyone passed it."""
+    tk, state, vendor, first, takes = crowds(live, monkeypatch, tmp_path, {"zai-b": MISSED})
+    assert first["failed"] == ["a", "b"], first
+    posts = len(vendor.posts())
+    monkeypatch.setenv("CAST_WAIVER", f"{takes['a'][:12]}:author:the back row is the same man\n"
+                                      f"{takes['b'][:12]}:author:passed by eye")
+    again = re_enter(tk, state, first)
+    assert again["failed"] == ["b"] and again["fresh"] == [] and len(vendor.posts()) == posts, again
+    assert again["why"]["b"] == first["why"]["b"], again["why"]
+    assert passed_by(tk) == {"zai-a": (takes["a"], "author", "the back row is the same man")}, passed_by(tk)
+
+
+def test_a_take_two_lines_name_is_passed_by_neither_and_the_run_says_so(live, monkeypatch, tmp_path):
+    """Two lines name the first crowd's take by the same prefix, with different people and reasons.
+    Picking one would be a guess, so neither passes it, while the third line still passes its own take.
+    The take two lines name is read again rather than paid for again and fails as it did. The refused
+    reading stays on the ledger with no row beside it, the reason it failed names both lines, and that
+    reason is on the ledger once the run closes. A longer prefix of the same hash names the take too."""
+    tk, state, vendor, first, takes = crowds(live, monkeypatch, tmp_path)
+    posts = len(vendor.posts())
+    monkeypatch.setenv("CAST_WAIVER", f"{takes['a'][:12]}:author:the back row is the same man\n"
+                                      f"{takes['a'][:12]}:editor:the copies at the back look down\n"
+                                      f"{takes['b'][:12]}:author:the bowing copy is the same man")
+    again = re_enter(tk, state, first)
+    assert again["failed"] == ["a"] and again["fresh"] == [] and len(vendor.posts()) == posts, again
+    assert again["why"]["a"] == first["why"]["a"] + ". CAST_WAIVER names this take on lines 1 and 2, so none of them passes it"
+    assert passed_by(tk) == {"zai-b": (takes["b"], "author", "the bowing copy is the same man")}, passed_by(tk)
+    refused = [r for r in tk.ledger.rows() if r.get("scene") == "zai-a" and str(r.get("check", "")).startswith("cast")][-1]
+    assert refused["check"] == "cast" and refused["passed"] is False and "strangers=8" in refused["reading"], refused
+    tk.close(dict(cast_state(state), trail=["board", "render"], verdict={"render": again}))
+    closed = [r for r in tk.ledger.rows() if r["kind"] == "close"][-1]
+    assert closed["because"]["why"]["a"] == again["why"]["a"], closed
+    monkeypatch.setenv("CAST_WAIVER", f"{takes['a'][:12]}:author:passed by eye\n{takes['a'][:20]}:author:passed by eye")
+    assert tk.cast_waiver(takes["a"]) == ({}, [1, 2], []), "a longer prefix of the same take was not read as naming it"
+
+
+def test_a_line_written_any_other_way_passes_nothing_and_holds_a_crowd_it_may_be_for(live, monkeypatch, tmp_path):
+    """The second line was meant for the second crowd but names too little of its hash, and the fourth is
+    no waiver at all. The first line still passes its take. Nothing guesses which take the others meant,
+    so neither passes anything. The crowd still failing is read again rather than shot again, since a line
+    meant for it may be among them, and the reason it failed names both lines. A scene whose main face
+    missed is no crowd, so no line could have been for it, and it is shot again as before."""
+    tk, state, vendor, first, takes = crowds(live, monkeypatch, tmp_path, {"zai-c": MISSED})
+    assert first["failed"] == ["a", "b", "c"], first
+    posts = len(vendor.posts())
+    monkeypatch.setenv("CAST_WAIVER", f"{takes['a'][:12]}:author:the back row is the same man\n"
+                                      f"{takes['b'][:11]}:author:the bowing copy is the same man\n\n"
+                                      "passed by eye\n")
+    again = re_enter(tk, state, first)
+    assert again["failed"] == ["b", "c"] and again["fresh"] == ["c"] and len(vendor.posts()) == posts + 1, again
+    assert again["why"]["b"] == first["why"]["b"] + (". Nothing on CAST_WAIVER's lines 2 and 4 passes a take, since a waiver "
+                                                     "is written <sha256 prefix>:<who>:<why>"), again["why"]
+    assert passed_by(tk) == {"zai-a": (takes["a"], "author", "the back row is the same man")}, passed_by(tk)
+    reused = [r["scene"] for r in tk.ledger.rows() if r.get("status") == "REUSED"]
+    assert sorted(reused) == ["zai-a", "zai-b"], reused
+
+
+def test_a_value_of_one_line_reads_exactly_as_it_did(live, monkeypatch):
+    """Every value a single waiver was read from before reads the same now, newlines around it and a
+    carriage return included, and every value that held no waiver still holds none and passes nothing.
+    The reading of one line is checked against the parse it replaced, written out here as it stood."""
+    tk, _ = live
+    raw = os.path.join(tk.dir("zai-a"), "raw.mp4")
+    open(raw, "wb").write(b"a boardroom of one man")
+    digest = L.sha256(raw)
+
+    def before(value):
+        m = L.WAIVER.fullmatch(value.strip())
+        if not m or not m.group(2).strip() or not m.group(3).strip() or not digest.startswith(m.group(1)):
+            return {}
+        return {"waived_by": m.group(2).strip(), "waiver": m.group(3).strip()}
+
+    values = (f"{digest[:12]}:author:the back row is the same man", f"\n  {digest[:12]}:author:the back row\r\n",
+              f"{digest}:author:the whole hash", f"{digest[:12]}:author:a reason: with a colon in it",
+              f"{digest[:12]}:author:a reason\u2028that runs on", f"{digest[:11]}:author:too little of the hash",
+              f"{digest[:12].upper()}:author:capitals", f"{digest[:12]}: : ", f"{digest[:12]}:author:",
+              f"{digest[:12]}::no one named", f"{'0' * 12}:author:another take", f"{digest[:12]} author passed by eye", "")
+    now = []
+    for v in values:
+        monkeypatch.setenv("CAST_WAIVER", v)
+        now.append(tk.cast_waiver(digest)[0])
+    assert now == [before(v) for v in values], now
+    assert sum(1 for v in values if before(v)) == 5, "the values that held a waiver before are no longer the ones checked"
+    monkeypatch.setattr(L.LiveToolkit, "script", scripts(cast=CROWD))
+    refs = {"character": "her.jpg", "presenter": "narrator.jpg"}
+    monkeypatch.setenv("CAST_WAIVER", f"{digest[:12]}:author:the back row is the same man")
+    failed, why, flags = [], {}, {}
+    tk.cast_check("zai", "a", raw, refs, failed, why, flags)
+    assert (failed, why, flags) == ([], {}, {}), (failed, why, flags)
+    assert passed_by(tk) == {"zai-a": (digest, "author", "the back row is the same man")}, passed_by(tk)

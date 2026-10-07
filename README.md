@@ -336,7 +336,7 @@ The same loop as a graph, and `pipeline/graph.py` is the LangGraph that runs it.
 - CI runs the same dry run on every push and diffs its ledger against a pinned one.
 - A live run needs vendor keys and the pinned presenter identity, which are not in this repo.
 - A scene that fails its cast or continuity check is re-rolled once. Past that, a failed gate stops the run until a person resumes it, since rebuilding the same inputs would repeat the fault.
-- A crowd of one man can fail the cast check on the small, soft copies at the back while his own face matches. A person who looks can pass that one take by eye, named by its hash, and the refused reading stays on the ledger beside who passed it and why. A main face that misses, a scene with no face, or one that reads as the narrator is never passed this way.
+- A crowd of one man can fail the cast check on the small, soft copies at the back while his own face matches. A person who looks can pass that one take by eye, named by its hash on a line of its own, and the refused reading stays on the ledger beside who passed it and why. A main face that misses, a scene with no face, one that reads as the narrator, or a take two lines name is never passed this way. A line not written as a waiver passes nothing, and a failed crowd it may have been meant for waits for a person rather than be shot again.
 - A person steps in twice. The eye takes a REVIEW off the ad gates and approves the cut or sends it back to the scene, the closer or the build. After delivery, the review can withdraw the cut and send the run back.
 - Who owns a gate is in the stroke, and the table under the graph reads it.
 
