@@ -1,0 +1,57 @@
+{
+ "doctrine": "Hit all neurons. Front-load impact. Start with the hook. This is the ads8 Claude spot shot again through the graph, the three one-line scenes it was shot from by hand on 2026-08-29, each rendered once, with one change. The man is the story's one written character, so the forty copies and the one who remains share one face.",
+ "engine": "google/gemini-omni-flash",
+ "guard": "Natural skin texture with visible pores and slight imperfections, documentary realism, no beauty smoothing, imperfect practical lighting, real micro-expressions, natural motion timing with small human hesitations. No readable on-screen text anywhere in frame, no logos, no brand marks. Keep hands either fully out of frame or large, simple and clearly articulated. NO narration, NO voiceover, NO captions, NO avatar or presenter, no music, natural ambient sound only. One single continuous live-action scene, about 5 seconds, subject centered, raw b-roll for an edit. Composed for a centered square crop: every story object stays inside the middle third of the frame and never approaches the left or right edge.",
+ "spots": {
+  "claude": {
+   "brand": "Claude",
+   "card": "For people with real problems.",
+   "narration": "Forty versions of you are arguing around the table and every one of them is sure. Claude is the collaborator that thinks it through with you, carefully, until the answer is one page. Bring it your hardest problem.",
+   "closer": "Claude, the AI for people with real problems to solve. Bring it your hardest one. The pipeline behind this spot is public, link under the video.",
+   "positioning": "Anthropic's Claude, the AI for problem solvers, a thoughtful collaborator for serious work (verified: claude.com, anthropic.com, 2026-08-29 pairwise pass)",
+   "look_prompt": "She sits at the far side of a long meeting table in a corner office at dusk, small warm ceiling lamps glowing, city lights blurring through the windows behind her, soft even light on her face with gentle shadow, no harsh brightness. A closed notebook and a printed page rest on the table in front of her. She wears a soft charcoal blazer over an ivory blouse, hair down, minimal natural makeup, calm settled smile. She is not mid-action with any object. Nothing held, everything at rest.",
+   "character_noun": "man",
+   "quirk": "one of the duplicate selves has folded his notes into a paper crane and set it down",
+   "bed": "steady thoughtful piano over low warm synth, instrumental",
+   "hook": "a",
+   "order": [
+    "a",
+    "b",
+    "c"
+   ],
+   "slots": [
+    [
+     "a"
+    ],
+    [
+     "b"
+    ],
+    [
+     "c"
+    ]
+   ],
+   "switches": "cuts",
+   "props": [
+    "The long boardroom table"
+   ],
+   "escalation": "Forty copies of the same man argue at once and every one of them is sure, so the noise only grows until the copies fold away into a single page.",
+   "beats": {
+    "a": "Forty copies wave pens and papers at each other across the table in silent chaos.",
+    "b": "The copies fold flat one by one and slide into a single sheet that stops in front of the one who remains, and one leaves a paper crane behind.",
+    "c": "He reads the one page, exhales and leans back in relief, the crane still on the table."
+   },
+   "scenes": {
+    "a": "A long boardroom table crowded with FORTY identical copies of {character}, all gesturing wildly at each other with pens and papers, coffee cups everywhere, total silent chaos of waving arms. Mouths closed, nobody speaks.",
+    "b": "One by one the copies of {character} fold flat like paper and slide down the table, stacking into a single clean white sheet that glides to a stop in front of the one remaining {character}, who sits calmly. One copy leaves behind a small paper crane. Mouths closed, nobody speaks.",
+    "c": "At the same long dark-wood boardroom table, the room now empty and sunlit, the one remaining {character} picks up the single sheet, reads it, exhales and leans back with quiet relief, the paper crane still on the table. Mouth closed, nobody speaks."
+   },
+   "scored_by": "astra",
+   "scores": {
+    "hook": 3,
+    "realism": 2,
+    "absurdity": 2,
+    "logic": 2
+   }
+  }
+ }
+}
