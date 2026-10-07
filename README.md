@@ -172,7 +172,7 @@ For an ad, true means three things.
 
 The same loop ran against ten real, currently shipping AI products.
 
-- All ten shot on Omni Flash at about sixty cents a scene, thirty scenes across two batches. The Claude spot was shot again through the graph, every scene rendered from the same still of the man, so the crowd of copies and the one who remains share one face.
+- All ten shot on Omni Flash at about sixty cents a scene, thirty scenes across two batches. The Claude, Z.ai, Perplexity and Grok spots were shot again through the graph, and every scene in the Claude spot was rendered from the same still of the man, so the crowd of copies and the one who remains share one face.
 - These are spec ads. They are not affiliated with, endorsed by, or produced for Google, OpenAI, Perplexity, Meta, xAI, Z.ai, Moonshot AI or Anthropic. None of these companies has seen them, and every tagline is written here.
 
 <table>
@@ -336,8 +336,8 @@ The same loop as a graph, and `pipeline/graph.py` is the LangGraph that runs it.
 - CI runs the same dry run on every push and diffs its ledger against a pinned one.
 - A live run needs vendor keys and the pinned presenter identity, which are not in this repo.
 - A scene that fails its cast or continuity check is re-rolled once. Past that, a failed gate stops the run until a person resumes it, since rebuilding the same inputs would repeat the fault.
-- A crowd of one man can fail the cast check on the small, soft copies at the back while his own face matches. A person who looks can pass that one take by eye, named by its hash on a line of its own, and the refused reading stays on the ledger beside who passed it and why. A main face that misses, a scene with no face, one that reads as the narrator, or a take two lines name is never passed this way. A line not written as a waiver passes nothing, and a failed crowd it may have been meant for waits for a person rather than be shot again.
-- A person steps in twice. The eye takes a REVIEW off the ad gates and approves the cut or sends it back to the scene, the closer or the build. After delivery, the review can withdraw the cut and send the run back.
+- A crowd of one man can fail the cast check on the small, soft copies at the back while his own face matches. Whoever looks can pass that one take by eye, named by its hash on a line of its own, and the refused reading stays on the ledger beside who passed it and why. A main face that misses, a scene with no face, one that reads as the narrator, or a take two lines name is never passed this way. A line not written as a waiver passes nothing, and a failed crowd it may have been meant for waits for a look rather than be shot again.
+- The run pauses for a look in two places. The eye takes a REVIEW off the ad gates and approves the cut or sends it back to the scene, the closer or the build. After delivery, the review can withdraw the cut and send the run back. The eye and a cast waiver are calls whoever looks makes, a person or a model, and the ledger names who. On the Claude spot a model made those calls, and I kept the cut at the review.
 - Who owns a gate is in the stroke, and the table under the graph reads it.
 
 
