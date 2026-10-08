@@ -18,6 +18,7 @@ Run with: python3 -m pytest tests/test_contracts.py -v
 import ast
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -177,6 +178,15 @@ def test_the_loudness_gate_line_is_the_line_live_reads(tmp_path):
         assert line and line.group(1) == want, (name, r.stdout, r.stderr)
     silent = master("silent", "anullsrc=r=48000:cl=stereo:d=6")
     r = run([sys.executable, os.path.join(GATES, "loudness_gate.py"), str(silent)])
+    assert r.returncode == 64 and not live.LOUDNESS_LINE.search(r.stdout), (r.stdout, r.stderr)
+    # ffmpeg stopped partway prints a whole summary of what it read, then exits 255. The gate refuses
+    # that reading as it refuses silence, so live.py finds no line it could read as a pass.
+    stopped = tmp_path / "stopped"
+    stopped.mkdir()
+    (stopped / "ffmpeg").write_text(f'#!/bin/sh\n"{shutil.which("ffmpeg")}" "$@"\nexit 255\n')
+    (stopped / "ffmpeg").chmod(0o755)
+    r = run([sys.executable, os.path.join(GATES, "loudness_gate.py"), str(tmp_path / "at_spec.mp4")],
+            env={"PATH": f"{stopped}{os.pathsep}{os.environ['PATH']}"})
     assert r.returncode == 64 and not live.LOUDNESS_LINE.search(r.stdout), (r.stdout, r.stderr)
 
 

@@ -19,6 +19,15 @@
 set -uo pipefail
 M=$1; CJ=$2; P="$(cd "$(dirname "$0")/../probes" && pwd)"; SK="$(cd "$(dirname "$0")" && pwd)"
 [ -f "$M" ] && [ -f "$CJ" ] || { echo "ad_gates: missing master or captions.json"; exit 64; }
+# This run's scratch, a directory of its own made fresh under TMPDIR and removed when the run ends. The
+# closer window used to be cut to one fixed name in TMPDIR, built from the master's file name alone, so two
+# runs on masters that share a name cut into the same file and each probed whichever cut landed last, and a
+# window a killed run left there sat at the name the next run would use. The name is new on every run now,
+# and a cut is probed only once ffmpeg has written it, so nothing read here is another run's. bash runs the
+# trap on a normal end, an exit, and a TERM, INT or HUP. Only a KILL leaves the directory behind, under a
+# name no later run will use.
+S=$(mktemp -d "${TMPDIR:-/tmp}/ad-gates.XXXXXX") || { echo "ad_gates: no scratch directory under ${TMPDIR:-/tmp}, nothing measured"; exit 64; }
+trap 'rm -rf "$S"' EXIT
 fail=0; R_CAP=pass; R_DRIFT=pass; R_MOUTH=pass
 echo "== caption gate"
 python3 "$SK/caption_gate.py" "$CJ" || { fail=1; R_CAP=fail; }
@@ -54,10 +63,10 @@ D=$(( Q - AMS )); [ $D -lt 0 ] && D=$(( -D ))
 if [ "$D" -le 40 ]; then echo "  closer video at ${Q} ms, audio placed at ${AMS} ms, drift ${D} ms: ok"; else echo "  closer video at ${Q} ms, audio placed at ${AMS} ms, drift ${D} ms: FAIL"; fail=1; R_DRIFT=fail; fi
 fi
 echo "== closer window probes"
-# Scratch, so it follows TMPDIR like any other scratch file. The pass receipt below stays in /tmp,
-# where its reader looks for it.
-W="${TMPDIR:-/tmp}/ad-gate-closer-$(basename "$M")"
-ffmpeg -v error -y -ss "$CS" -t "$CD" -i "$M" -c:v libx264 -crf 18 -c:a aac "$W" || { echo "  could not cut closer window"; exit 1; }
+# Cut into this run's scratch, and probed only when ffmpeg exited 0 and left a file there. The pass
+# receipt below stays in /tmp, where its reader looks for it.
+W="$S/closer-$(basename "$M")"
+ffmpeg -v error -y -ss "$CS" -t "$CD" -i "$M" -c:v libx264 -crf 18 -c:a aac "$W" && [ -s "$W" ] || { echo "  could not cut closer window"; exit 1; }
 # sync_probe: LATE fails (> +80 ms); early is forgiven, every HeyGen render reads about -240 on this probe,
 # approved ones included, so an early read is disclosed, not blocked
 # sync_probe is a DISCLOSURE, not a gate (calibrated 2026-08-27 and demoted on the evidence): against

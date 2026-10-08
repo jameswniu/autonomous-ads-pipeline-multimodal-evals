@@ -1543,6 +1543,8 @@ def test_the_ship_gates_exits_become_the_causes_the_graph_routes_on(live, monkey
              ((3, "SHIP-GATE HOLD: something new"), ok, "held"),
              ((0, "SHIP-GATE PASS"), (1, "LOUDNESS_GATE i=-12.0 tp=-1.0 verdict=FAIL"), "loudness"),
              ((0, "SHIP-GATE PASS"), (1, ""), "unreadable"),
+             # The loudness gate's own refusal of a reading: exit 64 and no LOUDNESS_GATE line.
+             ((0, "SHIP-GATE PASS"), (64, ""), "unreadable"),
              ((64, "SHIP-GATE ERROR: input not readable"), ok, "unreadable")]
     for ship, loud, cause in cases:
         monkeypatch.setattr(L.LiveToolkit, "script", scripts(ship=ship, loud=loud))

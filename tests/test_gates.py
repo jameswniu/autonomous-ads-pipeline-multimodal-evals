@@ -1275,14 +1275,135 @@ def test_a_loudness_gate_that_cannot_measure_prints_no_verdict(tmp_path):
         assert len(r.stderr.strip().splitlines()) == 1 and "no verdict" in r.stderr, (label, r.stderr)
 
 
-def _ad_gate_run(tmp, with_segments):
-    """Run gates/ad_gates.sh on a small master whose caption manifest has no cues, so the caption
-    gate fails and no pass receipt is ever written. With segments, q1 to q3 sit beside the
-    manifest at one second each and the manifest places the closer audio at 3000 ms."""
+def _ffmpeg_stand_in(tmp):
+    """A directory holding an ffmpeg that runs the real one on the gate's own arguments and changes the
+    one thing FFMPEG_CHANGE names about what the gate gets back. `stop` sends ffmpeg the INT a Ctrl-C
+    sends, once it has measured 1.5 seconds of a master it reads at the master's own pace (-re). `exit=N`
+    hands back the whole output with exit N, or dies by signal -N. `cut=TEXT` hands back the output only
+    up to TEXT in the summary, with exit 0. Anything else hands back what ffmpeg did. What was handed back
+    on stderr is kept in said.txt beside it."""
+    stand_in = tmp / "ffmpeg-stand-in"
+    stand_in.mkdir()
+    (stand_in / "ffmpeg").write_text(
+        f"#!{sys.executable}\n"
+        "import os, signal, subprocess, sys\n"
+        f"real, said_to = {shutil.which('ffmpeg')!r}, {str(stand_in / 'said.txt')!r}\n"
+        "kind, _, value = os.environ.get('FFMPEG_CHANGE', '').partition('=')\n"
+        "args = sys.argv[1:]\n"
+        "if kind == 'stop':\n"
+        "    at = args.index('-i')\n"
+        "    p = subprocess.Popen([real, *args[:at], '-re', *args[at:]], stderr=subprocess.PIPE, text=True)\n"
+        "    lines, frames = [], 0\n"
+        "    for line in p.stderr:\n"
+        "        lines.append(line)\n"
+        "        frames += ' t: ' in line\n"
+        "        if frames == 15:\n"
+        "            p.send_signal(signal.SIGINT)\n"
+        "            break\n"
+        "    lines += p.stderr\n"
+        "    code, err = p.wait(), ''.join(lines)\n"
+        "else:\n"
+        "    r = subprocess.run([real, *args], capture_output=True, text=True)\n"
+        "    code, err = r.returncode, r.stderr\n"
+        "    if kind == 'exit':\n"
+        "        code = int(value)\n"
+        "    elif kind == 'cut':\n"
+        "        err = err[:err.index(value, err.rindex('Summary:'))]\n"
+        "with open(said_to, 'w') as fh:\n"
+        "    fh.write(err)\n"
+        "sys.stderr.write(err)\n"
+        "sys.stderr.flush()\n"
+        "if code < 0:\n"
+        "    os.kill(os.getpid(), -code)\n"
+        "sys.exit(code)\n")
+    (stand_in / "ffmpeg").chmod(0o755)
+    return stand_in
+
+
+def test_the_loudness_gate_refuses_a_reading_ffmpeg_did_not_finish(tmp_path):
+    """ffmpeg stopped partway, by a Ctrl-C's INT for one, still prints a whole summary of the part it
+    read and then exits 255, and the gate took no notice of the exit: stopped 1.5 seconds into this six
+    second master, it passed the master on those 1.5 seconds. An exit that is not 0, a death by signal,
+    and a summary cut off at a section or inside its last number must each take the gate's no-verdict
+    path, exit 64 and one line on stderr saying why with no LOUDNESS_GATE line, which pipeline/live.py
+    reads as unreadable. The same master through the same stand-in, changed in nothing, still passes,
+    so what refuses each reading is its change."""
+    loud = load("loudness_gate.py")
+    master = tmp_path / "master.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                    "sine=frequency=440:duration=6,volume=0.3,loudnorm=I=-16:TP=-2:LRA=11", "-f", "lavfi", "-i",
+                    "color=black:s=64x64:d=6", "-ac", "2", "-c:a", "aac", "-shortest", str(master)],
+                   check=True, timeout=120)
+    stand_in = _ffmpeg_stand_in(tmp_path)
+
+    def gate(change):
+        r = subprocess.run([sys.executable, os.path.join(GATES, "loudness_gate.py"), str(master)],
+                           env=dict(os.environ, PATH=str(stand_in) + os.pathsep + os.environ["PATH"], FFMPEG_CHANGE=change),
+                           capture_output=True, text=True, timeout=120)
+        return r, (stand_in / "said.txt").read_text()
+
+    r, _ = gate("none")
+    assert r.returncode == 0 and "verdict=PASS" in r.stdout.splitlines()[-1], (r.stdout, r.stderr)
+    for change, why in (("stop", "exited 255"), ("exit=1", "exited 1"), ("exit=-9", "stopped by signal 9"),
+                        ("cut=  Loudness range:", "no whole loudness summary"),
+                        ("cut=  True peak:", "no whole loudness summary"),
+                        ("cut= dBFS", "no whole loudness summary")):
+        r, said = gate(change)
+        assert r.returncode == 64 and "LOUDNESS_GATE" not in r.stdout, (change, r.returncode, r.stdout, r.stderr)
+        assert len(r.stderr.strip().splitlines()) == 1 and "no verdict" in r.stderr and why in r.stderr, (change, r.stderr)
+        # An exit is refused even with a summary that parses whole, which is what made a stopped ffmpeg pass.
+        assert change.startswith("cut") or loud.summary(said), f"{change}: no whole summary to refuse\n{said[-800:]}"
+
+
+def test_the_loudness_gate_refuses_a_master_cut_short(tmp_path):
+    """master.sh writes a master's index at its front, so a copy of one cut short, by a copy or a download
+    that stopped partway, still opens and still says how long it runs, and ffmpeg read it to the cut and
+    exited 0. Here the first four seconds sit at spec and the last four are loud, so the master fails, and
+    a copy cut halfway read as a PASS. Cut inside an audio packet, ffmpeg now stops on the broken packet.
+    Cut between two, it reads a clean end, and the gate finds it measured less of the audio than the master
+    says it runs. Each copy must take the no-verdict path, and the whole master still gets its verdict."""
+    loud = load("loudness_gate.py")
+    master = tmp_path / "master.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                    "aevalsrc=exprs='0.24*sin(2*PI*440*t)*(1+2.5*gte(t\\,4))':s=48000:d=8", "-f", "lavfi", "-i",
+                    "color=black:s=64x64:d=8", "-ac", "2", "-c:a", "aac", "-movflags", "+faststart", "-shortest",
+                    str(master)], check=True, timeout=120)
+
+    def gate(path):
+        return subprocess.run([sys.executable, os.path.join(GATES, "loudness_gate.py"), str(path)],
+                              capture_output=True, text=True, timeout=120)
+
+    def read_as_before(path):
+        """The verdict the gate gave before it checked ffmpeg's exit, its packets and how far it read."""
+        e = subprocess.run(["ffmpeg", "-nostats", "-hide_banner", "-i", str(path), "-vn", "-filter_complex",
+                            "ebur128=peak=true", "-f", "null", "-"], capture_output=True, text=True, timeout=120)
+        return loud.verdict(*loud.summary(e.stderr))
+
+    r = gate(master)
+    assert r.returncode == 1 and "verdict=FAIL" in r.stdout.splitlines()[-1], (r.stdout, r.stderr)
+    packets = json.loads(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+                                         "packet=pos,size", "-of", "json", str(master)],
+                                        capture_output=True, text=True, timeout=60).stdout)["packets"]
+    middle = packets[len(packets) // 2]
+    at, size = int(middle["pos"]), int(middle["size"])
+    for where, cut_at, why in (("between two packets", at, "measured"), ("inside a packet", at + size // 2, "did not finish")):
+        copy = tmp_path / f"cut-{cut_at}.mp4"
+        copy.write_bytes(master.read_bytes()[:cut_at])
+        assert read_as_before(copy) == "PASS", f"cut {where}, the copy no longer reads as a master at spec"
+        r = gate(copy)
+        assert r.returncode == 64 and "LOUDNESS_GATE" not in r.stdout, (where, r.returncode, r.stdout, r.stderr)
+        assert len(r.stderr.strip().splitlines()) == 1 and why in r.stderr, (where, r.stderr)
+
+
+def _ad_gate_inputs(tmp, with_segments, tone=300):
+    """A small master with sound in tmp, and a caption manifest beside it with no cues, so the caption
+    gate fails and no pass receipt is ever written. With segments, q1 to q3 sit beside the manifest
+    at one second each and the manifest places the closer audio at 3000 ms. The tone is the master's
+    pitch, so two masters can differ in nothing else."""
     tmp.mkdir(parents=True, exist_ok=True)
     master = tmp / "master.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=160x160:rate=25",
-                    "-f", "lavfi", "-i", "sine=frequency=300:duration=6", "-t", "6", "-pix_fmt", "yuv420p",
+                    "-f", "lavfi", "-i", f"sine=frequency={tone}:duration=6", "-t", "6", "-pix_fmt", "yuv420p",
                     "-c:v", "libx264", "-c:a", "aac", str(master)], check=True, timeout=120)
     if with_segments:
         for q in ("q1", "q2", "q3"):
@@ -1292,12 +1413,46 @@ def _ad_gate_run(tmp, with_segments):
     m = json.load(open(cj))
     m.update(closer_dur=2.0, audio_closer_ms=3000)
     json.dump(m, open(cj, "w"))
-    facepy = tmp / "facepy"
-    facepy.write_text("#!/bin/sh\necho 'MOUTH SYNC PASS: corr 0.40 at lag +0.00s'\nexit 0\n")
-    facepy.chmod(0o755)
+    return master, cj
+
+
+def _closer_env(tmp, log, tmpdir, run="run", wait_for=1):
+    """The environment ad_gates.sh runs in here: TMPDIR is tmpdir, and FACEPY is a stand-in for the
+    mouth probe that keeps a record in log of the closer window the gate handed it. <run>.path is the
+    window's path, <run>.before its checksum on arrival and <run>.after its checksum once wait_for
+    runs have arrived, a minute at most, which holds two runs in their probes at once. <run>.met is
+    written only when they all arrived. Each run gets a stand-in file of its own, since sh reads a
+    script as it runs it and a run started later must not rewrite one an earlier run is still reading."""
+    log.mkdir(parents=True, exist_ok=True)
+    probe = tmp / f"closer-probe-{run}"
+    probe.write_text("#!/bin/sh\n"
+                     "# $1 is the mouth probe the gate names, $2 the closer window it cut.\n"
+                     'echo "$2" > "$LOG/$RUN.path"\n'
+                     'cksum < "$2" > "$LOG/$RUN.before"\n'
+                     'touch "$LOG/$RUN.arrived"\n'
+                     "n=0\n"
+                     'while [ "$(ls "$LOG" | grep -c "[.]arrived$")" -lt "$WAIT_FOR" ] && [ "$n" -lt 600 ]; do\n'
+                     "  sleep 0.1; n=$((n + 1))\n"
+                     "done\n"
+                     '[ "$n" -lt 600 ] && echo met > "$LOG/$RUN.met"\n'
+                     'cksum < "$2" > "$LOG/$RUN.after"\n'
+                     "echo 'MOUTH SYNC PASS: corr 0.40 at lag +0.00s'\n")
+    probe.chmod(0o755)
+    return dict(os.environ, FACEPY=str(probe), TMPDIR=str(tmpdir), LOG=str(log), RUN=run, WAIT_FOR=str(wait_for))
+
+
+def _probed(log, run, what):
+    """What the mouth probe stand-in recorded for one run, or an empty string if it recorded nothing."""
+    path = log / f"{run}.{what}"
+    return path.read_text().strip() if path.exists() else ""
+
+
+def _ad_gate_run(tmp, with_segments):
+    """Run gates/ad_gates.sh on _ad_gate_inputs in tmp, with tmp as its TMPDIR, and the mouth probe
+    stand-in keeping its record in tmp/probed."""
+    master, cj = _ad_gate_inputs(tmp, with_segments)
     return subprocess.run(["bash", os.path.join(GATES, "ad_gates.sh"), str(master), cj],
-                          env=dict(os.environ, FACEPY=str(facepy), TMPDIR=str(tmp)),
-                          capture_output=True, text=True, timeout=300)
+                          env=_closer_env(tmp, tmp / "probed", tmp), capture_output=True, text=True, timeout=300)
 
 
 def test_missing_closer_segments_read_as_unreadable_not_as_drift(tmp_path):
@@ -1312,8 +1467,69 @@ def test_missing_closer_segments_read_as_unreadable_not_as_drift(tmp_path):
     r = _ad_gate_run(tmp_path / "present", with_segments=True)
     result = [ln for ln in r.stdout.splitlines() if ln.startswith("AD_GATES_RESULT")]
     assert result and " drift=pass " in result[-1] + " ", (r.stdout, r.stderr)
-    assert (tmp_path / "present" / "ad-gate-closer-master.mp4").exists(), (
-        "the closer window was not cut under TMPDIR")
+    window = _probed(tmp_path / "present" / "probed", "run", "path")
+    assert os.path.dirname(os.path.dirname(window)) == str(tmp_path / "present"), (
+        f"the closer window was not cut in a directory of the run's own under TMPDIR: {window!r}")
+    assert not os.path.exists(os.path.dirname(window)), f"the run's scratch outlived it: {window}"
+
+
+def test_two_ad_gate_runs_at_once_never_share_a_closer_window(tmp_path):
+    """The closer window was cut to one name in TMPDIR built from the master's file name alone, and a
+    run names its master <spot>-v<n>.mp4, so two runs of one spot gate masters of the same name. Two
+    such runs, on masters that differ only in their tone, share one TMPDIR here and are held in the
+    mouth probe together. Each must be handed a window of its own, in a scratch directory of its own
+    under TMPDIR, the other run's cut must not change it while both are in their probes, the two must
+    differ as the masters do, and neither may outlive its run. Both runs used to be handed one path
+    and to probe the same bytes, so one master was passed or failed on the other's closer."""
+    shared, log = tmp_path / "tmp", tmp_path / "probed"
+    shared.mkdir()
+    inputs = {run: _ad_gate_inputs(tmp_path / run, True, tone) for run, tone in (("a", 300), ("b", 900))}
+    envs = {run: _closer_env(tmp_path, log, shared, run=run, wait_for=2) for run in inputs}
+    runs = {run: subprocess.Popen(["bash", os.path.join(GATES, "ad_gates.sh"), str(master), cj], env=envs[run],
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            for run, (master, cj) in inputs.items()}
+    said = {run: p.communicate(timeout=300)[0] for run, p in runs.items()}
+    seen = {run: {what: _probed(log, run, what) for what in ("path", "before", "after", "met")} for run in runs}
+    assert seen["a"]["met"] == seen["b"]["met"] == "met", f"the two runs were never in their probes at once\n{said}"
+    assert seen["a"]["path"] != seen["b"]["path"], f"two runs at once were handed one closer window: {seen['a']['path']}"
+    for run, s in seen.items():
+        assert os.path.dirname(os.path.dirname(s["path"])) == str(shared), (run, s["path"])
+        assert s["before"] and s["before"] == s["after"], f"run {run}'s closer window changed while the other run cut its own"
+        assert not os.path.exists(os.path.dirname(s["path"])), f"run {run}'s scratch outlived it: {s['path']}"
+    assert seen["a"]["before"] != seen["b"]["before"], "the two runs probed the same bytes, though their masters differ"
+
+
+def test_ad_gates_never_probes_a_closer_window_an_earlier_run_left(tmp_path):
+    """A run killed in its probes left its window at the name the next run on a master of the same name
+    cut to, and the next run probed whatever sat at that name once its own ffmpeg exited 0. Here an
+    earlier run's window waits at that old name, and another in a scratch directory of the kind a
+    killed run now leaves, and this run's ffmpeg exits 0 having written nothing. The gate must probe
+    neither: it says it could not cut the closer and stops. With the real ffmpeg the run probes a window
+    it cut itself. Both stale windows are left as they were, and neither run leaves scratch behind."""
+    master, cj = _ad_gate_inputs(tmp_path / "run", True)
+    scratch, log = tmp_path / "tmp", tmp_path / "probed"
+    (scratch / "ad-gates.killed-run").mkdir(parents=True)
+    stale = {scratch / "ad-gate-closer-master.mp4": b"the window an earlier run cut",
+             scratch / "ad-gates.killed-run" / "closer-master.mp4": b"the window a killed run left"}
+    for path, body in stale.items():
+        path.write_bytes(body)
+    quiet = tmp_path / "quiet"
+    quiet.mkdir()
+    (quiet / "ffmpeg").write_text("#!/bin/sh\nexit 0\n")
+    (quiet / "ffmpeg").chmod(0o755)
+    env = _closer_env(tmp_path, log, scratch, run="quiet")
+    r = subprocess.run(["bash", os.path.join(GATES, "ad_gates.sh"), str(master), cj],
+                       env=dict(env, PATH=str(quiet) + os.pathsep + env["PATH"]), capture_output=True, text=True, timeout=300)
+    assert r.returncode != 0 and "could not cut closer window" in r.stdout, (r.stdout, r.stderr)
+    assert not _probed(log, "quiet", "path"), f"the gate probed {_probed(log, 'quiet', 'path')}, a window this run never wrote"
+    r = subprocess.run(["bash", os.path.join(GATES, "ad_gates.sh"), str(master), cj],
+                       env=_closer_env(tmp_path, log, scratch, run="real"), capture_output=True, text=True, timeout=300)
+    window = _probed(log, "real", "path")
+    assert window and window not in {str(p) for p in stale}, (window, r.stdout, r.stderr)
+    assert os.path.dirname(os.path.dirname(window)) == str(scratch) and _probed(log, "real", "before"), window
+    assert all(path.read_bytes() == body for path, body in stale.items()), "a stale window was written over"
+    left = [n for n in os.listdir(scratch) if n.startswith("ad-gates.") and n != "ad-gates.killed-run"]
+    assert not left, f"a run left its scratch behind: {left}"
 
 
 # --------------------------------------------------------------------------------------
