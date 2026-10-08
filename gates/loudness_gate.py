@@ -54,8 +54,8 @@ SUMMARY = (("Integrated loudness", None), ("I", "LUFS"), ("Threshold", "LUFS"),
 NUMBER = r"-?(?:inf|[0-9]+\.[0-9]+)"
 # ebur128 logs a line for every 100 ms it measures, starting "t: <seconds>", so the last of them
 # says how far into the audio ffmpeg read. A reading that stops more than COVERED_S short of how
-# long the master's audio says it runs is refused. On the 29 masters the graph has made, the last
-# line fell at most 0.084 s short.
+# long the master's audio says it runs is refused. On the 29 masters the pipeline has made, the
+# last line fell at most 0.084 s short.
 FRAME_TIME = re.compile(r"\bt: *([0-9]+(?:\.[0-9]+)?) +TARGET:")
 COVERED_S = 0.25
 
