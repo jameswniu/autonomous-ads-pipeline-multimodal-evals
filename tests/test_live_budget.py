@@ -41,7 +41,7 @@ from test_live import live as live  # noqa: E402
 from pipeline import live as L  # noqa: E402
 
 # the budget: what one run may spend on its scenes, across every pass and every re-entry. Each scene on these
-# boards costs $0.63.
+# boards costs $0.64.
 
 def under_budget(monkeypatch, state, usd, tk):
     """The run in `state` entered again under RUN_BUDGET_USD=usd, the way a person re-enters it."""
@@ -50,7 +50,7 @@ def under_budget(monkeypatch, state, usd, tk):
 
 
 def test_the_budget_keeps_back_the_one_scene_that_would_cross_it_and_the_run_stops(live, monkeypatch):
-    """Under a $1.50 budget the first two scenes fit and the third would bring the run to $1.89. It is not sent,
+    """Under a $1.50 budget the first two scenes fit and the third would bring the run to $1.92. It is not sent,
     the refusal goes on the ledger with what the run had spent, its price and the budget, the narration is not
     drawn, and the graph stops the run at the render for a person. Each request that went carries the budget it
     went under, and with RUN_BUDGET_USD unset the budget is the default."""
@@ -64,13 +64,13 @@ def test_the_budget_keeps_back_the_one_scene_that_would_cross_it_and_the_run_sto
     v = tk.render(state)
     assert v["over_budget"] == ["c"] and v["failed"] == [] and v["fresh"] == ["a", "b"], v
     assert len(vendor.posts()) == 2, vendor.posts()
-    assert v["why"]["c"] == ("not sent, since the scenes this run has asked for come to $1.26 and this one, at $0.63, "
-                             "would bring them to $1.89, past the run's $1.50 budget. A person who means to spend more "
+    assert v["why"]["c"] == ("not sent, since the scenes this run has asked for come to $1.28 and this one, at $0.64, "
+                             "would bring them to $1.92, past the run's $1.50 budget. A person who means to spend more "
                              "sets RUN_BUDGET_USD higher and re-enters the run"), v["why"]
     rows = tk.ledger.rows()
     refused = [r for r in rows if r.get("check") == "budget"]
     assert [(r["scene"], r["passed"], r["spent_usd"], r["price_usd"], r["budget_usd"]) for r in refused] == [
-        ("zai-c", False, 1.26, 0.63, 1.5)], refused
+        ("zai-c", False, 1.28, 0.64, 1.5)], refused
     assert refused[0]["reason"] == v["why"]["c"], refused
     requests = [r for r in rows if r["kind"] == "request"]
     assert [(r["scene"], r["budget_usd"]) for r in requests] == [("zai-a", 1.5), ("zai-b", 1.5)], requests
@@ -89,16 +89,16 @@ def test_a_person_who_raises_the_budget_and_re_enters_sends_the_scene_it_kept_ba
     run = scripts()
     monkeypatch.setattr(L.LiveToolkit, "script", run)
     assert under_budget(monkeypatch, state, "1.50", tk).render(state)["over_budget"] == ["c"]
-    v = under_budget(monkeypatch, state, "1.89", tk).render(state)
+    v = under_budget(monkeypatch, state, "1.92", tk).render(state)
     assert v["over_budget"] == [] and v["failed"] == [] and v["fresh"] == ["c"] and len(vendor.posts()) == 3, v
-    assert [r["budget_usd"] for r in tk.ledger.rows() if r["kind"] == "request" and r.get("scene")] == [1.5, 1.5, 1.89]
+    assert [r["budget_usd"] for r in tk.ledger.rows() if r["kind"] == "request" and r.get("scene")] == [1.5, 1.5, 1.92]
     assert len(calls_to(run, "gates/voice_take.sh")) == 1, "the narration was not drawn once the run could go on"
 
 
 def test_the_budget_counts_what_every_earlier_pass_of_the_run_asked_for(live, monkeypatch):
     """The re-roll ceiling starts again on every re-entry, so the budget is held against the whole ledger. The
     first pass sent three scenes and the engine rejected one. Re-entered under a $2.00 budget, its re-roll alone
-    would fit, but it would bring the run to $2.52, so it is kept back."""
+    would fit, but it would bring the run to $2.56, so it is kept back."""
     tk, state = live
     vendor = Vendor(reject={"fal-2"})
     monkeypatch.setattr(L, "http", vendor)
@@ -107,7 +107,7 @@ def test_the_budget_counts_what_every_earlier_pass_of_the_run_asked_for(live, mo
     assert first["failed"] == ["b"] and len(vendor.posts()) == 3, first
     v = under_budget(monkeypatch, state, "2.00", tk).render(dict(state, verdict={"render": first}))
     assert v["over_budget"] == ["b"] and len(vendor.posts()) == 3, v
-    assert "come to $1.89" in v["why"]["b"] and "bring them to $2.52" in v["why"]["b"], v["why"]
+    assert "come to $1.92" in v["why"]["b"] and "bring them to $2.56" in v["why"]["b"], v["why"]
 
 
 def test_a_request_collected_on_a_re_entry_counts_once_against_the_budget(live, monkeypatch):
@@ -122,7 +122,7 @@ def test_a_request_collected_on_a_re_entry_counts_once_against_the_budget(live, 
         tk.render(state)
     assert len(vendor.posts()) == 3
     vendor.die_on_status = False
-    again = under_budget(monkeypatch, state, "2.52", tk)
+    again = under_budget(monkeypatch, state, "2.56", tk)
     collected = again.render(state)
     assert collected["failed"] == ["b"] and collected["over_budget"] == [] and len(vendor.posts()) == 3, collected
     v = again.render(dict(state, verdict={"render": collected}))

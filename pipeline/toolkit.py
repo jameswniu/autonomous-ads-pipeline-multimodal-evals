@@ -25,13 +25,18 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # says "shoot every ad on Omni unless he names another engine."
 DEFAULT_ENGINE = "google/gemini-omni-flash"
 
-# What a scene costs on each engine, in dollars, as recorded when the August shoots ran.
-# Dry runs report the spend a live run would make before anyone commits to it.
+# What a scene costs on each engine, in dollars. Dry runs report the spend a live run would make
+# before anyone commits to it.
 PRICE_PER_SCENE = {
-    "google/gemini-omni-flash": 0.63,
-    # fal lists the same unit price for the Omni endpoints (checked 2026-09-24 and 2026-09-25).
-    "google/gemini-omni-flash/reference-to-video": 0.63,
-    "google/gemini-omni-flash/image-to-video": 0.63,
+    # What fal billed for Omni scene renders, read off fal's billing feed: every image-to-video and
+    # reference-to-video render there came to $0.64, to the nearest cent. fal's pages for the three Omni
+    # endpoints each list about $0.125 a second of 720p video, fal bills the three in the same units, and
+    # every scene here asks for the same five seconds at 16:9, so the plain endpoint, which the feed holds
+    # no render of, is priced with the two.
+    "google/gemini-omni-flash": 0.64,
+    "google/gemini-omni-flash/reference-to-video": 0.64,
+    "google/gemini-omni-flash/image-to-video": 0.64,
+    # As recorded when the August shoots ran.
     "alibaba/wan-3.0/text-to-video": 1.00,
     "bytedance/seedance-2.0/text-to-video": 1.00,
 }

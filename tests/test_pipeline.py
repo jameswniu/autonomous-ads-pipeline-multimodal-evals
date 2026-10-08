@@ -646,7 +646,7 @@ def test_a_dry_run_on_the_chain_board_shoots_each_scene_from_a_frame_in_order(tm
     assert all("the student" in r["prompt"] and "<IMAGE_REF_0>" not in r["prompt"] and "{character}" not in r["prompt"]
                for r in requests), requests
     est = [r for r in rows if r["kind"] == "estimate"][0]
-    assert est["est_usd"] == round(sum(r["est_usd"] for r in requests), 2) == 1.89, est
+    assert est["est_usd"] == round(sum(r["est_usd"] for r in requests), 2) == 1.92, est
 
 
 def test_a_dry_run_never_pays_the_first_frame_judge_even_with_props_named(tmp_path, monkeypatch):
@@ -689,7 +689,7 @@ def test_a_dry_run_on_the_shots_board_chains_four_shots_under_three_sentences(tm
     board = json.load(open(os.path.join(ROOT, "shoots/graph-zai-shots/boards.json")))["spots"]["zai"]
     assert board["slots"] == [["a"], ["b", "c"], ["d"]] and board["chain"] == ["a", "b", "c", "d"]
     est = [r for r in rows if r["kind"] == "estimate"][0]
-    assert est["est_usd"] == round(sum(r["est_usd"] for r in requests), 2) == 2.52, est
+    assert est["est_usd"] == round(sum(r["est_usd"] for r in requests), 2) == 2.56, est
 
 
 NOT_SCORED = {"hook": "missing", "realism": "missing", "absurdity": "missing", "logic": "missing", "scored_by": "missing"}

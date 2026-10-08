@@ -170,10 +170,10 @@ OWED = (None, "TIMEOUT", "UNCOLLECTED")
 WAIT_LIMIT = 40 * 60
 
 # What one run, one cut, may spend on its scenes, in dollars, when RUN_BUDGET_USD names no other sum. The
-# graph cut a person picked, shoots/graph-grok-hook, spent $3.78 on its scenes, six renders at $0.63, and the
-# spots shot by hand came to about $2.30 each, so a default of 4.00 covered a cut that goes the way those went
-# and allowed six renders at that price. The author raised it to 5.00 so a cut has room for one more take: seven
-# renders at $0.63 come to $4.41 and fit, while an eighth would bring the run to $5.04 and is not sent. The
+# graph cut a person picked, shoots/graph-grok-hook, sent six renders, which come to $3.84 at the $0.64 fal
+# bills for one, and the spots shot by hand came to about $2.30 each, so a default of 4.00 covered a cut that
+# goes the way those went and allowed six renders. The author raised it to 5.00 so a cut has room for one more
+# take: seven renders come to $4.48 and fit, while an eighth would bring the run to $5.12 and is not sent. The
 # re-roll ceiling in pipeline/graph.py starts again on every re-entry, and a run re-entered after each failed
 # take spends again each time, so the budget is held against everything the run's ledger holds. It counts only
 # what the ledger prices, the scene requests. The voice draws and the closer go on the ledger with no price, and
